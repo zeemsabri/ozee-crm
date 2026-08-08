@@ -70,7 +70,7 @@ class BillController extends Controller
             'document' => 'nullable|file|mimes:pdf|max:10240',
             'xero_account_code' => 'nullable|string|max:50',
             'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
-            'reference_number' => 'nullable|string|max:255',
+            'reference_number' => 'required|string|max:255',
             'due_date' => 'nullable|date',
             'currency' => 'nullable|string|max:3',
             'amount' => 'required|numeric|min:0.01',
@@ -78,7 +78,7 @@ class BillController extends Controller
 
         if ($isGeneralExpense) {
             $rules['transaction_type_id'] = 'nullable|exists:transaction_types,id';
-            $rules['contractor_id'] = 'nullable|exists:users,id';
+            $rules['contractor_id'] = 'required|exists:users,id';
         } else {
             $rules['contractor_id'] = 'required|exists:users,id';
             $rules['project_expendable_id'] = 'required|exists:project_expendables,id';
@@ -510,7 +510,25 @@ class BillController extends Controller
             });
         }
 
-        return response()->json($query->latest()->paginate(20));
+        $paginated = $query->latest()->paginate(20);
+
+        $pendingCount = Bill::where('status', \App\Enums\BillStatus::PendingApproval)->whereNull('deleted_at')->count();
+        $approvedCount = Bill::where('status', \App\Enums\BillStatus::Approved)->whereNull('deleted_at')->count();
+        $paidCount = Bill::whereIn('status', [\App\Enums\BillStatus::Paid, \App\Enums\BillStatus::PartialPaid])->whereNull('deleted_at')->count();
+        $voidCount = Bill::where('status', \App\Enums\BillStatus::Void)->whereNull('deleted_at')->count();
+        $deletedCount = Bill::onlyTrashed()->count();
+
+        return response()->json([
+            'pagination' => $paginated,
+            'counts' => [
+                'pending_approval' => $pendingCount,
+                'approved' => $approvedCount,
+                'paid' => $paidCount,
+                'void' => $voidCount,
+                'deleted' => $deletedCount,
+                'total' => $pendingCount + $approvedCount + $paidCount + $voidCount,
+            ]
+        ]);
     }
 
     public function uploadAttachment(Request $request, Bill $bill)

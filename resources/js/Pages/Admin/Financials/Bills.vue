@@ -38,6 +38,15 @@ const pagination = ref({
     per_page: 20,
 });
 
+const statusCounts = ref({
+    pending_approval: 0,
+    approved: 0,
+    paid: 0,
+    void: 0,
+    deleted: 0,
+    total: 0,
+});
+
 watch([filterStatus, filterProject], () => {
     pagination.value.current_page = 1;
     fetchBills();
@@ -199,12 +208,21 @@ const fetchBills = async () => {
                 page: pagination.value.current_page
             } 
         });
-        bills.value = data.data || [];
+        const paginationData = data.pagination || {};
+        bills.value = paginationData.data || [];
         pagination.value = {
-            total: data.total || 0,
-            current_page: data.current_page || 1,
-            last_page: data.last_page || 1,
-            per_page: data.per_page || 20,
+            total: paginationData.total || 0,
+            current_page: paginationData.current_page || 1,
+            last_page: paginationData.last_page || 1,
+            per_page: paginationData.per_page || 20,
+        };
+        statusCounts.value = data.counts || {
+            pending_approval: 0,
+            approved: 0,
+            paid: 0,
+            void: 0,
+            deleted: 0,
+            total: 0,
         };
         bills.value.forEach((bill) => {
             getApprovalConfig(bill);
@@ -309,6 +327,25 @@ watch(() => form.project_expendable_id, () => {
     }
 });
 
+watch(() => form.contractor_id, async (newId) => {
+    if (!newId) return;
+    try {
+        const { data } = await axios.get(`/api/users/${newId}/latest-payment-details`);
+        if (data) {
+            form.payment_details.payment_method = data.payment_method || 'bank_transfer';
+            form.payment_details.account_name = data.account_name || '';
+            form.payment_details.account_number = data.account_number || '';
+            form.payment_details.bank_name = data.bank_name || '';
+            form.payment_details.bsb = data.bsb || '';
+            form.payment_details.swift_code = data.swift_code || '';
+            form.payment_details.iban = data.iban || '';
+            form.payment_details.notes = data.notes || '';
+        }
+    } catch (err) {
+        console.error('Failed to fetch latest payment details', err);
+    }
+});
+
 watch(() => form.transaction_type_id, () => {
     if (selectedTransactionType.value?.xero_account_code && !form.xero_account_code) {
         form.xero_account_code = selectedTransactionType.value.xero_account_code;
@@ -382,6 +419,8 @@ const formatPaymentTerms = (terms) => {
 };
 
 const submitBill = () => {
+    if (!form.reference_number) return error('Please enter a Reference Number.');
+
     if (form.bill_type === 'contractor_bill') {
         if (!form.project_expendable_id) return error('Please select a contract.');
         if (!form.project_id) return error('Please select a project.');
@@ -389,6 +428,7 @@ const submitBill = () => {
         if (!form.transaction_type_id) return error('Please select a transaction type.');
     } else {
         if (!form.project_id) return error('Please select a project.');
+        if (!form.contractor_id) return error('Please select a Supplier.');
     }
 
     form.clearErrors();
@@ -656,12 +696,44 @@ const getStatusClass = (status, bill) => {
         <div class="py-12">
             <div class="max-w-[100%] px-4 sm:px-6 lg:px-8 space-y-6">
                 <!-- Stats Dashboard Grid -->
-                <div v-if="!loading && bills.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                    <!-- Total Count Card -->
-                    <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm border-l-4 border-l-indigo-500">
-                        <div class="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Filtered Bills</div>
+                <div v-if="!loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                    <!-- Pending Approval Card -->
+                    <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm border-l-4 border-l-amber-500">
+                        <div class="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Pending Approval</div>
                         <div class="mt-2 flex items-baseline justify-between">
-                            <div class="text-xl font-bold text-indigo-950">{{ pagination.total }}</div>
+                            <div class="text-xl font-bold text-amber-950">{{ statusCounts.pending_approval }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Approved Card -->
+                    <div class="bg-white border border-blue-200 rounded-lg p-4 shadow-sm border-l-4 border-l-blue-500">
+                        <div class="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Approved</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-xl font-bold text-blue-950">{{ statusCounts.approved }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Paid Card -->
+                    <div class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm border-l-4 border-l-emerald-500">
+                        <div class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">Paid / Partial</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-xl font-bold text-emerald-950">{{ statusCounts.paid }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Void Card -->
+                    <div class="bg-white border border-rose-200 rounded-lg p-4 shadow-sm border-l-4 border-l-rose-500">
+                        <div class="text-[10px] font-semibold text-rose-600 uppercase tracking-wider">Voided</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-xl font-bold text-rose-950">{{ statusCounts.void }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Total Active Card -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm border-l-4 border-l-gray-400">
+                        <div class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Total Active</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-xl font-bold text-gray-900">{{ statusCounts.total }}</div>
                         </div>
                     </div>
                 </div>
@@ -922,7 +994,7 @@ const getStatusClass = (status, bill) => {
                     </div>
 
                     <div v-if="form.bill_type === 'general_expense'">
-                        <InputLabel for="supplier_id" value="Supplier (Optional)" />
+                        <InputLabel for="supplier_id" value="Supplier" />
                         <SelectDropdown
                             id="supplier_id"
                             v-model="form.contractor_id"
@@ -1055,6 +1127,7 @@ const getStatusClass = (status, bill) => {
                                 v-model="form.payment_details.account_name"
                                 type="text"
                                 class="mt-1 block w-full"
+                                autocomplete="new-password"
                             />
                             <InputError :message="form.errors['payment_details.account_name']" />
                         </div>
@@ -1066,6 +1139,7 @@ const getStatusClass = (status, bill) => {
                                 v-model="form.payment_details.account_number"
                                 type="text"
                                 class="mt-1 block w-full"
+                                autocomplete="new-password"
                             />
                             <InputError :message="form.errors['payment_details.account_number']" />
                         </div>
@@ -1077,6 +1151,7 @@ const getStatusClass = (status, bill) => {
                                 v-model="form.payment_details.bank_name"
                                 type="text"
                                 class="mt-1 block w-full"
+                                autocomplete="new-password"
                             />
                             <InputError :message="form.errors['payment_details.bank_name']" />
                         </div>
@@ -1089,6 +1164,7 @@ const getStatusClass = (status, bill) => {
                                     v-model="form.payment_details.bsb"
                                     type="text"
                                     class="mt-1 block w-full"
+                                    autocomplete="new-password"
                                 />
                                 <InputError :message="form.errors['payment_details.bsb']" />
                             </div>
@@ -1099,6 +1175,7 @@ const getStatusClass = (status, bill) => {
                                     v-model="form.payment_details.swift_code"
                                     type="text"
                                     class="mt-1 block w-full"
+                                    autocomplete="new-password"
                                 />
                                 <InputError :message="form.errors['payment_details.swift_code']" />
                             </div>
@@ -1111,6 +1188,7 @@ const getStatusClass = (status, bill) => {
                                 v-model="form.payment_details.iban"
                                 type="text"
                                 class="mt-1 block w-full"
+                                autocomplete="new-password"
                             />
                             <InputError :message="form.errors['payment_details.iban']" />
                         </div>
@@ -1122,6 +1200,7 @@ const getStatusClass = (status, bill) => {
                                 v-model="form.payment_details.notes"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                 rows="2"
+                                autocomplete="new-password"
                             ></textarea>
                             <InputError :message="form.errors['payment_details.notes']" />
                         </div>

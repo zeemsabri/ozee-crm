@@ -537,6 +537,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('users/{user}/xero-contact-candidates', [UserController::class, 'xeroContactCandidates']);
     Route::post('users/{user}/xero-contact-sync', [UserController::class, 'syncXeroContact']);
     Route::post('users/{user}/xero-contact-create', [UserController::class, 'createXeroContact']);
+    Route::get('users/{user}/latest-payment-details', [UserController::class, 'latestPaymentDetails'])->name('api.users.latest-payment-details');
     Route::get('users/{user}/emails', [UserController::class, 'emails']);
     Route::get('users/{user}/metadata', [UserWidgetController::class, 'getMetadata']);
     Route::post('users/{user}/metadata', [UserWidgetController::class, 'updateMetadata']);

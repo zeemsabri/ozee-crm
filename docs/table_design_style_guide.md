@@ -55,13 +55,14 @@ Stats cards provide quick business insights at the top of the interface. They ar
 </div>
 ```
 
-| Card Type | Accent Color | Border Style | Accent Text Color |
-| :--- | :--- | :--- | :--- |
-| **Total / Neutral** | Gray | `border-gray-200` | `text-gray-900` |
-| **Primary Info** | Indigo | `border-l-indigo-500 border-indigo-200` | `text-indigo-950` |
-| **General Info** | Blue | `border-l-blue-500 border-blue-200` | `text-blue-950` |
-| **Success State** | Emerald | `border-l-emerald-500 border-emerald-200` | `text-emerald-950` |
-| **Warning / Alert** | Amber | `border-l-amber-500 border-amber-200` | `text-amber-950` |
+| Card Type | Accent Color | Border Style | Accent Text Color | Typical Usage |
+| :--- | :--- | :--- | :--- | :--- |
+| **Total / Neutral** | Gray | `border-gray-200` | `text-gray-900` | Total Invoices, Total Items |
+| **Primary Info** | Indigo | `border-l-indigo-500 border-indigo-200` | `text-indigo-950` | Synced Invoices |
+| **General Info** | Blue | `border-l-blue-500 border-blue-200` | `text-blue-950` | Approved Bills, Active Invoices |
+| **Success State** | Emerald | `border-l-emerald-500 border-emerald-200` | `text-emerald-950` | Paid Invoices / Paid Bills |
+| **Warning / Alert** | Amber | `border-l-amber-500 border-amber-200` | `text-amber-950` | Pending Approvals, Unsynced Invoices |
+| **Danger / Alert** | Rose | `border-l-rose-500 border-rose-200` | `text-rose-950` | Voided Bills, Voided Invoices |
 
 ---
 

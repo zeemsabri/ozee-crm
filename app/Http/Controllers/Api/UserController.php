@@ -549,4 +549,13 @@ class UserController extends Controller
             abort(403, 'Unauthorized');
         }
     }
+
+    public function latestPaymentDetails(User $user)
+    {
+        $latest = \App\Models\BillPaymentDetail::where('contractor_id', $user->id)
+            ->latest()
+            ->first();
+
+        return response()->json($latest ? $latest->details : null);
+    }
 }
