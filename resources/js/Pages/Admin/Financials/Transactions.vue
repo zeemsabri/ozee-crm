@@ -68,6 +68,9 @@ const stripeChargeLinkForm = ref({
     gross_amount: '',
     stripe_fee: '',
     create_fee_record: true,
+    transaction_type: null,
+    currency: 'AUD',
+    conversion_rate: 1.0,
 });
 
 const openStripeChargeLinkModal = (charge) => {
@@ -81,6 +84,9 @@ const openStripeChargeLinkModal = (charge) => {
         gross_amount: charge.gross,
         stripe_fee: charge.fee,
         create_fee_record: true,
+        transaction_type: null,
+        currency: charge.currency ? charge.currency.toUpperCase() : 'AUD',
+        conversion_rate: 1.0,
     };
     showStripeChargeLinkModal.value = true;
 };
@@ -101,14 +107,27 @@ const submitStripeChargeLink = async () => {
             return;
         }
 
+        let txType = stripeChargeLinkForm.value.transaction_type;
+        if (txType && typeof txType === 'object') {
+            txType = txType.value ?? txType.id ?? txType.name;
+        }
+
+        if (!txType) {
+            error('Please select a transaction type.');
+            return;
+        }
+
         const payload = {
             project_id: projectId,
+            client_id: selectedInvoice?.client_id,
             invoice_id: stripeChargeLinkForm.value.invoice_id,
             description: selectedStripeCharge.value?.description || `Stripe Payment - ${selectedStripeCharge.value?.customer_name || 'Customer'}`,
             amount: Number(stripeChargeLinkForm.value.gross_amount),
             stripe_fee: Number(stripeChargeLinkForm.value.stripe_fee || 0),
             create_fee_record: stripeChargeLinkForm.value.create_fee_record,
-            currency: selectedStripeCharge.value?.currency || selectedInvoice?.currency || 'AUD',
+            currency: stripeChargeLinkForm.value.currency || 'AUD',
+            conversion_rate: stripeChargeLinkForm.value.currency !== 'AUD' ? Number(stripeChargeLinkForm.value.conversion_rate) : 1.0,
+            transaction_type_id: txType,
             type: 'income',
             bank_transaction_id: selectedBankTxDetails.value?.id || '',
         };
@@ -1898,7 +1917,39 @@ const formatDate = (dateStr) => {
                         />
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-3 mt-4">
+                        <div>
+                            <InputLabel for="stripe_currency" value="Currency" />
+                            <SelectDropdown
+                                id="stripe_currency"
+                                v-model="stripeChargeLinkForm.currency"
+                                :options="currencyOptions"
+                            />
+                        </div>
+
+                        <div v-if="stripeChargeLinkForm.currency !== 'AUD'">
+                            <InputLabel for="stripe_conversion_rate" value="Exchange Rate (to AUD)" />
+                            <TextInput
+                                id="stripe_conversion_rate"
+                                v-model="stripeChargeLinkForm.conversion_rate"
+                                type="number"
+                                step="0.000001"
+                                class="mt-1 block w-full"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <BasicPropertyInput
+                            v-model="stripeChargeLinkForm.transaction_type"
+                            label="Transaction Type"
+                            placeholder="Select or add transaction type"
+                            :required="true"
+                            search-url="/api/transaction-types/search"
+                        />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mt-4">
                         <div>
                             <InputLabel for="charge_gross_amount" value="Invoice Credit Amount (Gross)" />
                             <TextInput
