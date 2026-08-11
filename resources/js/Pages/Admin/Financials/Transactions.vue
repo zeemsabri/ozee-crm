@@ -64,6 +64,7 @@ const showStripeChargeLinkModal = ref(false);
 const selectedStripeCharge = ref(null);
 const stripeChargeLinkLoading = ref(false);
 const stripeChargeLinkForm = ref({
+    project_id: null,
     invoice_id: '',
     gross_amount: '',
     stripe_fee: '',
@@ -80,6 +81,7 @@ const openStripeChargeLinkModal = (charge) => {
         : '';
 
     stripeChargeLinkForm.value = {
+        project_id: null,
         invoice_id: defaultInvoiceId,
         gross_amount: charge.gross,
         stripe_fee: charge.fee,
@@ -89,6 +91,24 @@ const openStripeChargeLinkModal = (charge) => {
         conversion_rate: 1.0,
     };
     showStripeChargeLinkModal.value = true;
+    invoices.value = outstandingInvoices.value;
+};
+
+const handleStripeProjectChange = async () => {
+    const pId = stripeChargeLinkForm.value.project_id;
+    stripeChargeLinkForm.value.invoice_id = null;
+    if (!pId) {
+        invoices.value = outstandingInvoices.value;
+        return;
+    }
+    try {
+        const [invoicesRes] = await Promise.all([
+            axios.get(`/api/projects/${pId}/invoices`)
+        ]);
+        invoices.value = (invoicesRes.data || []).filter(i => i.status === 'authorised' || i.status === 'sent' || i.status === 'partial_paid' || i.status === 'paid');
+    } catch (err) {
+        console.error(err);
+    }
 };
 
 const submitStripeChargeLink = async () => {
@@ -343,6 +363,22 @@ const invoiceOptions = computed(() => {
         let status = (invoice.status || 'unknown').toUpperCase();
         let label = `OZI${invoice.id} - ${invoice.total_amount} ${invoice.currency || 'AUD'} (${invoice.invoice_number || 'No Ref'}) - Date: ${invoiceDate} - Status: ${status}`;
         if (!transactionForm.value.project_id && invoice.project) {
+            label += ` - ${invoice.project.name}`;
+        }
+        return { value: invoice.id, label };
+    });
+});
+
+const stripeInvoiceOptions = computed(() => {
+    let filtered = invoices.value;
+    if (!showPaidInvoices.value) {
+        filtered = filtered.filter(i => i.status !== 'paid');
+    }
+    return filtered.map(invoice => {
+        let invoiceDate = invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A';
+        let status = (invoice.status || 'unknown').toUpperCase();
+        let label = `OZI${invoice.id} - ${invoice.total_amount} ${invoice.currency || 'AUD'} (${invoice.invoice_number || 'No Ref'}) - Date: ${invoiceDate} - Status: ${status}`;
+        if (!stripeChargeLinkForm.value.project_id && invoice.project) {
             label += ` - ${invoice.project.name}`;
         }
         return { value: invoice.id, label };
@@ -1901,6 +1937,18 @@ const formatDate = (dateStr) => {
                     </div>
 
                     <div>
+                        <InputLabel for="stripe_project_id" value="Select Project (Optional)" />
+                        <AsyncSearchDropdown
+                            id="stripe_project_id"
+                            v-model="stripeChargeLinkForm.project_id"
+                            :options="projectOptions"
+                            labelKey="name"
+                            placeholder="Filter invoices by project"
+                            @change="handleStripeProjectChange"
+                        />
+                    </div>
+
+                    <div>
                         <div class="flex justify-between items-center mb-1">
                             <InputLabel for="stripe_charge_invoice_id" value="Select Invoice to Clear" class="mb-0" />
                             <label class="flex items-center text-xs text-gray-600">
@@ -1912,7 +1960,7 @@ const formatDate = (dateStr) => {
                         <SelectDropdown
                             id="stripe_charge_invoice_id"
                             v-model="stripeChargeLinkForm.invoice_id"
-                            :options="invoiceOptions"
+                            :options="stripeInvoiceOptions"
                             placeholder="Select customer invoice"
                         />
                     </div>
