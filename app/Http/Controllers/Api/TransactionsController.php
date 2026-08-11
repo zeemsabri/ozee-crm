@@ -26,7 +26,7 @@ class TransactionsController extends Controller // Assuming your controller is n
             ->with(['project:id,name', 'contractor:id,name'])
             ->get();
 
-        $invoices = \App\Models\Invoice::whereIn('status', ['authorised', 'sent', 'partial_paid'])
+        $invoices = \App\Models\Invoice::whereIn('status', ['authorised', 'sent', 'partial_paid', 'paid'])
             ->with(['project:id,name', 'client:id,name'])
             ->get();
 
@@ -507,6 +507,8 @@ class TransactionsController extends Controller // Assuming your controller is n
         ]);
 
         $invoice = \App\Models\Invoice::findOrFail($validated['invoice_id']);
+        
+        $wasAlreadyPaid = $invoice->status === 'paid';
 
         $stripeFee = (float)($validated['stripe_fee'] ?? 0);
         $grossAmount = !empty($validated['gross_amount']) ? (float)$validated['gross_amount'] : null;
@@ -544,8 +546,8 @@ class TransactionsController extends Controller // Assuming your controller is n
             }
         }
 
-        // Sync payment to Xero if invoice has xero_invoice_id
-        if (!empty($invoice->xero_invoice_id)) {
+        // Sync payment to Xero if invoice has xero_invoice_id and wasn't already paid
+        if (!empty($invoice->xero_invoice_id) && !$wasAlreadyPaid) {
             try {
                 $xeroInvoiceService->syncPaymentToXero($invoice, $transaction, [
                     'payment_amount' => $transaction->amount,

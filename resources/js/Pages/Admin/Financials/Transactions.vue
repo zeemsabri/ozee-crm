@@ -453,7 +453,7 @@ const handleProjectChange = async () => {
         users.value = usersClientsRes.data.users || [];
         clients.value = usersClientsRes.data.clients || [];
         bills.value = (billsRes.data || []).filter(b => b.status === 'approved' || b.status === 'partial_paid');
-        invoices.value = (invoicesRes.data || []).filter(i => i.status === 'authorised' || i.status === 'sent' || i.status === 'partial_paid');
+        invoices.value = (invoicesRes.data || []).filter(i => i.status === 'authorised' || i.status === 'sent' || i.status === 'partial_paid' || i.status === 'paid');
     } catch (err) {
         console.error(err);
     }
@@ -719,7 +719,7 @@ const openLinkDocModal = async (tx) => {
             axios.get(`/api/projects/${tx.project_id}/invoices`)
         ]);
         bills.value = (billsRes.data || []).filter(b => b.status === 'approved' || b.status === 'partial_paid');
-        invoices.value = (invoicesRes.data || []).filter(i => i.status === 'authorised' || i.status === 'sent' || i.status === 'partial_paid');
+        invoices.value = (invoicesRes.data || []).filter(i => i.status === 'authorised' || i.status === 'sent' || i.status === 'partial_paid' || i.status === 'paid');
     } catch (err) {
         console.error(err);
     }
