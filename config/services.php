@@ -75,7 +75,7 @@ return [
     ],
 
     'stripe' => [
-        'secret' => env('STRIPE_RESTRICTED_KEY', env('STRIPE_SECRET_KEY')),
+        'secret' => env('STRIPE_MMS_READ', env('STRIPE_RESTRICTED_KEY', env('STRIPE_SECRET_KEY'))),
     ],
 
     'default_currency' => env('DEFAULT_CURRENCY', 'AUD'),

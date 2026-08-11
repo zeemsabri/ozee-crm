@@ -23,10 +23,6 @@ class StripePayoutService
             return $key;
         }
 
-        $key = env('STRIPE_RESTRICTED_KEY') ?: env('STRIPE_SECRET_KEY') ?: env('STRIPE_KEY');
-        if (!empty($key)) {
-            return $key;
-        }
 
         $config = StripeConfiguration::latest()->first();
         return $config?->stripe_secret_key;
@@ -48,18 +44,34 @@ class StripePayoutService
     /**
      * Fetch Payout details and customer payment breakdown from local DB or Stripe API.
      */
-    public function getPayoutDetails(string $description, ?string $settledDate = null): array
+    public function getPayoutDetails(string $description, ?string $settledDate = null, float $bankAmount = 0.0): array
     {
         $traceId = $this->extractTraceId($description);
 
         // 1. Check local DB table 'stripe_payouts' first
-        $dbPayout = StripePayout::where('trace_id', $traceId)
-            ->orWhere('statement_descriptor', $description)
-            ->orWhere('statement_descriptor', 'LIKE', "%{$traceId}%")
-            ->orWhere('id', $traceId)
-            ->first();
+        $query = StripePayout::query();
+        $query->where(function ($q) use ($traceId, $description, $bankAmount) {
+            $q->where('trace_id', $traceId)
+              ->orWhere('statement_descriptor', $description)
+              ->orWhere('statement_descriptor', 'LIKE', "%{$traceId}%")
+              ->orWhere('id', $traceId);
+
+            if ($bankAmount > 0) {
+                $q->orWhere('amount', $bankAmount)
+                  ->orWhere('total_net', $bankAmount);
+            }
+        });
+
+        $dbPayout = $query->first();
 
         if ($dbPayout) {
+            Log::info("STRIPE API SERVICE: Match found in local DB table stripe_payouts", [
+                'payoutId' => $dbPayout->id,
+                'dbTraceId' => $dbPayout->trace_id,
+                'dbDescriptor' => $dbPayout->statement_descriptor,
+                'dbAmount' => $dbPayout->amount,
+            ]);
+
             $breakdown = $dbPayout->breakdown ?? [];
             foreach ($breakdown as &$charge) {
                 $charge['matching_invoices'] = $this->findMatchingInvoices(
@@ -92,6 +104,7 @@ class StripePayoutService
         // 2. Fetch from Stripe API if API key is configured
         $apiKey = $this->getApiKey();
         if (empty($apiKey)) {
+            Log::warning("STRIPE API SERVICE: Secret API Key is empty");
             return [
                 'found' => false,
                 'message' => 'Stripe secret/restricted API key is not configured in .env (STRIPE_RESTRICTED_KEY) or admin configuration.',
@@ -101,18 +114,23 @@ class StripePayoutService
 
         try {
             Stripe::setApiKey($apiKey);
-            $payout = $this->findAndSyncPayout($description, $traceId, $settledDate);
+            $payout = $this->findAndSyncPayout($description, $traceId, $settledDate, $bankAmount);
 
             if (!$payout) {
+                Log::info("STRIPE API SERVICE: No matching payout found after scanning Stripe API", [
+                    'traceId' => $traceId,
+                    'description' => $description,
+                    'bankAmount' => $bankAmount,
+                ]);
                 return [
                     'found' => false,
-                    'message' => "No matching Stripe payout found for trace ID: '{$traceId}' ({$description}). List was scanned and single payout objects were retrieved.",
+                    'message' => "No matching Stripe payout found for trace ID: '{$traceId}' (Amount: \${$bankAmount}). List was scanned and single payout objects were retrieved.",
                     'trace_id' => $traceId,
                 ];
             }
 
             // Return freshly synced DB record
-            return $this->getPayoutDetails($description, $settledDate);
+            return $this->getPayoutDetails($description, $settledDate, $bankAmount);
         } catch (Exception $e) {
             Log::error('Error in StripePayoutService getPayoutDetails', [
                 'description' => $description,
@@ -131,10 +149,11 @@ class StripePayoutService
      * Find Payout from Stripe API (fetching single Payout GET requests for full trace_id hash)
      * and persist to local DB table 'stripe_payouts'.
      */
-    private function findAndSyncPayout(string $description, string $traceId, ?string $settledDate = null): ?StripePayout
+    private function findAndSyncPayout(string $description, string $traceId, ?string $settledDate = null, float $bankAmount = 0.0): ?StripePayout
     {
         // Direct ID retrieve if description or traceId contains po_...
         if (preg_match('/po_[a-zA-Z0-9]+/', $description, $m) || preg_match('/po_[a-zA-Z0-9]+/', $traceId, $m)) {
+            Log::info("STRIPE API SERVICE: Attempting direct Payout::retrieve({$m[0]})");
             try {
                 $p = Payout::retrieve($m[0]);
                 return $this->syncPayoutToDb($p);
@@ -156,16 +175,24 @@ class StripePayoutService
                     ];
                 }
             }
+            Log::info("STRIPE API SERVICE: Calling GET /v1/payouts (Payout::all)", ['params' => $params]);
             $list = Payout::all($params);
             $payoutList = $list->data ?? [];
+            Log::info("STRIPE API SERVICE: Payout::all() returned " . count($payoutList) . " items", [
+                'ids' => array_map(fn($item) => $item->id, $payoutList)
+            ]);
         } catch (Exception $e) {
             Log::warning('Failed listing payouts from Stripe: ' . $e->getMessage());
         }
 
         if (empty($payoutList)) {
             try {
+                Log::info("STRIPE API SERVICE: Fallback calling GET /v1/payouts with limit=50 without date filter");
                 $list = Payout::all(['limit' => 50]);
                 $payoutList = $list->data ?? [];
+                Log::info("STRIPE API SERVICE: Fallback Payout::all() returned " . count($payoutList) . " items", [
+                    'ids' => array_map(fn($item) => $item->id, $payoutList)
+                ]);
             } catch (Exception $e) {
                 Log::warning('Fallback payout list failed: ' . $e->getMessage());
             }
@@ -176,6 +203,7 @@ class StripePayoutService
         $matchedRecord = null;
         foreach ($payoutList as $summaryPayout) {
             try {
+                Log::info("STRIPE API SERVICE: Fetching individual GET /v1/payouts/{$summaryPayout->id} (Payout::retrieve)");
                 $fullPayout = Payout::retrieve($summaryPayout->id);
                 $savedRecord = $this->syncPayoutToDb($fullPayout);
 
@@ -184,9 +212,12 @@ class StripePayoutService
                     $dbDesc = (string)($savedRecord->statement_descriptor ?? '');
                     $dbId = (string)($savedRecord->id ?? '');
 
-                    $isMatch = ($dbTrace && (strcasecmp($dbTrace, $traceId) === 0 || stripos($description, $dbTrace) !== false || stripos($dbTrace, $traceId) !== false))
-                        || ($dbDesc && (stripos($dbDesc, $traceId) !== false || stripos($description, $dbDesc) !== false))
-                        || ($dbId && (stripos($description, $dbId) !== false || strcasecmp($dbId, $traceId) === 0));
+                    $isTraceMatch = ($dbTrace && (strcasecmp($dbTrace, $traceId) === 0 || stripos($description, $dbTrace) !== false || stripos($dbTrace, $traceId) !== false));
+                    $isDescMatch = ($dbDesc && (stripos($dbDesc, $traceId) !== false || stripos($description, $dbDesc) !== false));
+                    $isIdMatch = ($dbId && (stripos($description, $dbId) !== false || strcasecmp($dbId, $traceId) === 0));
+                    $isAmountMatch = ($bankAmount > 0 && abs((float)$savedRecord->amount - $bankAmount) < 0.02);
+
+                    $isMatch = ($isTraceMatch || $isDescMatch || $isIdMatch || $isAmountMatch);
 
                     if ($isMatch) {
                         $matchedRecord = $savedRecord;
@@ -230,6 +261,11 @@ class StripePayoutService
         $totalNet = 0;
 
         foreach ($balanceTxs->data as $bt) {
+            // Skip the payout transaction itself, we only want the charges/payments that make it up
+            if ($bt->type === 'payout') {
+                continue;
+            }
+
             $gross = round(($bt->amount ?? 0) / 100, 2);
             $fee = round(($bt->fee ?? 0) / 100, 2);
             $net = round(($bt->net ?? 0) / 100, 2);

@@ -833,8 +833,10 @@ class TransactionsController extends Controller // Assuming your controller is n
                 'settledAt' => $settledAt,
             ]);
 
-            if (!empty($fullText) || ($data['amount'] ?? 0) > 0) {
-                $stripeDetails = $stripePayoutService->getPayoutDetails($fullText ?: 'STRIPE', $settledAt);
+            $bankAmount = (float)($data['amount'] ?? 0);
+
+            if (!empty($fullText) || $bankAmount > 0) {
+                $stripeDetails = $stripePayoutService->getPayoutDetails($fullText ?: 'STRIPE', $settledAt, $bankAmount);
                 if (!empty($stripeDetails)) {
                     $data['stripe_details'] = $stripeDetails;
                 }
