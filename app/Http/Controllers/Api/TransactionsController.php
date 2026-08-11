@@ -24,11 +24,23 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         $bills = \App\Models\Bill::whereIn('status', [\App\Enums\BillStatus::Approved, \App\Enums\BillStatus::PartialPaid])
             ->with(['project:id,name', 'contractor:id,name'])
-            ->get();
+            ->withSum('transactions as linked_amount', 'amount')
+            ->get()
+            ->filter(function($bill) {
+                $remaining = $bill->amount - ($bill->linked_amount ?? 0);
+                return $remaining > 0.01;
+            })
+            ->values();
 
         $invoices = \App\Models\Invoice::whereIn('status', ['authorised', 'sent', 'partial_paid', 'paid'])
             ->with(['project:id,name', 'client:id,name'])
-            ->get();
+            ->withSum('transactions as linked_amount', 'amount')
+            ->get()
+            ->filter(function($invoice) {
+                $remaining = $invoice->total_amount - ($invoice->linked_amount ?? 0);
+                return $remaining > 0.01;
+            })
+            ->values();
 
         return response()->json([
             'bills' => $bills,
