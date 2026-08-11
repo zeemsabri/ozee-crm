@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use App\Services\AirwallexService;
+use App\Services\StripePayoutService;
+use App\Services\XeroInvoiceService;
 
 class TransactionsController extends Controller // Assuming your controller is named TransactionController
 {
@@ -495,13 +497,26 @@ class TransactionsController extends Controller // Assuming your controller is n
         ]);
     }
 
-    public function linkInvoice(Request $request, Transaction $transaction)
+    public function linkInvoice(Request $request, Transaction $transaction, XeroInvoiceService $xeroInvoiceService)
     {
         $validated = $request->validate([
             'invoice_id' => 'required|exists:invoices,id',
+            'stripe_fee' => 'nullable|numeric|min:0',
+            'gross_amount' => 'nullable|numeric|min:0',
+            'create_fee_record' => 'nullable|boolean',
         ]);
 
         $invoice = \App\Models\Invoice::findOrFail($validated['invoice_id']);
+
+        $stripeFee = (float)($validated['stripe_fee'] ?? 0);
+        $grossAmount = !empty($validated['gross_amount']) ? (float)$validated['gross_amount'] : null;
+
+        // If gross amount or stripe fee provided, adjust income transaction amount so Invoice is fully credited
+        if ($grossAmount !== null && $grossAmount > 0) {
+            $transaction->amount = $grossAmount;
+        } elseif ($stripeFee > 0 && $transaction->amount < $invoice->total_amount) {
+            $transaction->amount = $transaction->amount + $stripeFee;
+        }
 
         $transaction->update([
             'invoice_id' => $invoice->id,
@@ -510,6 +525,35 @@ class TransactionsController extends Controller // Assuming your controller is n
         ]);
 
         $invoice->recalculateStatus();
+
+        // Optionally record a Stripe Processing Fee expense transaction for project accounting
+        if ($stripeFee > 0 && !empty($validated['create_fee_record'])) {
+            try {
+                Transaction::create([
+                    'project_id' => $invoice->project_id,
+                    'description' => "Stripe Processing Fee (Invoice #{$invoice->id})",
+                    'amount' => $stripeFee,
+                    'currency' => $transaction->currency ?: ($invoice->currency ?: 'AUD'),
+                    'type' => 'expense',
+                    'is_paid' => true,
+                    'payment_date' => $transaction->payment_date ?: now(),
+                    'bank_transaction_id' => $transaction->bank_transaction_id,
+                ]);
+            } catch (\Exception $e) {
+                Log::warning("Failed to create Stripe fee expense transaction: " . $e->getMessage());
+            }
+        }
+
+        // Sync payment to Xero if invoice has xero_invoice_id
+        if (!empty($invoice->xero_invoice_id)) {
+            try {
+                $xeroInvoiceService->syncPaymentToXero($invoice, $transaction, [
+                    'payment_amount' => $transaction->amount,
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Failed to sync invoice payment to Xero: " . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'message' => 'Transaction linked to invoice successfully.',
@@ -767,10 +811,35 @@ class TransactionsController extends Controller // Assuming your controller is n
         }
     }
 
-    public function showBankTransaction(string $id, AirwallexService $airwallexService)
+    public function showBankTransaction(string $id, AirwallexService $airwallexService, StripePayoutService $stripePayoutService)
     {
         try {
             $data = $this->getBankTransactionData($id, $airwallexService);
+
+            $possibleTexts = array_filter([
+                $data['description'] ?? null,
+                $data['merchant_name'] ?? null,
+                $data['reference'] ?? null,
+                $data['narrative'] ?? null,
+                $data['payment_details']['reference'] ?? null,
+                $data['details']['description'] ?? null,
+            ], fn($v) => !empty($v) && is_string($v));
+
+            $fullText = trim(implode(' ', $possibleTexts));
+            $settledAt = $data['settled_at'] ?? $data['created_at'] ?? null;
+
+            Log::info("showBankTransaction fetching Stripe details for bank ID: {$id}", [
+                'fullText' => $fullText,
+                'settledAt' => $settledAt,
+            ]);
+
+            if (!empty($fullText) || ($data['amount'] ?? 0) > 0) {
+                $stripeDetails = $stripePayoutService->getPayoutDetails($fullText ?: 'STRIPE', $settledAt);
+                if (!empty($stripeDetails)) {
+                    $data['stripe_details'] = $stripeDetails;
+                }
+            }
+
             return response()->json($data);
         } catch (\Exception $e) {
             Log::error('Error fetching bank transaction details', ['id' => $id, 'error' => $e->getMessage()]);

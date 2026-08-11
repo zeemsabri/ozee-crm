@@ -59,6 +59,86 @@ const openBankTxDetailsSidebar = async (btxId) => {
     }
 };
 
+// Stripe Line-Item Charge Linking state
+const showStripeChargeLinkModal = ref(false);
+const selectedStripeCharge = ref(null);
+const stripeChargeLinkLoading = ref(false);
+const stripeChargeLinkForm = ref({
+    invoice_id: '',
+    gross_amount: '',
+    stripe_fee: '',
+    create_fee_record: true,
+});
+
+const openStripeChargeLinkModal = (charge) => {
+    selectedStripeCharge.value = charge;
+    const defaultInvoiceId = charge.matching_invoices && charge.matching_invoices.length > 0
+        ? charge.matching_invoices[0].id
+        : '';
+
+    stripeChargeLinkForm.value = {
+        invoice_id: defaultInvoiceId,
+        gross_amount: charge.gross,
+        stripe_fee: charge.fee,
+        create_fee_record: true,
+    };
+    showStripeChargeLinkModal.value = true;
+};
+
+const submitStripeChargeLink = async () => {
+    if (!stripeChargeLinkForm.value.invoice_id) {
+        error('Please select an invoice to link.');
+        return;
+    }
+    stripeChargeLinkLoading.value = true;
+    try {
+        const selectedInvoice = outstandingInvoices.value.find(i => i.id === stripeChargeLinkForm.value.invoice_id)
+            || invoices.value.find(i => i.id === stripeChargeLinkForm.value.invoice_id);
+
+        const projectId = selectedInvoice?.project_id;
+        if (!projectId) {
+            error('Invalid project associated with selected invoice.');
+            return;
+        }
+
+        const payload = {
+            project_id: projectId,
+            invoice_id: stripeChargeLinkForm.value.invoice_id,
+            description: selectedStripeCharge.value?.description || `Stripe Payment - ${selectedStripeCharge.value?.customer_name || 'Customer'}`,
+            amount: Number(stripeChargeLinkForm.value.gross_amount),
+            stripe_fee: Number(stripeChargeLinkForm.value.stripe_fee || 0),
+            create_fee_record: stripeChargeLinkForm.value.create_fee_record,
+            currency: selectedStripeCharge.value?.currency || selectedInvoice?.currency || 'AUD',
+            type: 'income',
+            bank_transaction_id: selectedBankTxDetails.value?.id || '',
+        };
+
+        const { data } = await axios.post(`/api/projects/${projectId}/transactions`, payload);
+
+        if (stripeChargeLinkForm.value.invoice_id) {
+            await axios.post(`/api/transactions/${data.id}/link-invoice`, {
+                invoice_id: stripeChargeLinkForm.value.invoice_id,
+                stripe_fee: Number(stripeChargeLinkForm.value.stripe_fee || 0),
+                gross_amount: Number(stripeChargeLinkForm.value.gross_amount),
+                create_fee_record: stripeChargeLinkForm.value.create_fee_record,
+            });
+        }
+
+        success('Stripe customer payment linked to invoice successfully. Xero payment synced.');
+        showStripeChargeLinkModal.value = false;
+
+        if (selectedBankTxDetails.value?.id) {
+            await openBankTxDetailsSidebar(selectedBankTxDetails.value.id);
+        }
+        fetchTransactions(pagination.value.current_page);
+        fetchBankTransactions(bankPagination.value?.current_page || 1);
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to link Stripe charge to invoice');
+    } finally {
+        stripeChargeLinkLoading.value = false;
+    }
+};
+
 const openLinkedDocSidebar = (doc, type) => {
     selectedLinkedDoc.value = doc;
     linkedDocType.value = type;
@@ -1649,6 +1729,98 @@ const formatDate = (dateStr) => {
                         </dl>
                     </div>
 
+                    <!-- Stripe Payout Analytics & Line-Item Breakdown -->
+                    <div v-if="selectedBankTxDetails.stripe_details" class="border-t pt-4 space-y-4">
+                        <div v-if="selectedBankTxDetails.stripe_details.found" class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-md font-semibold text-gray-900 flex items-center gap-1.5">
+                                    <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.957 15.616 0 12.441 0 7.37 0 3.844 2.658 3.844 6.81c0 5.485 7.556 5.8 7.556 8.784 0 .976-.856 1.488-2.228 1.488-2.583 0-5.467-1.121-7.23-2.073L1.05 20.67C2.96 21.848 6.05 22.8 9.53 22.8c5.486 0 9.176-2.583 9.176-6.81 0-5.875-7.73-6.195-7.73-8.84z"/>
+                                    </svg>
+                                    Stripe Payout Line Items
+                                </h4>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                                    {{ selectedBankTxDetails.stripe_details.payout?.status || 'PAID' }}
+                                </span>
+                            </div>
+
+                        <!-- Summary Banner -->
+                        <div class="grid grid-cols-3 gap-2 bg-gradient-to-br from-indigo-50 to-purple-50 p-3 rounded-lg border border-indigo-100 text-xs">
+                            <div>
+                                <span class="text-gray-500 block">Gross Total</span>
+                                <span class="text-sm font-bold text-gray-900">
+                                    {{ formatCurrency(selectedBankTxDetails.stripe_details.payout?.total_gross, selectedBankTxDetails.stripe_details.payout?.currency) }}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 block">Stripe Fees</span>
+                                <span class="text-sm font-bold text-red-600">
+                                    {{ formatCurrency(selectedBankTxDetails.stripe_details.payout?.total_fees, selectedBankTxDetails.stripe_details.payout?.currency) }}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 block">Net Payout</span>
+                                <span class="text-sm font-bold text-indigo-900">
+                                    {{ formatCurrency(selectedBankTxDetails.stripe_details.payout?.total_net, selectedBankTxDetails.stripe_details.payout?.currency) }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Customer Charges List -->
+                        <div class="space-y-3">
+                            <h5 class="text-xs font-semibold text-gray-700 uppercase tracking-wider">Payments Included in this Payout</h5>
+                            <div class="space-y-2">
+                                <div 
+                                    v-for="charge in selectedBankTxDetails.stripe_details.breakdown" 
+                                    :key="charge.id"
+                                    class="p-3 bg-white rounded-lg border border-gray-200 shadow-sm space-y-2 hover:border-indigo-300 transition-colors"
+                                >
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <div class="font-medium text-gray-900 text-sm flex items-center gap-1.5">
+                                                <span>{{ charge.customer_name || 'Customer' }}</span>
+                                                <span v-if="charge.customer_email" class="text-xs text-gray-400 font-normal">({{ charge.customer_email }})</span>
+                                            </div>
+                                            <div class="text-xs text-gray-500 mt-0.5">{{ charge.description }}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="font-bold text-sm text-gray-900">{{ formatCurrency(charge.gross, charge.currency) }}</div>
+                                            <div class="text-[11px] text-gray-400">
+                                                Net: {{ formatCurrency(charge.net, charge.currency) }} | Fee: <span class="text-red-500">{{ formatCurrency(charge.fee, charge.currency) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+                                        <div v-if="charge.matching_invoices && charge.matching_invoices.length" class="text-xs text-indigo-700 font-medium truncate max-w-[200px]">
+                                            Match: #{{ charge.matching_invoices[0].invoice_number }} ({{ charge.matching_invoices[0].client_name }})
+                                        </div>
+                                        <div v-else class="text-xs text-gray-400 italic">No invoice match auto-detected</div>
+
+                                        <PrimaryButton 
+                                            type="button" 
+                                            @click="openStripeChargeLinkModal(charge)" 
+                                            class="text-xs px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700"
+                                        >
+                                            Link to Invoice
+                                        </PrimaryButton>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                        <div v-else class="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-900 space-y-1">
+                            <div class="font-semibold flex items-center gap-1 text-amber-800">
+                                <svg class="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Stripe Integration Notice
+                            </div>
+                            <p>{{ selectedBankTxDetails.stripe_details.message || 'No matching Stripe payout could be found for this bank transaction descriptor.' }}</p>
+                            <p v-if="selectedBankTxDetails.stripe_details.trace_id" class="text-[11px] text-amber-700">Checked Trace ID / Descriptor: <code class="bg-amber-100 px-1 py-0.5 rounded font-mono">{{ selectedBankTxDetails.stripe_details.trace_id }}</code></p>
+                        </div>
+                    </div>
+
                     <div class="border-t pt-4">
                         <h4 class="text-md font-semibold text-gray-900 mb-4">Linked Bills / Invoices</h4>
                         <div v-if="selectedBankTxDetails.local_transactions && selectedBankTxDetails.local_transactions.length" class="space-y-3">
@@ -1671,5 +1843,81 @@ const formatDate = (dateStr) => {
                 </div>
             </template>
         </RightSidebar>
+
+        <!-- Link Stripe Charge to Invoice Modal -->
+        <Modal :show="showStripeChargeLinkModal" @close="showStripeChargeLinkModal = false" maxWidth="lg">
+            <div class="p-6">
+                <h3 class="text-lg font-medium text-gray-900 border-b pb-3 mb-4">Link Stripe Payment to Invoice & Sync Xero</h3>
+                
+                <div v-if="selectedStripeCharge" class="space-y-4 text-sm">
+                    <div class="bg-indigo-50/60 p-3 rounded-md border border-indigo-100 space-y-1 text-xs">
+                        <div class="font-semibold text-indigo-900 text-sm">{{ selectedStripeCharge.customer_name || 'Customer' }}</div>
+                        <div v-if="selectedStripeCharge.customer_email" class="text-gray-600">{{ selectedStripeCharge.customer_email }}</div>
+                        <div class="text-gray-500">{{ selectedStripeCharge.description }}</div>
+                        <div class="pt-1 font-medium text-gray-800">
+                            Gross: <span class="font-bold text-gray-900">{{ formatCurrency(selectedStripeCharge.gross, selectedStripeCharge.currency) }}</span> | 
+                            Net: {{ formatCurrency(selectedStripeCharge.net, selectedStripeCharge.currency) }} | 
+                            Fee: <span class="text-red-500">{{ formatCurrency(selectedStripeCharge.fee, selectedStripeCharge.currency) }}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <InputLabel for="stripe_charge_invoice_id" value="Select Invoice to Clear" />
+                        <SelectDropdown
+                            id="stripe_charge_invoice_id"
+                            v-model="stripeChargeLinkForm.invoice_id"
+                            :options="invoiceOptions"
+                            placeholder="Select customer invoice"
+                        />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <InputLabel for="charge_gross_amount" value="Invoice Credit Amount (Gross)" />
+                            <TextInput
+                                id="charge_gross_amount"
+                                v-model="stripeChargeLinkForm.gross_amount"
+                                type="number"
+                                step="0.01"
+                                class="mt-1 block w-full text-sm"
+                            />
+                            <div class="text-[11px] text-gray-400 mt-0.5">Amount applied to mark invoice fully paid.</div>
+                        </div>
+                        <div>
+                            <InputLabel for="charge_stripe_fee" value="Stripe Processing Fee" />
+                            <TextInput
+                                id="charge_stripe_fee"
+                                v-model="stripeChargeLinkForm.stripe_fee"
+                                type="number"
+                                step="0.01"
+                                class="mt-1 block w-full text-sm"
+                            />
+                            <div class="text-[11px] text-gray-400 mt-0.5">Fee deducted by Stripe.</div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 pt-2 border-t">
+                        <label class="flex items-center text-xs text-gray-700 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                v-model="stripeChargeLinkForm.create_fee_record" 
+                                class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 mr-2" 
+                            />
+                            Record {{ formatCurrency(stripeChargeLinkForm.stripe_fee || 0, selectedStripeCharge.currency) }} Stripe Fee as project expense
+                        </label>
+                        <p class="text-[11px] text-gray-500 pl-6">
+                            Ensures project income (${{ stripeChargeLinkForm.gross_amount }}) and Stripe fee expense (${{ stripeChargeLinkForm.stripe_fee }}) match actual bank deposit while closing invoice in system & Xero.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3 border-t pt-4">
+                    <SecondaryButton :disabled="stripeChargeLinkLoading" @click="showStripeChargeLinkModal = false">Cancel</SecondaryButton>
+                    <PrimaryButton :disabled="stripeChargeLinkLoading || !stripeChargeLinkForm.invoice_id" @click="submitStripeChargeLink">
+                        {{ stripeChargeLinkLoading ? 'Linking & Syncing Xero...' : 'Link Invoice & Sync Xero' }}
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

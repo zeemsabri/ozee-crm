@@ -482,4 +482,74 @@ class XeroInvoiceService
             default => 'OUTPUT',
         };
     }
+
+    /**
+     * Send a payment to Xero to mark a Sales Invoice as paid (or partially paid).
+     */
+    public function syncPaymentToXero(Invoice $invoice, \App\Models\Transaction $transaction, array $paymentData = []): array
+    {
+        if (empty($invoice->xero_invoice_id)) {
+            \Log::info("Invoice #{$invoice->id} has no xero_invoice_id. Skipping Xero payment sync.");
+            return [];
+        }
+
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+        $currency = $transaction->currency ?: ($invoice->currency ?: 'AUD');
+
+        $connection = \App\Models\XeroConnection::where('selected_tenant_id', $credentials['tenant_id'])->first();
+        $xeroAccountId = null;
+        if ($connection) {
+            $mapping = \App\Models\AirwallexXeroBankMapping::where('xero_connection_id', $connection->id)
+                ->where('airwallex_currency', $currency)
+                ->first();
+            if (!$mapping) {
+                $mapping = \App\Models\AirwallexXeroBankMapping::where('xero_connection_id', $connection->id)->first();
+            }
+            $xeroAccountId = $mapping?->xero_account_id;
+        }
+
+        if (!$xeroAccountId) {
+            \Log::warning("No Xero bank account mapping found for currency: {$currency}. Skipping Xero payment sync.");
+            return [];
+        }
+
+        $paymentAmount = (float) ($paymentData['payment_amount'] ?? $transaction->amount);
+        if ($paymentAmount <= 0) {
+            return [];
+        }
+
+        $paymentDateStr = $transaction->payment_date
+            ? date('Y-m-d', strtotime((string)$transaction->payment_date))
+            : date('Y-m-d');
+
+        $payload = [
+            'Invoice' => [
+                'InvoiceID' => $invoice->xero_invoice_id,
+            ],
+            'Account' => [
+                'AccountID' => $xeroAccountId,
+            ],
+            'Date' => $paymentDateStr,
+            'Amount' => round($paymentAmount, 2),
+            'Reference' => substr($transaction->description ?: ("Stripe Payment for Invoice #" . $invoice->id), 0, 255),
+        ];
+
+        \Log::info("Sending Invoice payment to Xero. URL: https://api.xero.com/api.xro/2.0/Payments, Payload: ", $payload);
+
+        try {
+            $response = Http::withToken($credentials['access_token'])
+                ->withHeaders([
+                    'Xero-tenant-id' => $credentials['tenant_id'],
+                    'Accept' => 'application/json',
+                ])
+                ->post(self::INVOICES_URL . '/../Payments', $payload)
+                ->throw()
+                ->json();
+
+            return $response;
+        } catch (\Exception $e) {
+            \Log::error("Xero Invoice Payment Sync Error: " . $e->getMessage());
+            throw $e;
+        }
+    }
 }

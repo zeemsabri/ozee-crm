@@ -74,6 +74,10 @@ return [
         'base_url' => env('AIR_WALLED_END_POINT', 'https://api.airwallex.com'),
     ],
 
+    'stripe' => [
+        'secret' => env('STRIPE_RESTRICTED_KEY', env('STRIPE_SECRET_KEY')),
+    ],
+
     'default_currency' => env('DEFAULT_CURRENCY', 'AUD'),
 
     'otp_enabled' => env('OTP_ENABLED', true),
