@@ -217,6 +217,7 @@ const users = ref([]);
 const clients = ref([]);
 const bills = ref([]);
 const invoices = ref([]);
+const showPaidInvoices = ref(false);
 const outstandingBills = ref([]);
 const outstandingInvoices = ref([]);
 const createLoading = ref(false);
@@ -315,8 +316,13 @@ const invoiceOptions = computed(() => {
     if (transactionForm.value.client_id) {
         filtered = filtered.filter(i => i.client_id === transactionForm.value.client_id);
     }
+    if (!showPaidInvoices.value) {
+        filtered = filtered.filter(i => i.status !== 'paid');
+    }
     return filtered.map(invoice => {
-        let label = `OZI${invoice.id} - ${invoice.total_amount} ${invoice.currency || 'AUD'} (${invoice.invoice_number || 'No Ref'})`;
+        let invoiceDate = invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A';
+        let status = (invoice.status || 'unknown').toUpperCase();
+        let label = `OZI${invoice.id} - ${invoice.total_amount} ${invoice.currency || 'AUD'} (${invoice.invoice_number || 'No Ref'}) - Date: ${invoiceDate} - Status: ${status}`;
         if (!transactionForm.value.project_id && invoice.project) {
             label += ` - ${invoice.project.name}`;
         }
@@ -1319,7 +1325,14 @@ const formatDate = (dateStr) => {
 
                     <!-- Invoice Linker (Income) -->
                     <div v-if="transactionForm.type === 'income'">
-                        <InputLabel for="invoice_id" value="Link to Invoice (Optional)" />
+                        <div class="flex justify-between items-center mb-1">
+                            <InputLabel for="invoice_id" value="Link to Invoice (Optional)" class="mb-0" />
+                            <label class="flex items-center text-xs text-gray-600">
+                                <input type="checkbox" v-model="showPaidInvoices" class="mr-1 rounded border-gray-300 text-emerald-600 shadow-sm focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50" />
+                                Show Xero Paid Invoices
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-2">Check this box to view invoices that are already marked as paid in Xero, allowing you to link them without duplicating the payment sync.</p>
                         <SelectDropdown
                             id="invoice_id"
                             v-model="transactionForm.invoice_id"
@@ -1479,7 +1492,14 @@ const formatDate = (dateStr) => {
                         />
                     </div>
                     <div v-else-if="selectedTransactionForLink?.type === 'income'">
-                        <InputLabel for="link_invoice_id" value="Select Invoice" />
+                        <div class="flex justify-between items-center mb-1">
+                            <InputLabel for="link_invoice_id" value="Select Invoice" class="mb-0" />
+                            <label class="flex items-center text-xs text-gray-600">
+                                <input type="checkbox" v-model="showPaidInvoices" class="mr-1 rounded border-gray-300 text-emerald-600 shadow-sm focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50" />
+                                Show Xero Paid Invoices
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-2">Check this box to view invoices that are already marked as paid in Xero, allowing you to link them without duplicating the payment sync.</p>
                         <SelectDropdown
                             id="link_invoice_id"
                             v-model="linkDocForm.invoice_id"
@@ -1862,7 +1882,14 @@ const formatDate = (dateStr) => {
                     </div>
 
                     <div>
-                        <InputLabel for="stripe_charge_invoice_id" value="Select Invoice to Clear" />
+                        <div class="flex justify-between items-center mb-1">
+                            <InputLabel for="stripe_charge_invoice_id" value="Select Invoice to Clear" class="mb-0" />
+                            <label class="flex items-center text-xs text-gray-600">
+                                <input type="checkbox" v-model="showPaidInvoices" class="mr-1 rounded border-gray-300 text-emerald-600 shadow-sm focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50" />
+                                Show Xero Paid Invoices
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-2">Check this box to view invoices that are already marked as paid in Xero, allowing you to link them without duplicating the payment sync.</p>
                         <SelectDropdown
                             id="stripe_charge_invoice_id"
                             v-model="stripeChargeLinkForm.invoice_id"
