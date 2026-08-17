@@ -522,6 +522,15 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         ]);
     })->name('dashboard');
 
+    // React/Vue coexistence test page — first page rendered on the new React
+    // stack while the rest of the app keeps running on Vue. Remove once the
+    // redesign has real React pages to replace it.
+    Route::get('/react-test', function () {
+        return Inertia::render('React/TestPage', [
+            'message' => 'This message was passed from a Laravel controller, just like any other Inertia page.',
+        ]);
+    })->name('react.test');
+
     // CEO Financial Dashboard Route
     Route::get('/dashboard/ceo-financial', [\App\Http\Controllers\Dashboard\CeoFinancialDashboardController::class, 'index'])->name('dashboard.ceo-financial');
     Route::post('/dashboard/ceo-financial/instruction', [\App\Http\Controllers\Dashboard\CeoFinancialDashboardController::class, 'storeInstruction'])->name('dashboard.ceo-financial.instruction');

@@ -28,7 +28,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     @routes
-    @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
+    @php
+        // React pages are rendered server-side as Inertia::render('React/Name', ...)
+        // and live under resources/js/ReactPages; everything else is still a Vue
+        // page under resources/js/Pages. See resources/js/app.js for the client-side
+        // half of this same check.
+        $isReactPage = str_starts_with($page['component'], 'React/');
+        $pageAsset = $isReactPage
+            ? 'resources/js/ReactPages/' . substr($page['component'], strlen('React/')) . '.jsx'
+            : 'resources/js/Pages/' . $page['component'] . '.vue';
+    @endphp
+    @viteReactRefresh
+    @vite(['resources/js/app.js', $pageAsset])
     @inertiaHead
     <script>
         // Fix for share-modal.js addEventListener error and syntax errors

@@ -1,86 +1,26 @@
 import '../css/app.css';
 import './bootstrap';
 
-import { createInertiaApp } from '@inertiajs/vue3';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import { createApp, h } from 'vue';
-import { ZiggyVue } from '../../vendor/tightenco/ziggy';
-import { createPinia } from 'pinia';
-import { registerPermissionDirective, fetchGlobalPermissions, usePermissionStore } from './Directives/permissions';
-// Correctly imported with the new name
-import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
-import { setStandardNotificationContainer, pushSuccess } from '@/Utils/notification'; // Import the correct utilities
+// --- Vue / React coexistence -------------------------------------------
+// During the redesign we're moving page by page from Vue to React instead
+// of rewriting everything at once. Both frameworks are bundled, but only
+// one is ever booted per page load: we read Inertia's initial page payload
+// straight off the #app element, and if the component name starts with
+// "React/" we boot the React app, otherwise we boot the existing Vue app.
+//
+// This only works for *full* page loads (i.e. a plain <a href="..."> link,
+// or typing/refreshing a URL) — an Inertia <Link> stays within whichever
+// app is currently mounted and can't hand off to the other framework mid
+// SPA-navigation. So: link *within* Vue pages and *within* React pages
+// with <Link>/router.visit as usual, but use a plain <a> tag for any link
+// that crosses between a Vue page and a React page (see
+// resources/js/ReactPages/TestPage.jsx for an example).
+const el = document.getElementById('app');
+const initialPage = el?.dataset?.page ? JSON.parse(el.dataset.page) : null;
+const isReactPage = initialPage?.component?.startsWith('React/');
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
-createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
-    resolve: (name) =>
-        resolvePageComponent(
-            `./Pages/${name}.vue`,
-            import.meta.glob('./Pages/**/*.vue'),
-        ),
-    setup({ el, App, props, plugin }) {
-        const app = createApp({ render: () => h(App, props) });
-
-        // Create and use Pinia store
-        const pinia = createPinia();
-        app.use(pinia);
-
-        // Use Inertia plugin and Ziggy
-        app.use(plugin);
-        app.use(ZiggyVue);
-
-        // Register the permission directive
-        registerPermissionDirective(app);
-
-        // Register the v-click-outside directive
-        app.directive('click-outside', {
-            mounted(el, binding) {
-                el.__ClickOutsideHandler__ = (event) => {
-                    // Check if the clicked element is outside the directive's element
-                    if (!(el === event.target || el.contains(event.target))) {
-                        binding.value(event);
-                    }
-                };
-                document.addEventListener('click', el.__ClickOutsideHandler__);
-            },
-            unmounted(el) {
-                // Remove the event listener when the element is unmounted
-                document.removeEventListener('click', el.__ClickOutsideHandler__);
-            },
-        });
-
-        // Initialize the main Inertia app
-        const mountedApp = app.mount(el);
-
-        // Fetch global permissions immediately after app initialization
-        if (props.initialPage.props.auth && props.initialPage.props.auth.user) {
-            fetchGlobalPermissions().catch(error => {
-                console.error('Failed to fetch global permissions:', error);
-            });
-
-            // Reverb Integration for Push Notifications
-            // Ensure `window.Echo` is available from './bootstrap.js'
-            const userId = props.initialPage.props.auth.user.id;
-
-            if (window.Echo) {
-                console.log(`Subscribing to private user channel: App.Models.User.${userId}`);
-
-                // Listen for private notifications on the user's channel
-                window.Echo.private(`App.Models.User.${userId}`)
-                    .notification((notification) => {
-                        console.log('Received notification:', notification);
-                        pushSuccess(notification);
-                    });
-            } else {
-                console.error('Laravel Echo is not initialized. Check your bootstrap.js file.');
-            }
-        }
-
-        return mountedApp;
-    },
-    progress: {
-        color: '#4B5563',
-    },
-});
+if (isReactPage) {
+    import('./react-entry.jsx');
+} else {
+    import('./vue-entry.js');
+}
