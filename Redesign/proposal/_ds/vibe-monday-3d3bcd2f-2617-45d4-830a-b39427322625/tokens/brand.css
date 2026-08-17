@@ -1,0 +1,23 @@
+/* OZee Web & Digital brand marks — sampled from the logo shipped in the CRM repo
+   (public/logo.png) and config/branding.php. Brand colours are for identity surfaces
+   (logo lockups, marketing, login, empty-state art), NOT for UI chrome. */
+:root {
+  --ozee-blue: #0e2ba4;
+  --ozee-blue-deep: #0a2080;
+  --ozee-amber: #f8a100;
+  --ozee-amber-hover: #d98c00;
+  --ozee-green: #00853b;
+
+  /* Legacy values still present in the app's branding config */
+  --ozee-app-primary: #1a73e8;
+  --ozee-app-secondary: #fbbc05;
+  --ozee-text-primary: #1a202c;
+  --ozee-text-secondary: #4a5568;
+  --ozee-border: #e5e7eb;
+  --ozee-page-background: #f9fafb;
+
+  --brand-color: var(--ozee-blue);
+  --brand-hover-color: var(--ozee-blue-deep);
+  --brand-selected-color: #ccd5f3;
+  --brand-selected-hover-color: #b6c2ed;
+}

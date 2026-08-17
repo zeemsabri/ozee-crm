@@ -1,0 +1,4 @@
+/* Webfonts. Figtree = product/UI face (already loaded by the OZee CRM app via fonts.bunny.net).
+   Poppins = title face, inherited from the Vibe type system. Both served from Google Fonts —
+   no binaries were present in either source repo. */
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap");
