@@ -106,7 +106,7 @@ async function hydrateSessionPrefill() {
     }
 
     try {
-        const { data } = await axios.post(`/projects/public/${props.project.token}/session`, {
+        const { data } = await axios.post(`/projects/classic/${props.project.token}/session`, {
             session_token: sessionToken.value,
         });
         applyPrefill(data);
@@ -123,7 +123,7 @@ async function sendOtp() {
     errorMsg.value = '';
     loading.value = true;
     try {
-        await axios.post(`/projects/public/${props.project.token}/otp`, { email: email.value });
+        await axios.post(`/projects/classic/${props.project.token}/otp`, { email: email.value });
         step.value = 'otp';
     } catch (e) {
         setError(e.response?.data?.errors?.email?.[0] || e.response?.data?.message || 'Failed to send code.');
@@ -137,7 +137,7 @@ async function verifyOtp() {
     errorMsg.value = '';
     loading.value = true;
     try {
-        const { data } = await axios.post(`/projects/public/${props.project.token}/otp/verify`, {
+        const { data } = await axios.post(`/projects/classic/${props.project.token}/otp/verify`, {
             email: email.value,
             otp: otp.value,
         });
@@ -165,7 +165,7 @@ async function saveProfile() {
     errorMsg.value = '';
     loading.value = true;
     try {
-        await axios.post(`/projects/public/${props.project.token}/profile`, {
+        await axios.post(`/projects/classic/${props.project.token}/profile`, {
             session_token: sessionToken.value,
             name: userName.value,
             phone: phone.value,
@@ -184,7 +184,7 @@ async function trackPublicEvent(eventName) {
     }
 
     try {
-        await axios.post(`/projects/public/${props.project.token}/track`, {
+        await axios.post(`/projects/classic/${props.project.token}/track`, {
             session_token: sessionToken.value,
             event: eventName,
         });
@@ -234,7 +234,7 @@ async function submitProposal() {
             formData.append('document', proposalDocument.value);
         }
 
-        await axios.post(`/projects/public/${props.project.token}/proposals`, formData, {
+        await axios.post(`/projects/classic/${props.project.token}/proposals`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
