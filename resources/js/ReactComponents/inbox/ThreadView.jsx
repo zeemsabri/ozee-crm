@@ -1,0 +1,808 @@
+/**
+ * One open thread: header, approval banner, AI summary, the message/note timeline, and
+ * the reply box.
+ *
+ * Design source: Inbox.dc.html, the sc-if="isThreadView" block.
+ *
+ * Withheld messages: the server omits the body entirely for anything this viewer may not
+ * read and sends `redacted` plus a reason instead. The card below renders that reason —
+ * it never receives the text and so cannot leak it through a CSS mistake or the React
+ * devtools. See ThreadPresenter for the two rules (screening and privacy).
+ */
+
+import { useState } from 'react';
+import {
+    Avatar,
+    Button,
+    Chips,
+    Counter,
+    Icon,
+    IconButton,
+    Label,
+    Loader,
+    MenuButton,
+    TextArea,
+} from '../ds';
+import { ReplyBox } from './ReplyBox';
+import { categoryColour, fileSize, initials, longTime, replyStatus } from './format';
+
+const MORE_ITEMS = [
+    { value: 'unread', label: 'Mark as unread', icon: 'Email' },
+    { divider: true },
+    { value: 'print', label: 'Print thread', icon: 'Print' },
+];
+
+function Panel({ children, tone, style }) {
+    return (
+        <div
+            style={{
+                border: `1px solid ${tone || 'var(--layout-border-color)'}`,
+                borderRadius: 8,
+                background: 'var(--primary-background-color)',
+                overflow: 'hidden',
+                ...style,
+            }}
+        >
+            {children}
+        </div>
+    );
+}
+
+function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onResendAi }) {
+    const approval = thread.approval;
+    const checking = thread.ai?.checking;
+
+    if (!approval && !checking) return null;
+
+    const stalled = checking?.stalled;
+    const tone = checking
+        ? stalled
+            ? '#d83a52'
+            : 'var(--primary-color)'
+        : 'var(--color-working-orange)';
+
+    const title = checking
+        ? stalled
+            ? 'AI check has been running longer than it should'
+            : 'With the AI checker'
+        : approval.kind === 'screening'
+          ? 'Inbound mail held for screening'
+          : approval.ai_reason
+            ? 'The AI checker sent this back — it needs your approval'
+            : `Draft from ${approval.author} waiting on approval`;
+
+    const meta = checking
+        ? `Submitted by ${checking.author} · nothing to do while the checker has it`
+        : approval.kind === 'screening'
+          ? 'The team cannot read this until it is released'
+          : 'The client never sees it until approved';
+
+    return (
+        <Panel tone={tone} style={{ animation: 'dcFade 150ms cubic-bezier(0,0,.35,1) both' }}>
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <Icon name={checking ? 'Robot' : 'Alert'} size={20} color={tone} />
+                <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ font: '600 14px/20px Figtree, sans-serif' }}>{title}</div>
+                    <div style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                        {meta}
+                    </div>
+                </div>
+
+                {approval?.can_act && !checking ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {/*
+                          A template-composed draft is approved on the classic page. Its
+                          real content is re-rendered from template_data at send time, so
+                          approving it here would send something other than what is shown —
+                          and this UI has no editor for those fields. See the `is_template`
+                          note in ThreadPresenter.
+                        */}
+                        {approval.is_template ? (
+                            <span
+                                style={{
+                                    font: '400 12px/16px Figtree, sans-serif',
+                                    color: 'var(--secondary-text-color)',
+                                    maxWidth: '46ch',
+                                }}
+                            >
+                                This one was built from a template — approve it on the classic inbox, where the
+                                template fields can be edited.
+                            </span>
+                        ) : (
+                            <>
+                                <Button size="small" leftIcon={<Icon name="Send" size={16} />} onClick={onApprove}>
+                                    {approval.kind === 'screening' ? 'Release to the team' : 'Approve & send'}
+                                </Button>
+                                {approval.kind !== 'screening' ? (
+                                    <Button
+                                        kind="secondary"
+                                        size="small"
+                                        leftIcon={<Icon name="Edit" size={16} />}
+                                        onClick={onEditApprove}
+                                    >
+                                        Edit &amp; approve
+                                    </Button>
+                                ) : null}
+                            </>
+                        )}
+                        {approval.kind !== 'screening' ? (
+                            <Button kind="secondary" size="small" color="negative" onClick={onReject}>
+                                Send back
+                            </Button>
+                        ) : null}
+                    </span>
+                ) : null}
+
+                {thread.can?.resend_to_ai && checking ? (
+                    <Button
+                        kind={stalled ? 'primary' : 'secondary'}
+                        size="small"
+                        leftIcon={<Icon name="Recurring" size={16} />}
+                        onClick={onResendAi}
+                    >
+                        Send to AI again
+                    </Button>
+                ) : null}
+
+                {!approval?.can_act && !thread.can?.resend_to_ai ? (
+                    <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                        {checking
+                            ? 'The checker has it — nothing to do yet.'
+                            : "Waiting on a manager — you'll get a notification either way."}
+                    </span>
+                ) : null}
+            </div>
+
+            {approval?.ai_reason ? (
+                <div
+                    style={{
+                        padding: '12px 16px',
+                        borderTop: '1px solid var(--om-hairline)',
+                        background: 'var(--allgrey-background-color)',
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                    }}
+                >
+                    <Icon name="Robot" size={16} color="var(--secondary-text-color)" style={{ marginTop: 2 }} />
+                    <div>
+                        <div style={{ font: '600 12px/16px Figtree, sans-serif' }}>Why the AI checker held it</div>
+                        <div
+                            style={{
+                                marginTop: 2,
+                                font: '400 14px/20px Figtree, sans-serif',
+                                color: 'var(--secondary-text-color)',
+                                maxWidth: '78ch',
+                                textWrap: 'pretty',
+                            }}
+                        >
+                            {approval.ai_reason}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+        </Panel>
+    );
+}
+
+function AiSummary({ ai, messageCount, onCreateTask }) {
+    if (!ai?.enabled || !ai.summary) return null;
+
+    return (
+        <div
+            style={{
+                border: '1px solid var(--layout-border-color)',
+                borderRadius: 8,
+                background: 'var(--primary-highlighted-color)',
+                padding: '14px 16px',
+                animation: 'dcFade 150ms cubic-bezier(0,0,.35,1) both',
+            }}
+        >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Icon name="Robot" size={16} color="var(--primary-color)" />
+                <span
+                    style={{
+                        font: '600 12px/16px Figtree, sans-serif',
+                        color: 'var(--primary-color)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '.4px',
+                    }}
+                >
+                    Thread summary
+                </span>
+                <span
+                    style={{
+                        marginInlineStart: 'auto',
+                        font: '400 12px/16px Figtree, sans-serif',
+                        color: 'var(--secondary-text-color)',
+                    }}
+                >
+                    Generated from {ai.generated_from || messageCount} message
+                    {(ai.generated_from || messageCount) === 1 ? '' : 's'}
+                </span>
+            </div>
+
+            <p style={{ margin: '8px 0 0', font: '400 14px/20px Figtree, sans-serif', maxWidth: '80ch', textWrap: 'pretty' }}>
+                {ai.summary}
+            </p>
+
+            {ai.task_suggestion?.title ? (
+                <div
+                    style={{
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTop: '1px solid var(--om-hairline)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <Icon name="CheckList" size={16} color="var(--secondary-text-color)" />
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                        <div style={{ font: '600 14px/20px Figtree, sans-serif' }}>{ai.task_suggestion.title}</div>
+                        <div style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                            Suggested {ai.task_suggestion.priority} priority
+                            {ai.task_suggestion.reason ? ` · ${ai.task_suggestion.reason}` : ''}
+                        </div>
+                    </div>
+                    <Button kind="secondary" size="small" onClick={() => onCreateTask(ai.task_suggestion)}>
+                        Create this task
+                    </Button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function NoteCard({ note }) {
+    return (
+        <div
+            style={{
+                border: '1px solid var(--om-note-border, #f0d78a)',
+                borderRadius: 8,
+                background: 'var(--om-note-bg, #fff8db)',
+                padding: '12px 14px',
+            }}
+        >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Icon name="Note" size={16} color="var(--primary-text-color)" />
+                <span style={{ font: '600 14px/20px Figtree, sans-serif' }}>{note.author}</span>
+                <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                    Internal note · never sent to the client
+                </span>
+                <span
+                    style={{
+                        marginInlineStart: 'auto',
+                        font: '400 12px/16px Figtree, sans-serif',
+                        color: 'var(--secondary-text-color)',
+                    }}
+                >
+                    {longTime(note.created_at)}
+                </span>
+            </div>
+            <p style={{ margin: '6px 0 0', font: '400 14px/20px Figtree, sans-serif', whiteSpace: 'pre-wrap', textWrap: 'pretty' }}>
+                {note.body}
+            </p>
+        </div>
+    );
+}
+
+function Withheld({ kind }) {
+    const isPrivate = kind === 'private';
+
+    return (
+        <div
+            style={{
+                padding: 16,
+                border: '1px dashed var(--ui-border-color)',
+                borderRadius: 4,
+                background: 'var(--allgrey-background-color)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+            }}
+        >
+            <Icon name={isPrivate ? 'Hide' : 'Security'} size={20} color="var(--secondary-text-color)" />
+            <div>
+                <div style={{ font: '600 14px/20px Figtree, sans-serif' }}>
+                    {isPrivate ? 'Private message' : 'Held for screening'}
+                </div>
+                <div style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                    {isPrivate
+                        ? "A manager marked this one private, so it stays out of the project team's view."
+                        : 'A manager needs to release this message before the team can read it.'}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function MessageCard({ message, open, onToggle, onTogglePrivacy, canTogglePrivacy, showSummary }) {
+    const inbound = message.direction === 'in';
+
+    return (
+        <Panel>
+            <div
+                onClick={onToggle}
+                style={{ padding: '12px 14px', display: 'flex', gap: 12, cursor: 'pointer', alignItems: 'flex-start' }}
+            >
+                <Avatar
+                    text={initials(message.author)}
+                    size="medium"
+                    backgroundColor={inbound ? 'var(--primary-color)' : 'var(--color-explosive)'}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ font: '600 14px/20px Figtree, sans-serif' }}>{message.author}</span>
+                        <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                            {message.to}
+                        </span>
+                        <Label
+                            text={message.status_label}
+                            kind="line"
+                            color={inbound ? 'primary' : 'positive'}
+                            size="small"
+                        />
+                        {message.is_private ? (
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    background: 'var(--allgrey-background-color)',
+                                    border: '1px solid var(--ui-border-color)',
+                                    font: '600 11px/16px Figtree, sans-serif',
+                                    color: 'var(--secondary-text-color)',
+                                }}
+                            >
+                                <Icon name="Hide" size={12} color="currentColor" />
+                                <span>Private</span>
+                            </span>
+                        ) : null}
+                        {message.receipt ? (
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    font: '400 12px/16px Figtree, sans-serif',
+                                    color: message.receipt.opened
+                                        ? 'var(--positive-color)'
+                                        : 'var(--secondary-text-color)',
+                                }}
+                            >
+                                <Icon name={message.receipt.opened ? 'Show' : 'Hide'} size={14} color="currentColor" />
+                                <span>
+                                    {message.receipt.opened ? `Opened ${longTime(message.receipt.at)}` : 'Not opened yet'}
+                                </span>
+                            </span>
+                        ) : null}
+                        <span
+                            style={{
+                                marginInlineStart: 'auto',
+                                font: '400 12px/16px Figtree, sans-serif',
+                                color: 'var(--secondary-text-color)',
+                            }}
+                        >
+                            {longTime(message.created_at)}
+                        </span>
+                    </div>
+
+                    {!open ? (
+                        <div
+                            style={{
+                                marginTop: 2,
+                                font: '400 14px/20px Figtree, sans-serif',
+                                color: 'var(--secondary-text-color)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {message.snippet}
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+
+            {open ? (
+                <div style={{ padding: '0 14px 14px 58px' }}>
+                    {message.redacted ? (
+                        <Withheld kind={message.redaction} />
+                    ) : (
+                        <>
+                            {showSummary && message.summary ? (
+                                <div
+                                    style={{
+                                        marginBottom: 12,
+                                        padding: '8px 10px',
+                                        borderInlineStart: '2px solid var(--primary-color)',
+                                        background: 'var(--primary-highlighted-color)',
+                                        borderRadius: '0 4px 4px 0',
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <Icon name="Robot" size={14} color="var(--primary-color)" style={{ marginTop: 3 }} />
+                                    <div>
+                                        <span
+                                            style={{
+                                                font: '600 11px/16px Figtree, sans-serif',
+                                                color: 'var(--primary-color)',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '.4px',
+                                            }}
+                                        >
+                                            This message
+                                        </span>
+                                        <div
+                                            style={{
+                                                font: '400 13px/20px Figtree, sans-serif',
+                                                color: 'var(--secondary-text-color)',
+                                                maxWidth: '80ch',
+                                                textWrap: 'pretty',
+                                            }}
+                                        >
+                                            {message.summary}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {message.rejection_reason ? (
+                                <div
+                                    style={{
+                                        marginBottom: 12,
+                                        padding: '8px 10px',
+                                        borderRadius: 4,
+                                        background: 'var(--negative-color-selected)',
+                                        font: '400 13px/20px Figtree, sans-serif',
+                                    }}
+                                >
+                                    <strong>Sent back:</strong> {message.rejection_reason}
+                                </div>
+                            ) : null}
+
+                            {/* The body is server-rendered email HTML. It is only ever
+                                present here for a viewer allowed to read it — withheld
+                                messages arrive with body_html null, above. */}
+                            <div
+                                className="ozds-email-body"
+                                style={{ font: '400 14px/22px Figtree, sans-serif', maxWidth: '78ch', overflowWrap: 'anywhere' }}
+                                dangerouslySetInnerHTML={{ __html: message.body_html || '' }}
+                            />
+
+                            {message.files?.length ? (
+                                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    {message.files.map((file) => (
+                                        <div
+                                            key={file.id}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                padding: '8px 10px',
+                                                border: '1px solid var(--layout-border-color)',
+                                                borderRadius: 4,
+                                                background: 'var(--allgrey-background-color)',
+                                            }}
+                                        >
+                                            <Icon name="File" size={16} color="var(--secondary-text-color)" />
+                                            <div>
+                                                <div style={{ font: '600 12px/16px Figtree, sans-serif' }}>{file.name}</div>
+                                                <div
+                                                    style={{
+                                                        font: '400 12px/16px Figtree, sans-serif',
+                                                        color: 'var(--secondary-text-color)',
+                                                    }}
+                                                >
+                                                    {fileSize(file.size)}
+                                                </div>
+                                            </div>
+                                            {file.url ? (
+                                                <a href={file.url} download aria-label={`Download ${file.name}`}>
+                                                    <Icon name="Download" size={16} />
+                                                </a>
+                                            ) : null}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+
+                            {canTogglePrivacy ? (
+                                <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <Button kind="tertiary" size="small" onClick={onTogglePrivacy}>
+                                        {message.is_private ? 'Make visible to team' : 'Make private'}
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </>
+                    )}
+                </div>
+            ) : null}
+        </Panel>
+    );
+}
+
+export function ThreadView({
+    thread,
+    loading,
+    recipients,
+    replyOpen,
+    replyEditing,
+    replyBusy,
+    noteOpen,
+    noteText,
+    isManager,
+    backLabel,
+    onBack,
+    onOpenReply,
+    onCloseReply,
+    onSendReply,
+    onSaveDraft,
+    onRegenerateDraft,
+    onOpenNote,
+    onNoteText,
+    onSaveNote,
+    onCancelNote,
+    onApprove,
+    onEditApprove,
+    onReject,
+    onResendAi,
+    onDelete,
+    onMore,
+    onTogglePrivacy,
+    onCreateTask,
+}) {
+    const [expanded, setExpanded] = useState({});
+
+    if (loading && !thread) {
+        return (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader ariaLabel="Opening thread" />
+            </div>
+        );
+    }
+
+    if (!thread) return null;
+
+    const status = replyStatus(thread);
+    const messages = thread.timeline || [];
+    const lastMessage = [...messages].reverse().find((i) => i.kind === 'message');
+
+    const isOpen = (item) => (item.id in expanded ? expanded[item.id] : item.id === lastMessage?.id);
+
+    return (
+        <div
+            style={{
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'dcSlideIn 200ms cubic-bezier(0,0,.35,1) both',
+            }}
+        >
+            <div
+                style={{
+                    flex: 'none',
+                    padding: '12px 24px 14px',
+                    background: 'var(--primary-background-color)',
+                    borderBottom: '1px solid var(--layout-border-color)',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Button
+                        kind="tertiary"
+                        size="small"
+                        leftIcon={<Icon name="NavigationChevronLeft" size={16} />}
+                        onClick={onBack}
+                    >
+                        {backLabel}
+                    </Button>
+                    <span style={{ color: 'var(--secondary-text-color)' }}>/</span>
+                    <span
+                        style={{
+                            font: '400 14px/20px Figtree, sans-serif',
+                            color: 'var(--secondary-text-color)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        {thread.project?.name}
+                    </span>
+                    <span style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {thread.can?.create_task ? (
+                            <Button
+                                kind="secondary"
+                                size="small"
+                                leftIcon={<Icon name="CheckList" size={16} />}
+                                onClick={() => onCreateTask(null)}
+                            >
+                                Create task
+                            </Button>
+                        ) : null}
+                        {thread.can?.delete ? (
+                            <IconButton name="Delete" size="small" ariaLabel="Delete thread" onClick={onDelete} />
+                        ) : null}
+                        <MenuButton items={MORE_ITEMS} onSelect={onMore} iconName="MoreActions" size="small" ariaLabel="More actions" />
+                    </span>
+                </div>
+
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <h2 style={{ margin: 0, font: '600 24px/30px Poppins, sans-serif', letterSpacing: '-0.1px' }}>
+                        {thread.subject}
+                    </h2>
+                    <Counter count={thread.message_count} kind="line" color="dark" size="small" />
+                    {(thread.categories || []).map((c) => (
+                        <Chips key={c.id} label={c.name} color={categoryColour(c.name)} readOnly size="small" />
+                    ))}
+                </div>
+
+                <div
+                    style={{
+                        marginTop: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
+                        borderRadius: 4,
+                        background: status.bg,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: status.dot }} />
+                    <span style={{ font: '600 14px/20px Figtree, sans-serif', color: status.fg }}>{status.text}</span>
+                    <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                        {thread.reply?.needs_reply
+                            ? 'Reply first, action later — a holding reply stops the clock'
+                            : 'No reply owed on this thread'}
+                    </span>
+                </div>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '16px 24px 32px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <ApprovalBanner
+                        thread={thread}
+                        onApprove={onApprove}
+                        onEditApprove={onEditApprove}
+                        onReject={onReject}
+                        onResendAi={onResendAi}
+                    />
+
+                    <AiSummary ai={thread.ai} messageCount={thread.message_count} onCreateTask={onCreateTask} />
+
+                    {messages.map((item) =>
+                        item.kind === 'note' ? (
+                            <NoteCard key={`note-${item.id}`} note={item} />
+                        ) : (
+                            <MessageCard
+                                key={`msg-${item.id}`}
+                                message={item}
+                                open={isOpen(item)}
+                                showSummary={thread.ai?.enabled}
+                                canTogglePrivacy={thread.can?.toggle_privacy}
+                                onToggle={() =>
+                                    setExpanded((current) => ({ ...current, [item.id]: !isOpen(item) }))
+                                }
+                                onTogglePrivacy={() => onTogglePrivacy(item)}
+                            />
+                        )
+                    )}
+
+                    {noteOpen ? (
+                        <div
+                            style={{
+                                border: '1px solid var(--om-note-border, #f0d78a)',
+                                borderRadius: 8,
+                                background: 'var(--om-note-bg, #fff8db)',
+                                padding: '12px 14px',
+                                animation: 'dcFade 150ms cubic-bezier(0,0,.35,1) both',
+                            }}
+                        >
+                            <div style={{ font: '600 14px/20px Figtree, sans-serif', marginBottom: 8 }}>
+                                Team note — stays inside OZee
+                            </div>
+                            <TextArea
+                                rows={3}
+                                placeholder="What does the team need to know about this thread?"
+                                value={noteText}
+                                onChange={(e) => onNoteText(e.target.value)}
+                            />
+                            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                                <Button size="small" disabled={!noteText.trim()} onClick={onSaveNote}>
+                                    Add note
+                                </Button>
+                                <Button kind="tertiary" size="small" onClick={onCancelNote}>
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {thread.reply_lock ? (
+                        <div
+                            style={{
+                                border: '1px dashed var(--ui-border-color)',
+                                borderRadius: 8,
+                                background: 'var(--allgrey-background-color)',
+                                padding: '14px 16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                color: 'var(--secondary-text-color)',
+                            }}
+                        >
+                            <Icon name="Security" size={16} color="currentColor" />
+                            <span style={{ font: '400 14px/20px Figtree, sans-serif' }}>{thread.reply_lock}</span>
+                        </div>
+                    ) : replyOpen ? (
+                        <ReplyBox
+                            thread={thread}
+                            recipients={recipients}
+                            editing={replyEditing}
+                            aiDraft={thread.ai?.draft}
+                            aiEnabled={thread.ai?.enabled}
+                            isManager={isManager}
+                            busy={replyBusy}
+                            onSend={onSendReply}
+                            onSaveDraft={onSaveDraft}
+                            onDiscard={onCloseReply}
+                            onRegenerateDraft={onRegenerateDraft}
+                        />
+                    ) : (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                                type="button"
+                                onClick={onOpenReply}
+                                style={{
+                                    flex: 1,
+                                    minWidth: 260,
+                                    textAlign: 'start',
+                                    border: '1px solid var(--layout-border-color)',
+                                    borderRadius: 8,
+                                    background: 'var(--primary-background-color)',
+                                    padding: '14px 16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    cursor: 'pointer',
+                                    color: 'var(--secondary-text-color)',
+                                    font: '400 14px/20px Figtree, sans-serif',
+                                    transition: 'border-color 150ms cubic-bezier(.4,0,.2,1)',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--primary-color)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--layout-border-color)';
+                                }}
+                            >
+                                <Icon name="Reply" size={16} color="currentColor" />
+                                <span>
+                                    Reply to {thread.who}
+                                    {thread.ai?.enabled && thread.ai?.draft ? ' — an AI draft is ready to edit' : ''}
+                                </span>
+                            </button>
+                            {!noteOpen ? (
+                                <Button
+                                    kind="secondary"
+                                    size="small"
+                                    leftIcon={<Icon name="Note" size={16} />}
+                                    onClick={onOpenNote}
+                                >
+                                    Add team note
+                                </Button>
+                            ) : null}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
