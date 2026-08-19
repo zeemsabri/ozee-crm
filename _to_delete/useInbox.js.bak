@@ -1,0 +1,329 @@
+/**
+ * Data layer for the redesigned inbox.
+ *
+ * All reads and writes go through axios against /api/inbox/* (see routes/api.php). Inertia
+ * is not used for these: the page is a shell and the list is refetched constantly, so
+ * partial-reload semantics would fight the filter state rather than help it.
+ *
+ * Two behaviours worth knowing:
+ *  - Every list request is sequence-stamped. A slow response for filters you have since
+ *    changed is discarded rather than flashing stale rows in.
+ *  - Filter changes are debounced together, so typing in the search box does not fire a
+ *    request per keystroke, but clicking a view is immediate.
+ */
+
+import axios from 'axios';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const DEBOUNCE_MS = 350;
+
+export const EMPTY_FILTERS = {
+    view: 'needsReply',
+    project_id: 'all',
+    category_ids: [],
+    search: '',
+    from: '',
+    to: '',
+    unread_only: false,
+    overdue_only: false,
+    sort: 'breach',
+};
+
+/** Params the server understands, with defaults stripped so URLs stay readable. */
+function toParams(filters, page) {
+    const params = { view: filters.view, sort: filters.sort, page };
+
+    if (filters.project_id && filters.project_id !== 'all') params.project_id = filters.project_id;
+    if (filters.category_ids?.length) params.category_ids = filters.category_ids;
+    if (filters.search?.trim()) params.search = filters.search.trim();
+    if (filters.from) params.from = filters.from;
+    if (filters.to) params.to = filters.to;
+    if (filters.unread_only) params.unread_only = 1;
+    if (filters.overdue_only) params.overdue_only = 1;
+
+    return params;
+}
+
+export function useInbox({ onError } = {}) {
+    const [filters, setFiltersState] = useState(EMPTY_FILTERS);
+    const [page, setPage] = useState(1);
+
+    const [threads, setThreads] = useState([]);
+    const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
+    const [counts, setCounts] = useState({});
+    const [overdueCount, setOverdueCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [options, setOptions] = useState({ projects: [], categories: [], sla_minutes: 60 });
+
+    // Monotonic request id: only the newest response is allowed to write state.
+    const sequence = useRef(0);
+    const debounce = useRef(null);
+
+    const fail = useCallback(
+        (error, fallback) => {
+            const message = error?.response?.data?.message || fallback;
+            if (onError) onError(message);
+        },
+        [onError]
+    );
+
+    const load = useCallback(
+        async (nextFilters, nextPage) => {
+            const id = ++sequence.current;
+            setLoading(true);
+
+            try {
+                const { data } = await axios.get('/api/inbox/threads', {
+                    params: toParams(nextFilters, nextPage),
+                });
+
+                if (id !== sequence.current) return; // a newer request已 superseded this one
+
+                setThreads(data.data || []);
+                setMeta(data.meta || { current_page: 1, last_page: 1, total: 0 });
+                setCounts(data.counts || {});
+                setOverdueCount(data.overdue_count || 0);
+            } catch (error) {
+                if (id !== sequence.current) return;
+                fail(error, 'Could not load the inbox.');
+            } finally {
+                if (id === sequence.current) setLoading(false);
+            }
+        },
+        [fail]
+    );
+
+    // Filter options are static for the session — projects and categories do not change
+    // while someone is triaging mail.
+    useEffect(() => {
+        axios
+            .get('/api/inbox/filters')
+            .then(({ data }) => setOptions(data))
+            .catch((error) => fail(error, 'Could not load the filter options.'));
+    }, [fail]);
+
+    useEffect(() => {
+        if (debounce.current) clearTimeout(debounce.current);
+        debounce.current = setTimeout(() => load(filters, page), DEBOUNCE_MS);
+
+        return () => clearTimeout(debounce.current);
+    }, [filters, page, load]);
+
+    /** Patch the filters. Anything but a page change resets to page 1. */
+    const setFilters = useCallback((patch) => {
+        setFiltersState((current) => ({ ...current, ...patch }));
+        setPage(1);
+    }, []);
+
+    const setView = useCallback((view) => setFilters({ view }), [setFilters]);
+
+    const clearFilters = useCallback(() => {
+        setFiltersState((current) => ({ ...EMPTY_FILTERS, view: current.view, sort: current.sort }));
+        setPage(1);
+    }, []);
+
+    const hasFilters = useMemo(
+        () =>
+            filters.project_id !== 'all' ||
+            filters.category_ids.length > 0 ||
+            !!filters.search ||
+            !!filters.from ||
+            !!filters.to ||
+            filters.unread_only ||
+            filters.overdue_only,
+        [filters]
+    );
+
+    /** Refetch the current page — after an action that changed what should be listed. */
+    const refresh = useCallback(() => load(filters, page), [load, filters, page]);
+
+    return {
+        filters,
+        setFilters,
+        setView,
+        clearFilters,
+        hasFilters,
+        page,
+        setPage,
+        threads,
+        meta,
+        counts,
+        overdueCount,
+        loading,
+        options,
+        refresh,
+    };
+}
+
+/**
+ * One open thread.
+ *
+ * Kept separate from the list so opening a thread never re-runs the list query, and so
+ * the list stays on screen behind it (the design's back button returns to the same
+ * scroll position and filters).
+ */
+export function useThread({ onError } = {}) {
+    const [thread, setThread] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const openId = useRef(null);
+
+    const fail = useCallback(
+        (error, fallback) => {
+            const message = error?.response?.data?.message || fallback;
+            if (onError) onError(message);
+        },
+        [onError]
+    );
+
+    const open = useCallback(
+        async (id) => {
+            openId.current = id;
+            setLoading(true);
+
+            try {
+                const { data } = await axios.get(`/api/inbox/threads/${id}`);
+                if (openId.current !== id) return;
+                setThread(data.data);
+            } catch (error) {
+                if (openId.current !== id) return;
+                fail(error, 'Could not open that thread.');
+                setThread(null);
+                openId.current = null;
+            } finally {
+                if (openId.current === id) setLoading(false);
+            }
+        },
+        [fail]
+    );
+
+    const close = useCallback(() => {
+        openId.current = null;
+        setThread(null);
+    }, []);
+
+    const reload = useCallback(() => {
+        if (openId.current) return open(openId.current);
+        return Promise.resolve();
+    }, [open]);
+
+    return { thread, setThread, loading, open, close, reload, openId };
+}
+
+/** Writes. Each resolves to true on success so callers can decide whether to refresh. */
+export function inboxActions({ onError, onToast }) {
+    const run = async (fn, successMessage, fallbackError) => {
+        try {
+            const result = await fn();
+            if (successMessage && onToast) onToast(successMessage);
+            return result ?? true;
+        } catch (error) {
+            const message = error?.response?.data?.message || fallbackError;
+            if (onError) onError(message);
+            return false;
+        }
+    };
+
+    return {
+        markRead: (id, unread = false) =>
+            run(
+                () => axios.post(`/api/inbox/threads/${id}/read`, { unread }),
+                unread ? 'Marked as unread' : null,
+                'Could not update the read state.'
+            ),
+
+        addNote: (id, body) =>
+            run(
+                () => axios.post(`/api/inbox/threads/${id}/notes`, { body }).then((r) => r.data.data),
+                'Note added — only the project team can see it',
+                'Could not add the note.'
+            ),
+
+        bulk: (action, conversationIds, extra = {}) =>
+            run(
+                () =>
+                    axios
+                        .post('/api/inbox/bulk', {
+                            action,
+                            conversation_ids: conversationIds,
+                            ...extra,
+                        })
+                        .then((r) => r.data),
+                null,
+                'Could not complete that action.'
+            ),
+
+        reply: (id, payload) =>
+            run(
+                () => axios.post(`/api/inbox/threads/${id}/reply`, payload).then((r) => r.data.data),
+                null,
+                'Could not save the reply.'
+            ),
+
+        recipients: (id) =>
+            run(
+                () => axios.get(`/api/inbox/threads/${id}/recipients`).then((r) => r.data),
+                null,
+                'Could not work out who to reply to.'
+            ),
+
+        /**
+         * Finish sending a reply that was created as pending_approval.
+         *
+         * This is the EXISTING endpoint the legacy inbox uses to approve and send — the
+         * redesign deliberately has no send path of its own. See InboxReplyController.
+         */
+        sendCreated: (emailId, { subject, body }) =>
+            run(
+                () =>
+                    axios.post(`/api/emails/${emailId}/edit-and-approve`, {
+                        subject,
+                        body,
+                        composition_type: 'custom',
+                    }),
+                null,
+                'The reply was saved but could not be sent. It is waiting in approvals.'
+            ),
+
+        reject: (emailId, reason) =>
+            run(
+                () => axios.post(`/api/emails/${emailId}/reject`, { rejection_reason: reason }),
+                'Sent back with your reason',
+                'Could not send it back.'
+            ),
+
+        togglePrivacy: (emailId, isPrivate) =>
+            run(
+                () => axios.patch(`/api/emails/${emailId}/privacy`, { is_private: isPrivate }),
+                isPrivate ? 'Message is private — managers only' : 'Message is visible to the project team',
+                'Could not change the privacy of that message.'
+            ),
+
+        deleteThread: (id) =>
+            run(
+                () => axios.post('/api/inbox/bulk', { action: 'delete', conversation_ids: [id] }),
+                'Deleted locally — the Gmail copy is kept',
+                'Could not delete that thread.'
+            ),
+
+        resendToAi: (emailId) =>
+            run(
+                () => axios.post(`/api/inbox/emails/${emailId}/resend-to-ai`),
+                "Sent to the checker again — you'll hear back either way",
+                'Could not resubmit it to the checker.'
+            ),
+
+        requestDraft: (emailId) =>
+            run(
+                () => axios.post(`/api/inbox/emails/${emailId}/draft`),
+                'Writing a new draft — it will appear in a moment',
+                'Could not ask for a draft.'
+            ),
+
+        createTasks: (emailId, tasks) =>
+            run(
+                () => axios.post(`/api/emails/${emailId}/tasks/bulk`, { tasks, email_id: emailId }),
+                'Task created',
+                'Could not create the task.'
+            ),
+    };
+}
