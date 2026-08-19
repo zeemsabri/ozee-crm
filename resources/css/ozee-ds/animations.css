@@ -1,0 +1,85 @@
+/* Entrance/attention keyframes used by the redesigned pages.
+   Names match the design mock so markup can be lifted from it unchanged.
+   Motion durations and easings come from tokens/motion.css. */
+
+@keyframes dcRise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dcFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dcPop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dcSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dcPulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(26, 115, 232, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(26, 115, 232, 0);
+  }
+}
+
+@keyframes ozeeSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ozeeModalIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Respect a user's reduced-motion preference: keep state changes, drop the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .ozds *,
+  .ozds *::before,
+  .ozds *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

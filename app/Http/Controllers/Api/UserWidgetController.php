@@ -29,7 +29,22 @@ class UserWidgetController extends Controller
             'metadata' => 'required|array'
         ]);
 
-        $user->update(['metadata' => $validated['metadata']]);
+        // The submitted array replaces the stored one (so an admin can still delete a
+        // key by omitting it), except for keys this widget never renders and therefore
+        // could only ever destroy. Guests reaching the app through a public project
+        // share link keep their encrypted payout methods under one of those — see
+        // App\Services\GuestPaymentMethodService.
+        $protected = [\App\Services\GuestPaymentMethodService::METADATA_KEY];
+        $existing = $user->metadata ?? [];
+
+        $metadata = $validated['metadata'];
+        foreach ($protected as $key) {
+            if (array_key_exists($key, $existing)) {
+                $metadata[$key] = $existing[$key];
+            }
+        }
+
+        $user->update(['metadata' => $metadata]);
 
         return response()->json([
             'message' => 'Metadata updated successfully',

@@ -273,6 +273,10 @@ class BillController extends Controller
             'reference_number' => 'required|string|max:255',
             'due_date' => 'nullable|date',
             'currency' => 'required|string|max:3',
+            // Settable here because bills uploaded by suppliers through a public share
+            // link arrive without one - the guest has no way to know it. Without this
+            // rule the field could never be populated after creation.
+            'transaction_type_id' => 'nullable|exists:transaction_types,id',
         ];
 
         if (!$isGeneralExpense) {
@@ -351,6 +355,13 @@ class BillController extends Controller
                 'due_date' => $validated['due_date'] ?? null,
                 'currency' => $validated['currency'] ?? 'AUD',
             ]);
+
+            // Only overwrite when the field was actually sent, so existing callers that
+            // omit it (BillDetails.vue) don't blank a transaction type that was set.
+            if (array_key_exists('transaction_type_id', $validated)) {
+                $bill->transaction_type_id = $validated['transaction_type_id'];
+            }
+
             $bill->save();
 
             if (!$isGeneralExpense && isset($validated['payment_details'])) {
@@ -362,8 +373,16 @@ class BillController extends Controller
                         'contractor_id' => $bill->contractor_id,
                         'payment_method' => $paymentDetails['payment_method'],
                         'details' => [
-                            'account_name' => $paymentDetails['account_name'],
-                            'account_number' => $paymentDetails['account_number'],
+                            // Merged over what is already stored, so identifiers this
+                            // form doesn't render (IFSC, sort code, routing number, and
+                            // the PayPal/Wise/Payoneer/crypto destinations that arrive
+                            // on supplier-submitted bills) survive an admin edit.
+                            ...array_diff_key(
+                                (array) ($bill->paymentDetail?->details ?? []),
+                                array_flip(['account_name', 'account_number', 'bank_name', 'bsb', 'swift_code', 'iban', 'notes'])
+                            ),
+                            'account_name' => $paymentDetails['account_name'] ?? null,
+                            'account_number' => $paymentDetails['account_number'] ?? null,
                             'bank_name' => $paymentDetails['bank_name'] ?? null,
                             'bsb' => $paymentDetails['bsb'] ?? null,
                             'swift_code' => $paymentDetails['swift_code'] ?? null,
@@ -653,41 +672,9 @@ class BillController extends Controller
 
     private function initializeBillApprovalInstance(Bill $bill, int $projectId): void
     {
-        $flow = ApprovalFlow::query()
-            ->where('approvable_type', Bill::class)
-            ->where('is_active', true)
-            ->where(function ($query) use ($projectId) {
-                $query->where('project_id', $projectId)
-                    ->orWhere(function ($inner) {
-                        $inner->whereNull('project_id')->where('is_default', true);
-                    });
-            })
-            ->with('steps')
-            ->orderByRaw('project_id is null')
-            ->first();
-
-        if (! $flow || $flow->steps->isEmpty()) {
-            return;
-        }
-
-        DB::transaction(function () use ($bill, $flow) {
-            $instance = $bill->approvalInstance()->create([
-                'approval_flow_id' => $flow->id,
-                'current_step_order' => $flow->steps->first()->step_order,
-                'status' => 'in_progress',
-            ]);
-
-            foreach ($flow->steps as $step) {
-                $instance->steps()->create([
-                    'step_order' => $step->step_order,
-                    'approver_type' => $step->approver_type,
-                    'approver_role_id' => $step->approver_role_id,
-                    'approver_user_id' => $step->approver_user_id,
-                    'label' => $step->label,
-                    'status' => 'pending',
-                ]);
-            }
-        });
+        // Shared with the public guest bill-upload endpoint
+        // (PublicProjectController::storeBill) so both paths enter the same flow.
+        app(\App\Services\BillApprovalFlowService::class)->initialize($bill, $projectId);
     }
 
     private function approveThroughFlow($user, Bill $bill, ApprovalInstance $instance)

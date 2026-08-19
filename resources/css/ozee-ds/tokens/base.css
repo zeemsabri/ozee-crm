@@ -1,0 +1,85 @@
+/* Adapted from the design system's own tokens/base.css.
+   The original file styles `body`, `*` and `a` globally. That would leak into the
+   legacy Vue pages (which rely on Tailwind's preflight), so everything element-level
+   here is scoped under `.ozds` instead. The custom properties themselves live in the
+   sibling token files on :root and are harmless everywhere. */
+
+/* Set on <html> by the React page while it is mounted, so the app background
+   covers overscroll without permanently restyling body for Vue pages. */
+html[data-ozds],
+html[data-ozds] body {
+  background: var(--surface-app);
+}
+
+/* Deliberately no `background` here. `.ozds` is also applied to overlay roots
+   (modals, toasts) that must stay transparent, so each page paints its own
+   background on its outermost wrapper instead. */
+.ozds {
+  font: var(--font-text1-normal);
+  color: var(--text-body);
+  -webkit-font-smoothing: var(--font-smoothing-webkit);
+  -moz-osx-font-smoothing: var(--font-smoothing-moz);
+}
+
+.ozds *,
+.ozds *::before,
+.ozds *::after {
+  box-sizing: border-box;
+}
+
+/* Explicit rather than inherited from Tailwind preflight, so the page renders the
+   same whether or not app.css happens to load first. */
+.ozds h1,
+.ozds h2,
+.ozds h3,
+.ozds h4,
+.ozds p,
+.ozds figure {
+  margin: 0;
+}
+
+.ozds button,
+.ozds input,
+.ozds textarea,
+.ozds select {
+  font-family: inherit;
+}
+
+.ozds a {
+  color: var(--text-link);
+  text-decoration: none;
+  transition: color var(--motion-productive-medium) var(--motion-timing-transition);
+}
+
+.ozds a:hover {
+  color: var(--primary-hover-color);
+  text-decoration: underline;
+}
+
+.ozds :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--border-radius-small);
+}
+
+/* Scrollbars inside dense panels, kept subtle so they read as hairlines. */
+.ozds ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.ozds ::-webkit-scrollbar-thumb {
+  background: var(--ui-background-color);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+
+.ozds ::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-background-hover-color);
+  background-clip: content-box;
+}
+
+.ozds ::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -15,12 +15,8 @@ class OtpService
     /**
      * Generate and send a 6-digit OTP to the given email for the project share token.
      */
-    public function generate(string $email, string $projectToken): void
+    public function generate(string $email, string $projectToken): string
     {
-        $project = Project::where('public_share_token', $projectToken)
-            ->where('public_share_enabled', true)
-            ->firstOrFail();
-
         // Invalidate any previous unverified OTPs for this email + project
         OtpVerification::where('email', $email)
             ->where('project_token', $projectToken)
@@ -36,7 +32,7 @@ class OtpService
             'expires_at'    => Carbon::now()->addMinutes(10),
         ]);
 
-        Mail::to($email)->queue(new OtpVerificationMail($otp, $project->name));
+        return $otp;
     }
 
     /**

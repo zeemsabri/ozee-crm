@@ -37,6 +37,8 @@ class FinancialController extends Controller
             'approvalInstance.steps.approverUser',
             'transactions.user',
             'transactions.transactionType',
+            // The uploaded invoice — the whole point of a supplier-submitted bill.
+            'files',
         ])->findOrFail($id);
         $transactionTypes = \App\Models\TransactionType::query()
             ->select(['id', 'name', 'xero_account_code'])

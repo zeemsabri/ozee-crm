@@ -1,0 +1,30 @@
+/* Product-level aliases. Prefer these in screens; the raw tokens above are the source of truth. */
+:root {
+  --text-body: var(--primary-text-color);
+  --text-muted: var(--secondary-text-color);
+  --text-link: var(--link-color);
+  --text-on-accent: var(--text-color-on-primary);
+
+  --surface-app: var(--allgrey-background-color);
+  --surface-card: var(--primary-background-color);
+  --surface-sunken: var(--allgrey-background-color);
+  --surface-raised: var(--primary-background-color);
+  --surface-hover: var(--primary-background-hover-color);
+  --surface-selected: var(--primary-selected-color);
+
+  --border-hairline: var(--layout-border-color);
+  --border-control: var(--ui-border-color);
+
+  --accent: var(--primary-color);
+  --accent-hover: var(--primary-hover-color);
+
+  --status-done: var(--color-done-green);
+  --status-working: var(--color-working-orange);
+  --status-stuck: var(--color-stuck-red);
+  --status-idle: var(--ui-background-color);
+
+  /* Layout constants of the CRM shell */
+  --shell-topbar-height: 56px;
+  --shell-sidebar-width: 240px;
+  --shell-sidebar-collapsed-width: 64px;
+}

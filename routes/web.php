@@ -174,17 +174,111 @@ Route::get('/email/track/{id}', [EmailTrackingController::class, 'track'])->name
 Route::get('/notice/track/{id}/{email?}', [EmailTrackingController::class, 'notice'])->name('notice.track');
 Route::get('/project/track/{id}/{email?}', [EmailTrackingController::class, 'project'])->name('project.track');
 
-// --- Public Project Routes (no auth required) ---
-Route::prefix('projects/public')->name('public.projects.')->group(function () {
-    Route::get('/{slug}/{code}', [\App\Http\Controllers\Public\PublicProjectController::class, 'showPretty'])->name('pretty');
-    Route::get('/{token}', [\App\Http\Controllers\Public\PublicProjectController::class, 'show'])->name('show');
-    Route::post('/{token}/otp', [\App\Http\Controllers\Public\PublicProjectController::class, 'sendOtp'])->name('otp.send');
-    Route::post('/{token}/otp/verify', [\App\Http\Controllers\Public\PublicProjectController::class, 'verifyOtp'])->name('otp.verify');
-    Route::post('/{token}/session', [\App\Http\Controllers\Public\PublicProjectController::class, 'session'])->name('session');
-    Route::post('/{token}/profile', [\App\Http\Controllers\Public\PublicProjectController::class, 'updateProfile'])->name('profile.update');
-    Route::post('/{token}/track', [\App\Http\Controllers\Public\PublicProjectController::class, 'track'])->name('track');
-    Route::post('/{token}/proposals', [\App\Http\Controllers\Public\PublicProjectController::class, 'storeProposal'])->name('proposals.store');
+// --- Supplier portal ------------------------------------------------------------
+// The front door: the link people receive by email. Unauthenticated, because getting
+// identified is the whole point of it. Everything past sign-in lives under /portal.
+Route::prefix('projects/public')->middleware('throttle:120,1')->name('public.projects.')->group(function () {
+    $portal = \App\Http\Controllers\Public\PublicProjectController::class;
+
+    // Share tokens are 64 hex-ish characters and the invite links carry the first 12.
+    // Constraining the segment keeps anything shorter — or containing a LIKE wildcard —
+    // from ever reaching the controller's prefix lookup.
+    Route::get('/{slug}/{code}', [$portal, 'showPretty'])
+        ->where(['slug' => '[A-Za-z0-9_-]+', 'code' => '[A-Za-z0-9]{12,64}'])
+        ->name('pretty');
+    Route::get('/{token}', [$portal, 'show'])
+        ->where('token', '[A-Za-z0-9]{12,64}')
+        ->name('show');
+
+    // Mail-sending and brute-forceable, so throttled harder than the group: the code is
+    // 6 digits over a 10-minute window and OtpService does not count attempts.
+    Route::post('/{token}/otp', [$portal, 'sendOtp'])
+        ->where('token', '[A-Za-z0-9]{12,64}')
+        ->middleware('throttle:6,1')
+        ->name('otp.send');
+    Route::post('/{token}/otp/verify', [$portal, 'verifyOtp'])
+        ->where('token', '[A-Za-z0-9]{12,64}')
+        ->middleware('throttle:10,1')
+        ->name('otp.verify');
 });
+
+// --- Classic project page (the pre-redesign Vue one) -----------------------------
+// Lives alongside the new portal on its own URL, so the "Open the classic version"
+// link on the project page has somewhere to go while the React portal is being
+// proven. Entirely self-contained: its own controller, its own endpoints, its own
+// localStorage session. Nothing here is shared with the portal, so it cannot be
+// broken by portal changes — which is the whole point of keeping it.
+//
+// Set PORTAL_CLASSIC=false (config/portal.php) to switch it off once the new portal
+// is trusted; that hides the link and unregisters these routes together. Routes are
+// registered from config, so run `php artisan route:clear` after changing it.
+if (config('portal.classic')) {
+    Route::prefix('projects/classic')->middleware('throttle:120,1')->name('classic.projects.')->group(function () {
+        $classic = \App\Http\Controllers\Public\LegacyProjectViewController::class;
+
+        // Accepts the 12-character share code as well as the full token, because the
+        // portal page only ever holds the code — see PortalController::classicUrl().
+        Route::get('/{code}', [$classic, 'showClassic'])
+            ->where('code', '[A-Za-z0-9]{12,64}')
+            ->name('show');
+
+        // Same throttles as the portal's own OTP endpoints. The classic page is a
+        // fallback, not a way back to the unthrottled version of these.
+        Route::post('/{token}/otp', [$classic, 'sendOtp'])
+            ->where('token', '[A-Za-z0-9]{12,64}')
+            ->middleware('throttle:6,1')
+            ->name('otp.send');
+        Route::post('/{token}/otp/verify', [$classic, 'verifyOtp'])
+            ->where('token', '[A-Za-z0-9]{12,64}')
+            ->middleware('throttle:10,1')
+            ->name('otp.verify');
+
+        Route::post('/{token}/session', [$classic, 'session'])
+            ->where('token', '[A-Za-z0-9]{12,64}')
+            ->name('session');
+        Route::post('/{token}/profile', [$classic, 'updateProfile'])
+            ->where('token', '[A-Za-z0-9]{12,64}')
+            ->name('profile.update');
+        Route::post('/{token}/track', [$classic, 'track'])
+            ->where('token', '[A-Za-z0-9]{12,64}')
+            ->name('track');
+        Route::post('/{token}/proposals', [$classic, 'storeProposal'])
+            ->where('token', '[A-Za-z0-9]{12,64}')
+            ->name('proposals.store');
+    });
+}
+
+// Signed-in portal. `portal.user` resolves either an existing app login or a verified
+// emailed-code session; access to each project is decided by PortalAccessService, not
+// by knowing a share token — which is what lets team-membership projects work here.
+
+Route::prefix('portal')
+    ->middleware(['portal.user', 'throttle:120,1'])
+    ->name('portal.')
+    ->group(function () {
+        Route::get('/', [\App\Http\Controllers\Portal\PortalController::class, 'index'])->name('projects.index');
+        Route::get('/profile', [\App\Http\Controllers\Portal\PortalController::class, 'profile'])->name('profile');
+        Route::post('/profile', [\App\Http\Controllers\Portal\PortalController::class, 'updateProfile'])->name('profile.update');
+        Route::post('/sign-out', [\App\Http\Controllers\Portal\PortalController::class, 'signOut'])->name('sign-out');
+
+        Route::post('/payment-methods', [\App\Http\Controllers\Portal\PortalController::class, 'storePaymentMethod'])->name('payment-methods.store');
+        Route::post('/payment-methods/{method}/default', [\App\Http\Controllers\Portal\PortalController::class, 'defaultPaymentMethod'])
+            ->where('method', '[A-Za-z0-9_-]+')
+            ->name('payment-methods.default');
+        Route::delete('/payment-methods/{method}', [\App\Http\Controllers\Portal\PortalController::class, 'destroyPaymentMethod'])
+            ->where('method', '[A-Za-z0-9_-]+')
+            ->name('payment-methods.destroy');
+
+        Route::get('/projects/{project}', [\App\Http\Controllers\Portal\PortalController::class, 'show'])
+            ->where('project', '[0-9]+')
+            ->name('projects.show');
+        Route::post('/projects/{project}/proposals', [\App\Http\Controllers\Portal\PortalController::class, 'storeProposal'])
+            ->where('project', '[0-9]+')
+            ->name('projects.proposals.store');
+        Route::post('/projects/{project}/bills', [\App\Http\Controllers\Portal\PortalController::class, 'storeBill'])
+            ->where('project', '[0-9]+')
+            ->name('projects.bills.store');
+    });
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {

@@ -73,6 +73,9 @@ const form = useForm({
     currency: bill.value?.currency || bill.value?.project?.currency || 'AUD',
     xero_account_code: bill.value?.xero_account_code || bill.value?.transactionType?.xero_account_code || '',
     xero_tax_type: bill.value?.xero_tax_type === 'NONE' ? 'EXEMPTEXPENSES' : (bill.value?.xero_tax_type || 'INPUT'),
+    // Supplier-uploaded bills arrive without one — the guest has no way to know it — so
+    // this is where it gets set.
+    transaction_type_id: bill.value?.transaction_type_id || null,
     payment_details: {
         payment_method: bill.value?.payment_detail?.payment_method || 'bank_transfer',
         account_name: bill.value?.payment_detail?.details?.account_name || '',
@@ -82,8 +85,38 @@ const form = useForm({
         swift_code: bill.value?.payment_detail?.details?.swift_code || '',
         iban: bill.value?.payment_detail?.details?.iban || '',
         notes: bill.value?.payment_detail?.details?.notes || '',
+        // Non-bank destinations. Required by the API whenever the matching method is
+        // selected, and carried on bills suppliers submit themselves.
+        paypal_email: bill.value?.payment_detail?.details?.paypal_email || '',
+        payoneer_email: bill.value?.payment_detail?.details?.payoneer_email || '',
+        wise_email: bill.value?.payment_detail?.details?.wise_email || '',
+        wallet_address: bill.value?.payment_detail?.details?.wallet_address || '',
+        coin_type: bill.value?.payment_detail?.details?.coin_type || '',
     },
 });
+
+// The values the API's required_if rules key off, plus the legacy ones already in the
+// data so an existing bill's method never renders as blank.
+const paymentMethodOptions = computed(() => {
+    const options = [
+        { value: 'bank_local', label: 'Bank transfer (local)' },
+        { value: 'bank_wire', label: 'Bank transfer (international)' },
+        { value: 'paypal', label: 'PayPal' },
+        { value: 'payoneer', label: 'Payoneer' },
+        { value: 'wise', label: 'Wise' },
+        { value: 'crypto', label: 'Crypto' },
+        { value: 'other', label: 'Other' },
+    ];
+    const current = form.payment_details.payment_method;
+    if (current && !options.some((o) => o.value === current)) {
+        options.push({ value: current, label: `${current} (legacy)` });
+    }
+    return options;
+});
+
+const isBankMethod = computed(() =>
+    ['bank_local', 'bank_wire', 'bank_transfer', 'other'].includes(form.payment_details.payment_method),
+);
 
 const statusLabel = computed(() => (bill.value?.status || '').replace(/_/g, ' ').toUpperCase());
 
@@ -158,6 +191,7 @@ const saveBill = async () => {
             currency: form.currency,
             xero_account_code: form.xero_account_code,
             xero_tax_type: form.xero_tax_type,
+            transaction_type_id: form.transaction_type_id,
             payment_details: {
                 payment_method: form.payment_details.payment_method,
                 account_name: form.payment_details.account_name,
@@ -167,6 +201,11 @@ const saveBill = async () => {
                 swift_code: form.payment_details.swift_code,
                 iban: form.payment_details.iban,
                 notes: form.payment_details.notes,
+                paypal_email: form.payment_details.paypal_email,
+                payoneer_email: form.payment_details.payoneer_email,
+                wise_email: form.payment_details.wise_email,
+                wallet_address: form.payment_details.wallet_address,
+                coin_type: form.payment_details.coin_type,
             },
         };
 
@@ -497,11 +536,18 @@ onMounted(() => {
                             <InputError :message="form.errors.xero_tax_type" />
                         </div>
                         <div>
+                            <InputLabel for="bill_transaction_type" value="Transaction Type" />
+                            <select id="bill_transaction_type" v-model="form.transaction_type_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option :value="null">Not set</option>
+                                <option v-for="type in transaction_types" :key="type.id" :value="type.id">{{ type.name }}</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Supplier-uploaded bills arrive without one.</p>
+                            <InputError :message="form.errors.transaction_type_id" />
+                        </div>
+                        <div>
                             <InputLabel for="bill_payment_method" value="Payment Method" />
                             <select id="bill_payment_method" v-model="form.payment_details.payment_method" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="paypal">PayPal</option>
-                                <option value="other">Other</option>
+                                <option v-for="option in paymentMethodOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                             <InputError :message="form.errors['payment_details.payment_method']" />
                         </div>
@@ -515,25 +561,50 @@ onMounted(() => {
                             <TextInput id="bill_account_number" v-model="form.payment_details.account_number" type="text" class="mt-1 block w-full" />
                             <InputError :message="form.errors['payment_details.account_number']" />
                         </div>
-                        <div>
+                        <div v-if="isBankMethod">
                             <InputLabel for="bill_bank_name" value="Bank Name" />
                             <TextInput id="bill_bank_name" v-model="form.payment_details.bank_name" type="text" class="mt-1 block w-full" />
                             <InputError :message="form.errors['payment_details.bank_name']" />
                         </div>
-                        <div>
+                        <div v-if="isBankMethod">
                             <InputLabel for="bill_bsb" value="BSB / Routing" />
                             <TextInput id="bill_bsb" v-model="form.payment_details.bsb" type="text" class="mt-1 block w-full" />
                             <InputError :message="form.errors['payment_details.bsb']" />
                         </div>
-                        <div>
+                        <div v-if="isBankMethod">
                             <InputLabel for="bill_swift" value="SWIFT Code" />
                             <TextInput id="bill_swift" v-model="form.payment_details.swift_code" type="text" class="mt-1 block w-full" />
                             <InputError :message="form.errors['payment_details.swift_code']" />
                         </div>
-                        <div>
+                        <div v-if="isBankMethod">
                             <InputLabel for="bill_iban" value="IBAN" />
                             <TextInput id="bill_iban" v-model="form.payment_details.iban" type="text" class="mt-1 block w-full" />
                             <InputError :message="form.errors['payment_details.iban']" />
+                        </div>
+                        <div v-if="form.payment_details.payment_method === 'paypal'">
+                            <InputLabel for="bill_paypal_email" value="PayPal Email" />
+                            <TextInput id="bill_paypal_email" v-model="form.payment_details.paypal_email" type="email" class="mt-1 block w-full" />
+                            <InputError :message="form.errors['payment_details.paypal_email']" />
+                        </div>
+                        <div v-if="form.payment_details.payment_method === 'payoneer'">
+                            <InputLabel for="bill_payoneer_email" value="Payoneer Email" />
+                            <TextInput id="bill_payoneer_email" v-model="form.payment_details.payoneer_email" type="email" class="mt-1 block w-full" />
+                            <InputError :message="form.errors['payment_details.payoneer_email']" />
+                        </div>
+                        <div v-if="form.payment_details.payment_method === 'wise'">
+                            <InputLabel for="bill_wise_email" value="Wise Email" />
+                            <TextInput id="bill_wise_email" v-model="form.payment_details.wise_email" type="email" class="mt-1 block w-full" />
+                            <InputError :message="form.errors['payment_details.wise_email']" />
+                        </div>
+                        <div v-if="form.payment_details.payment_method === 'crypto'">
+                            <InputLabel for="bill_coin_type" value="Coin / Network" />
+                            <TextInput id="bill_coin_type" v-model="form.payment_details.coin_type" type="text" class="mt-1 block w-full" />
+                            <InputError :message="form.errors['payment_details.coin_type']" />
+                        </div>
+                        <div v-if="form.payment_details.payment_method === 'crypto'">
+                            <InputLabel for="bill_wallet_address" value="Wallet Address" />
+                            <TextInput id="bill_wallet_address" v-model="form.payment_details.wallet_address" type="text" class="mt-1 block w-full" />
+                            <InputError :message="form.errors['payment_details.wallet_address']" />
                         </div>
                         <div class="md:col-span-2">
                             <InputLabel for="bill_notes" value="Payment Notes" />

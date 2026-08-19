@@ -2,196 +2,172 @@
 
 namespace App\Http\Controllers\Public;
 
-use App\Enums\MilestoneStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
-use App\Models\ProjectExpendable;
+use App\Models\User;
 use App\Models\UserInteraction;
 use App\Services\OtpService;
-use App\Enums\ProjectExpendableStatus;
+use App\Services\PortalAccessService;
+use App\Services\PortalProfileService;
+use App\Services\PortalProjectPresenter;
+use App\Services\PortalSessionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * The front door of the supplier portal: the link people receive by email.
+ *
+ * This controller's whole job is to get someone identified. It renders the project
+ * brief with a sign-in panel, sends and checks the emailed code, and then hands over to
+ * PortalController — which owns every signed-in URL.
+ *
+ * Once verified, the session token goes into an HttpOnly cookie (see
+ * PortalSessionService) rather than staying in the browser's localStorage, which is
+ * what allows the portal to have real server-rendered URLs instead of one page
+ * switching views client-side.
+ */
 class PublicProjectController extends Controller
 {
-    public function __construct(private OtpService $otpService) {}
+    public function __construct(
+        private OtpService $otpService,
+        private PortalSessionService $portalSession,
+        private PortalAccessService $access,
+        private PortalProjectPresenter $presenter,
+        private PortalProfileService $profiles,
+    ) {}
 
     /**
-     * Render the public project view (no auth required).
+     * The share code is the first 12 characters of `projects.public_share_token`
+     * (see ProjectShareController::buildPublicShareUrl). Anything shorter is refused —
+     * a 1-character prefix would otherwise match the first enabled project and let
+     * anyone walk the alphabet to enumerate live projects.
      */
-    public function show(string $token): Response
-    {
-        $project = $this->resolveProjectByToken($token);
+    private const MIN_SHARE_CODE_LENGTH = 12;
 
-        return $this->renderProjectPage($project, $token);
+    /**
+     * Raw-token form of the share link.
+     */
+    public function show(Request $request, string $token): Response|RedirectResponse
+    {
+        return $this->entryPoint($request, $this->resolveProjectByShareCode($token));
     }
 
     /**
-     * Render public project page using a friendly URL structure.
+     * Friendly form of the share link — this is what the invite emails contain.
      */
-    public function showPretty(string $slug, string $code): Response
+    public function showPretty(Request $request, string $slug, string $code): Response|RedirectResponse
     {
-        $project = $this->resolveProjectByCode($code);
-
-        return $this->renderProjectPage($project, $project->public_share_token);
+        return $this->entryPoint($request, $this->resolveProjectByShareCode($code));
     }
 
-    private function renderProjectPage(Project $project, string $token): Response
+    /**
+     * Already identified and allowed in? Go straight to the real project URL. Otherwise
+     * show the brief with a sign-in panel.
+     */
+    private function entryPoint(Request $request, Project $project): Response|RedirectResponse
     {
-        $brandingConfig = config('branding');
+        $user = $this->portalSession->resolve($request);
 
-        $project->load([
-            'milestones' => function ($q) {
-                $q->select('id', 'project_id', 'name', 'description', 'status', 'completion_date')
-                    // Public view should only show active/pending work.
-                    ->whereNotIn('status', [
-                        MilestoneStatus::Approved->value,
-                        MilestoneStatus::Rejected->value,
-                        MilestoneStatus::Completed->value,
-                        MilestoneStatus::Canceled->value,
-                        MilestoneStatus::Expired->value,
-                    ])
-                    ->orderBy('completion_date')
-                    ->orderBy('created_at');
-            },
-            'projectDeliverables' => function ($q) {
-                $q->select('id', 'project_id', 'milestone_id', 'name', 'description', 'status', 'due_date', 'details')
-                    // Keep public deliverables focused on pending work.
-                    ->whereNotIn('status', ['completed', 'approved', 'canceled'])
-                    ->orderBy('due_date')
-                    ->orderBy('created_at');
-            },
-        ]);
+        if ($user && $this->access->canAccess($user, $project)) {
+            return redirect()->route('portal.projects.show', $project);
+        }
 
-        $milestones = $project->milestones->map(fn ($m) => [
-            'id'              => $m->id,
-            'name'            => (string) $m->name,
-            'description'     => $m->description ? (string) $m->description : null,
-            'status'          => $m->status instanceof \BackedEnum ? $m->status->value : (string) $m->status,
-            'completion_date' => $m->completion_date?->format('d M Y'),
-        ])->values();
-
-        $activeMilestoneIds = $milestones->pluck('id')->all();
-
-        $deliverables = $project->projectDeliverables
-            ->filter(fn ($d) => is_null($d->milestone_id) || in_array($d->milestone_id, $activeMilestoneIds, true))
-            ->map(fn ($d) => [
-                'id' => $d->id,
-                'milestone_id' => $d->milestone_id,
-                'name' => (string) $d->name,
-                'description' => $d->description ? (string) $d->description : null,
-                'status' => $d->status instanceof \BackedEnum ? $d->status->value : (string) $d->status,
-                'due_date' => $d->due_date?->format('d M Y'),
-                'checklist' => $this->sanitizeChecklist($d->details),
-            ])
-            ->values();
-
-        $projectStatus = $project->status instanceof \BackedEnum
-            ? $project->status->value
-            : (string) $project->status;
-
-        return Inertia::render('Public/ProjectView', [
-            'project' => [
-                'name'        => $project->name,
-                'description' => $project->description,
-                'status'      => $projectStatus,
-                'token'       => $token,
-                'milestones'  => $milestones,
-                'deliverables' => $deliverables,
-            ],
-            'branding' => [
-                'company' => [
-                    'name' => $brandingConfig['company']['name'] ?? null,
-                    'website' => $brandingConfig['company']['website'] ?? null,
-                    'logo_url' => ! empty($brandingConfig['company']['logo_url'])
-                        ? asset($brandingConfig['company']['logo_url'])
-                        : null,
-                ],
-            ],
+        return Inertia::render('React/Portal/Project', [
+            // The 12-char code, not the token — enough for the sign-in calls below,
+            // and useless for anything else.
+            'project'        => $this->presenter->project($project, $this->shareCodeFor($project)),
+            // Signed out: no personal data, and the page renders its sign-in panel.
+            'account'        => null,
+            'proposals'      => [],
+            'paymentMethods' => [],
+            'branding'       => $this->presenter->branding(),
+            'currencies'     => PortalProjectPresenter::CURRENCIES,
         ]);
     }
 
-    private function sanitizeChecklist($details): array
+    /**
+     * Resolve a project from either the full 64-character share token or the 12-character
+     * code the invite emails use.
+     *
+     * Two guards, both load-bearing:
+     *  - a minimum length, so a short prefix can't match an arbitrary project;
+     *  - escaped LIKE wildcards, so `%` can't match everything.
+     */
+    private function resolveProjectByShareCode(string $code): Project
     {
-        if (! is_array($details)) {
-            return [];
+        abort_if(strlen($code) < self::MIN_SHARE_CODE_LENGTH, 404);
+
+        $query = Project::query()->where('public_share_enabled', true);
+
+        if (strlen($code) === 64) {
+            $query->where('public_share_token', $code);
+        } else {
+            $query->where('public_share_token', 'like', addcslashes($code, '%_\\').'%');
         }
 
-        $items = $details['checklist'] ?? [];
+        return $query->firstOrFail();
+    }
 
-        if (! is_array($items)) {
-            return [];
+    private function findSharedProject(string $code): ?Project
+    {
+        if (strlen($code) < self::MIN_SHARE_CODE_LENGTH) {
+            return null;
         }
 
-        return collect($items)
-            ->map(function ($item) {
-                if (! is_array($item)) {
-                    return null;
-                }
+        $query = Project::query()->where('public_share_enabled', true);
 
-                $name = trim((string) ($item['name'] ?? ''));
-                if ($name === '') {
-                    return null;
-                }
+        if (strlen($code) === 64) {
+            $query->where('public_share_token', $code);
+        } else {
+            $query->where('public_share_token', 'like', addcslashes($code, '%_\\').'%');
+        }
 
-                return [
-                    'name' => $name,
-                    'completed' => (bool) ($item['completed'] ?? false),
-                ];
-            })
-            ->filter()
-            ->values()
-            ->all();
+        return $query->first();
     }
 
-    private function resolveProjectByToken(string $token): Project
+    private function shareCodeFor(Project $project): ?string
     {
-        return Project::query()
-            ->where('public_share_token', $token)
-            ->where('public_share_enabled', true)
-            ->firstOrFail();
-    }
-
-    private function resolveProjectByCode(string $code): Project
-    {
-        return Project::query()
-            ->where('public_share_enabled', true)
-            ->where('public_share_token', 'like', $code.'%')
-            ->firstOrFail();
+        return $project->public_share_token
+            ? substr((string) $project->public_share_token, 0, self::MIN_SHARE_CODE_LENGTH)
+            : null;
     }
 
     /**
-     * Send OTP to the provided email.
+     * Email a 6-digit code for this project's share link.
      */
     public function sendOtp(Request $request, string $token): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email|max:255',
-        ]);
+        $validator = Validator::make($request->all(), ['email' => 'required|email|max:255']);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Validate the project token exists and is enabled
-        $project = Project::where('public_share_token', $token)
-            ->where('public_share_enabled', true)
-            ->first();
+        $project = $this->findSharedProject($token);
 
         if (! $project) {
             return response()->json(['message' => 'This project link is not active.'], 404);
         }
 
-        $this->otpService->generate($request->email, $token);
+        // Store the canonical 64-character token, not whatever length of it was in the
+        // URL. `otp_verifications.project_token` is what PortalAccessService matches a
+        // project by, and the invite links only carry the first 12 characters.
+        $this->otpService->generate($request->email, (string) $project->public_share_token);
 
         return response()->json(['message' => 'Verification code sent to your email.']);
     }
 
     /**
-     * Verify OTP and return a session token.
+     * Check the code, start a portal session, and say where to go next.
+     *
+     * The email is matched against `users`, so someone who already has an account here
+     * is recognised as themselves rather than as a new guest — that is what makes the
+     * All projects page able to show their team projects too.
      */
     public function verifyOtp(Request $request, string $token): JsonResponse
     {
@@ -204,283 +180,67 @@ class PublicProjectController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $result = $this->otpService->verify($request->email, $request->otp, $token);
+        $project = $this->findSharedProject($token);
+
+        if (! $project) {
+            return response()->json(['message' => 'This project link is not active.'], 404);
+        }
+
+        // OtpService keeps no attempt counter, and the per-route throttle is per IP —
+        // so a 6-digit code with a 10-minute life is brute-forceable from a handful of
+        // addresses. Count attempts against the target instead of the caller.
+        $canonical = (string) $project->public_share_token;
+        $attemptKey = 'otp-verify:'.sha1(mb_strtolower($request->email).'|'.$canonical);
+
+        if (RateLimiter::tooManyAttempts($attemptKey, 5)) {
+            return response()->json([
+                'message' => 'Too many attempts on that code. Request a new one in a few minutes.',
+            ], 429);
+        }
+
+        // Codes issued before the token was canonicalised are keyed by the short code
+        // that was in the URL, so fall back to it — otherwise deploying this would
+        // invalidate every code already sitting in someone's inbox.
+        $result = $this->otpService->verify($request->email, $request->otp, $canonical);
+
+        if (! $result && $token !== $canonical) {
+            $result = $this->otpService->verify($request->email, $request->otp, $token);
+        }
 
         if (! $result) {
+            RateLimiter::hit($attemptKey, 600);
+
             return response()->json(['message' => 'Invalid or expired verification code.'], 422);
         }
 
-        $project = Project::where('public_share_token', $token)
-            ->where('public_share_enabled', true)
-            ->first();
+        RateLimiter::clear($attemptKey);
 
-        if (! $project) {
-            return response()->json(['message' => 'This project link is not active.'], 404);
+        // Not withTrashed: a soft-deleted account must not be able to mint a fresh
+        // 30-day session, which would otherwise outlive the offboarding entirely.
+        $user = User::query()->whereKey($result['guest_user_id'])->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'That account is no longer active.'], 403);
         }
 
-        $guestUser = \App\Models\User::withTrashed()->find($result['guest_user_id']);
+        $this->trackInteraction((int) $user->getKey(), $project->id, 'link_open');
 
         return response()->json([
-            'session_token' => $result['session_token'],
+            'message'     => 'Verified.',
             'needs_profile' => $result['needs_profile'],
-            'user'          => [
-                'name'  => $guestUser->name ?? '',
-                'email' => $guestUser->email,
-                'phone' => $guestUser->metadata['phone'] ?? '',
-            ],
-            'latest_proposal' => $this->latestProposalForGuest($project->id, (int) $guestUser->id),
-        ]);
-    }
-
-    /**
-     * Resolve current verified session details and latest proposal for form prefill.
-     */
-    public function session(Request $request, string $token): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'session_token' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $project = Project::where('public_share_token', $token)
-            ->where('public_share_enabled', true)
-            ->first();
-
-        if (! $project) {
-            return response()->json(['message' => 'This project link is not active.'], 404);
-        }
-
-        $guestUser = $this->otpService->resolveGuest($request->session_token, $token);
-
-        if (! $guestUser) {
-            return response()->json(['message' => 'Session expired. Please verify your email again.'], 401);
-        }
-
-        return response()->json([
-            'user' => [
-                'name'  => $guestUser->name ?? '',
-                'email' => $guestUser->email,
-                'phone' => $guestUser->metadata['phone'] ?? '',
-            ],
-            'latest_proposal' => $this->latestProposalForGuest($project->id, (int) $guestUser->id),
-        ]);
-    }
-
-    /**
-     * Update the guest user's profile (name + phone).
-     */
-    public function updateProfile(Request $request, string $token): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'session_token' => 'required|string',
-            'name'          => 'required|string|max:255',
-            'phone'         => 'required|string|max:30',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $guestUser = $this->otpService->resolveGuest($request->session_token, $token);
-
-        if (! $guestUser) {
-            return response()->json(['message' => 'Session expired. Please verify your email again.'], 401);
-        }
-
-        $metadata = $guestUser->metadata ?? [];
-        $metadata['phone'] = $request->phone;
-
-        $guestUser->update([
-            'name'     => $request->name,
-            'metadata' => $metadata,
-        ]);
-
-        return response()->json(['message' => 'Profile saved.', 'user' => ['name' => $guestUser->name, 'phone' => $request->phone]]);
-    }
-
-    /**
-     * Submit a proposal (creates a ProjectExpendable linked to the guest user).
-     */
-    public function storeProposal(Request $request, string $token): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'session_token'  => 'required|string',
-            'proposal_scope' => 'required|string|in:milestone,project',
-            'milestone_id'   => 'required_if:proposal_scope,milestone|nullable|integer|exists:milestones,id',
-            'description'    => 'required|string|min:20|max:5000',
-            'amount'         => 'required|numeric|min:1',
-            'currency'       => 'required|string|in:PKR,AUD,USD,EUR,GBP,INR',
-            'payment_terms'  => 'nullable|string|max:10000',
-            'document'       => 'nullable|file|mimes:pdf|max:10240',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $project = Project::where('public_share_token', $token)
-            ->where('public_share_enabled', true)
-            ->first();
-
-        if (! $project) {
-            return response()->json(['message' => 'This project link is not active.'], 404);
-        }
-
-        $guestUser = $this->otpService->resolveGuest($request->session_token, $token);
-
-        if (! $guestUser) {
-            return response()->json(['message' => 'Session expired. Please verify your email again.'], 401);
-        }
-
-        $proposalScope = $request->string('proposal_scope')->toString();
-
-        $expendableId = $project->id;
-        $expendableType = \App\Models\Project::class;
-
-        if ($proposalScope === 'milestone') {
-            // Milestone proposals must belong to the shared project.
-            $milestone = $project->milestones()->where('id', $request->milestone_id)->first();
-            if (! $milestone) {
-                return response()->json(['message' => 'Invalid milestone selected.'], 422);
-            }
-
-            $expendableId = $milestone->id;
-            $expendableType = \App\Models\Milestone::class;
-        }
-
-        $expendable = ProjectExpendable::query()
-            ->where('project_id', $project->id)
-            ->where('user_id', $guestUser->id)
-            ->where('status', '!=', \App\Enums\ProjectExpendableStatus::Accepted->value)
-            ->latest()
-            ->first();
-
-        $attributes = [
-            'name'             => $proposalScope === 'project'
-                ? 'Whole Project Proposal from '.$guestUser->name
-                : 'Milestone Proposal from '.$guestUser->name,
-            'description'      => $request->description,
-            'currency'         => $request->currency,
-            'amount'           => $request->amount,
-            'balance'          => $request->amount,
-            'payment_terms'    => $request->payment_terms,
-            'expendable_id'    => $expendableId,
-            'expendable_type'  => $expendableType,
-        ];
-
-        if ($expendable) {
-            // Temporarily set the auth user so Spatie Activity Log records the guest user as the causer
-            // if they are an eloquent model. The OTP service returns a User model.
-            $originalUser = auth()->user();
-            auth()->setUser($guestUser);
-            
-            $attributes['status'] = \App\Enums\ProjectExpendableStatus::PendingApproval->value;
-            $expendable->update($attributes);
-            
-            if ($originalUser) {
-                auth()->setUser($originalUser);
-            } else {
-                auth()->logout();
-            }
-        } else {
-            $attributes['project_id'] = $project->id;
-            $attributes['user_id'] = $guestUser->id;
-            $attributes['status'] = 'Pending Approval';
-            $expendable = ProjectExpendable::create($attributes);
-        }
-
-        if ($request->hasFile('document')) {
-            $file = $request->file('document');
-            $objectPath = \Illuminate\Support\Facades\Storage::disk('gcs')->putFile('proposals', $file);
-
-            $expendable->files()->create([
-                'project_id' => $project->id,
-                'filename' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType(),
-                'file_size' => $file->getSize(),
-                'path' => $objectPath,
-            ]);
-        }
-
-        $this->trackInteraction($guestUser->id, $project->id, 'proposal_submitted');
-
-        return response()->json(['message' => 'Your proposal has been submitted successfully. We will review it and get back to you.']);
-    }
-
-    /**
-     * Track a verified guest opening the public project page or clicking the share link.
-     */
-    public function track(Request $request, string $token): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'session_token' => 'required|string',
-            'event'         => 'required|string|in:link_open,page_view',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $project = Project::where('public_share_token', $token)
-            ->where('public_share_enabled', true)
-            ->first();
-
-        if (! $project) {
-            return response()->json(['message' => 'This project link is not active.'], 404);
-        }
-
-        $guestUser = $this->otpService->resolveGuest($request->session_token, $token);
-
-        if (! $guestUser) {
-            return response()->json(['message' => 'Session expired. Please verify your email again.'], 401);
-        }
-
-        $this->trackInteraction($guestUser->id, $project->id, $request->event);
-
-        return response()->json(['message' => 'Tracked.']);
+            'account'     => $this->profiles->present($user),
+            // Where the browser should go now that a session exists.
+            'redirect_to' => route('portal.projects.show', $project),
+        ])->withCookie($this->portalSession->cookieFor($result['session_token']));
     }
 
     private function trackInteraction(int $userId, int $projectId, string $interactionType): void
     {
-        UserInteraction::updateOrCreate(
-            [
-                'user_id'           => $userId,
-                'interactable_id'   => $projectId,
-                'interactable_type' => Project::class,
-                'interaction_type'  => $interactionType,
-            ],
-            [
-                'updated_at' => now(),
-            ]
-        );
-    }
-
-    private function latestProposalForGuest(int $projectId, int $guestUserId): ?array
-    {
-        $proposal = ProjectExpendable::query()
-            ->where('project_id', $projectId)
-            ->where('user_id', $guestUserId)
-            // Do not reuse approved proposals as prefill; users should submit a fresh one.
-            ->where('status', '!=', ProjectExpendableStatus::Accepted->value)
-            ->latest()
-            ->first();
-
-        if (! $proposal) {
-            return null;
-        }
-
-        $isMilestoneProposal = $proposal->expendable_type === \App\Models\Milestone::class;
-
-        return [
-            'proposal_scope' => $isMilestoneProposal ? 'milestone' : 'project',
-            'milestone_id'   => $isMilestoneProposal ? $proposal->expendable_id : null,
-            'description'    => $proposal->description,
-            'amount'         => $proposal->amount,
-            'currency'       => $proposal->currency,
-            'payment_terms'  => $proposal->payment_terms,
-        ];
+        UserInteraction::firstOrCreate([
+            'user_id'           => $userId,
+            'interactable_id'   => $projectId,
+            'interactable_type' => Project::class,
+            'interaction_type'  => $interactionType,
+        ])->touch();
     }
 }

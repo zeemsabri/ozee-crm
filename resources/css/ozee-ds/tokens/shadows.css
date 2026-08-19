@@ -1,0 +1,10 @@
+/* Verbatim from Vibe light-theme.scss. Four steps, no inner-shadow system. */
+:root {
+  --box-shadow-xs: 0px 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --box-shadow-small: 0px 4px 8px rgba(0, 0, 0, 0.2);
+  --box-shadow-medium: 0px 6px 20px rgba(0, 0, 0, 0.2);
+  --box-shadow-large: 0px 15px 50px rgba(0, 0, 0, 0.3);
+
+  /* Focus ring — from Vibe's focus-style mixin (mixins/_states.scss) */
+  --focus-ring: 0 0 0 3px hsl(209deg 100% 50% / 50%), 0 0 0 1px var(--primary-hover-color) inset;
+}

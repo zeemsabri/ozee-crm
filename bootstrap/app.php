@@ -36,6 +36,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.magiclink.external' => \App\Http\Middleware\VerifyExternalMagicLink::class,
             'auth.apikey' => \App\Http\Middleware\AuthenticateWithApiKey::class,
             'not.guest'   => \App\Http\Middleware\EnsureNotGuest::class,
+            // Supplier portal: resolves an existing app login or a verified
+            // emailed-code session. Deliberately separate from the web guard so
+            // EnsureNotGuest above keeps doing its job untouched.
+            'portal.user' => \App\Http\Middleware\EnsurePortalUser::class,
         ]);
 
         //
