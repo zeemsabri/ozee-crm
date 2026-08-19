@@ -59,13 +59,15 @@ function YourDetails({ account, idTypes, busy, onSave }) {
     const [business, setBusiness] = useState(account.business_name || '');
     const [verification, setVerification] = useState(() => ({
         dob: '',
-        id_type: 'national_id',
         id_number: '',
         city: '',
         address: '',
         postcode: '',
         ...(account.verification || {}),
-        // A blank stored id_type would render the dropdown empty.
+        // After the spread, not before: a stored id_type that is null or an empty
+        // string would otherwise win and leave the dropdown blank. It was also listed
+        // among the defaults above, which is what esbuild flagged as a duplicate key —
+        // harmless, since last-wins picked this line, but there is no reason for both.
         id_type: account.verification?.id_type || 'national_id',
     }));
     const [saved, setSaved] = useState(false);
