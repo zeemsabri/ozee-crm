@@ -32,6 +32,26 @@ class OtpService
             'expires_at'    => Carbon::now()->addMinutes(10),
         ]);
 
+        // The row on its own is useless: the code is hashed, so nobody can read it back.
+        // This send was missing entirely — both the classic page and the portal told
+        // people "Verification code sent to your email" while only ever writing a row.
+        //
+        // Queued, matching how the rest of the app sends mail. QUEUE_CONNECTION is
+        // `database`, so this needs a queue worker running or the code is written and
+        // never delivered.
+        $projectName = Project::query()
+            ->where('public_share_token', $projectToken)
+            ->value('name');
+
+        // sendNow, not queue/send: the mailable is ShouldQueue, so plain send() would
+        // still defer it, and the queue here is database-backed and driven by cron —
+        // up to a minute before anyone touches it. Someone is sitting on the
+        // enter-your-code screen, so this one goes out during the request.
+        Mail::to($email)->sendNow(new OtpVerificationMail(
+            $otp,
+            $projectName ?? config('branding.company.name', config('app.name'))
+        ));
+
         return $otp;
     }
 

@@ -64,6 +64,26 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Remembered Devices
+    |--------------------------------------------------------------------------
+    |
+    | "Remember me" is stored per device in `user_remembered_devices` rather than
+    | in the single `users.remember_token` column, so signing in on one device
+    | never signs you out of another. Each row carries its own expiry.
+    |
+    | sliding: each use pushes the expiry out, so active devices stay and dormant
+    | ones drop off. max_per_user caps how many devices one account may keep.
+    |
+    */
+
+    'remembered_devices' => [
+        'days'         => (int) env('REMEMBER_DEVICE_DAYS', 30),
+        'sliding'      => (bool) env('REMEMBER_DEVICE_SLIDING', true),
+        'max_per_user' => (int) env('REMEMBER_DEVICE_MAX', 10),
+    ],
+
     'providers' => [
         'users' => [
             'driver' => 'eloquent',

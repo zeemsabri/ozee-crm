@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            // Signs a browser back in from its per-device "Remember me" cookie.
+            // Ahead of EnsureNotGuest on purpose: it refuses to restore guest and
+            // supplier accounts itself, so the two never disagree.
+            \App\Http\Middleware\RestoreRememberedDevice::class,
             \App\Http\Middleware\EnsureNotGuest::class,
         ]);
 

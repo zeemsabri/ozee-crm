@@ -41,7 +41,12 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        // Deliberately not passing `remember` through to Laravel's own remember-me:
+        // that writes a single users.remember_token, so a second device signing in
+        // rewrites it and silently logs the first one out. Persistence is handled per
+        // device instead — see App\Services\RememberDeviceService, and the
+        // rememberDeviceIfRequested() calls in AuthenticatedSessionController.
+        if (! Auth::attempt($this->only('email', 'password'), false)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([

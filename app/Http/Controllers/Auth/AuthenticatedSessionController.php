@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\GenericOtpService;
+use App\Models\User;
 use App\Services\RememberDeviceService;
 use App\Mail\GenericOtpMail;
 use Illuminate\Support\Facades\Mail;
@@ -105,7 +106,7 @@ class AuthenticatedSessionController extends Controller
                 try {
                     // Generate OTP
                     $otp = $otpService->generate($user->email, 'login');
-                    Mail::to($user->email)->send(new GenericOtpMail($otp));
+                    Mail::to($user->email)->sendNow(new GenericOtpMail($otp));
                 } catch (ValidationException $e) {
                     // If it's a cooldown exception, we just proceed and show the OTP screen
                     // again without generating a new code.
@@ -121,6 +122,10 @@ class AuthenticatedSessionController extends Controller
             }
 
             // If device is remembered, proceed with login
+            // Login is complete here — OTP is either off or already satisfied by this
+            // device — so this is where "Remember me" earns its cookie.
+            $this->rememberDeviceIfRequested($request, $user);
+
             // Create a new token for the authenticated user
             $token = $user->createToken($request->email)->plainTextToken;
 
@@ -130,6 +135,8 @@ class AuthenticatedSessionController extends Controller
                 'role' => $user->role, // Explicitly send role
             ]);
         }
+
+        $this->rememberDeviceIfRequested($request, $user);
 
         return redirect()->intended(route('dashboard', absolute: false));
     }
@@ -214,8 +221,34 @@ class AuthenticatedSessionController extends Controller
     /**
      * Destroy an authenticated session.
      */
+    /**
+     * Issue this device its own "Remember me" record, if the box was ticked.
+     *
+     * Called only at points where the login has actually completed — never on the
+     * branch that returns `requires_otp`, where the user has proved a password but not
+     * yet the emailed code.
+     *
+     * One row per device rather than Laravel's single users.remember_token, so signing
+     * in here does not sign anyone out anywhere else.
+     */
+    private function rememberDeviceIfRequested(Request $request, User $user): void
+    {
+        if (! $request->boolean('remember')) {
+            return;
+        }
+
+        Cookie::queue(app(RememberDeviceService::class)->rememberDevice($user, $request));
+    }
+
     public function destroy(Request $request): RedirectResponse
     {
+        $rememberService = app(RememberDeviceService::class);
+
+        // Before the logout, while we still know who this is. The device cookie can
+        // restore a session now, so leaving it in place would mean signing out did not
+        // actually sign this browser out.
+        Cookie::queue($rememberService->forgetDevice($request->user(), $request));
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
@@ -291,11 +324,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        if ($request->boolean('remember')) {
-            $rememberService = app(RememberDeviceService::class);
-            // We'll queue the cookie so it's attached to the response
-            Cookie::queue($rememberService->rememberDevice($user, $request));
-        }
+        $this->rememberDeviceIfRequested($request, $user);
 
         $user->load(['role.permissions', 'projects']);
         $token = $user->createToken($user->email)->plainTextToken;
@@ -321,7 +350,7 @@ class AuthenticatedSessionController extends Controller
 
         $otpService = app(GenericOtpService::class);
         $otp = $otpService->generate($user->email, 'login');
-        Mail::to($user->email)->send(new GenericOtpMail($otp));
+        Mail::to($user->email)->sendNow(new GenericOtpMail($otp));
 
         return response()->json([
             'message' => 'OTP resent successfully.',
