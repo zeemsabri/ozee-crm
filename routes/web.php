@@ -727,8 +727,32 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 
     // Inbox Page
     Route::get('/inbox', function () {
-        return Inertia::render('Emails/Inbox/Index');
+        return Inertia::render('Emails/Inbox/Index', [
+            // Only so the page can offer the "Try the new inbox" link. Keyed on
+            // Route::has, NOT on config('inbox.beta') — the route below is registered
+            // from that config, and if a cached route file and a cached config ever
+            // disagree, reading the config here would call route() for a name that does
+            // not exist and 500 the legacy inbox. Asking the router directly cannot.
+            'betaUrl' => Route::has('inbox.beta') ? route('inbox.beta') : null,
+        ]);
     })->name('inbox')->middleware('permission:view_emails');
+
+    /*
+     * Redesigned inbox (React), running alongside the Vue one above rather than
+     * replacing it — /inbox stays the default and is completely unmodified. The two
+     * share the same tables and the same read markers, so the same person can move
+     * between them mid-session.
+     *
+     * Registered from config, so `php artisan route:clear` after changing INBOX_BETA —
+     * a cached route file has the old choice baked in. Turning it off also stops the
+     * Vue page rendering its "Try the new inbox" link, so the link and its destination
+     * disappear together. See config/inbox.php.
+     */
+    if (config('inbox.beta')) {
+        Route::get('/inbox/beta', \App\Http\Controllers\InboxBetaController::class)
+            ->name('inbox.beta')
+            ->middleware('permission:view_emails');
+    }
 
     // Kudos Page (approvals or user's approved kudos)
     Route::get('/kudos', function () {

@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\InboxController;
+use App\Http\Controllers\Api\InboxReplyController;
+use App\Http\Controllers\Api\InboxThreadController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MagicLinkController;
 use App\Http\Controllers\Api\MilestoneController;
@@ -495,6 +497,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('inbox/category-stats', [InboxController::class, 'categoryStats']);
 
     Route::post('inbox/emails/{email}/mark-as-read', [InboxController::class, 'markAsRead']);
+
+    /*
+     * Redesigned inbox (/inbox/beta). Every route below is NEW — none of the endpoints
+     * above changed shape, so the legacy Vue inbox, PendingApprovals, Rejected and
+     * Composer pages are untouched.
+     *
+     * These paginate CONVERSATIONS, not emails, which is the substantive difference from
+     * inbox/all-emails above. Sending is deliberately not here: a reply is created by
+     * inbox/threads/{conversation}/reply and then sent through the existing
+     * emails/{email}/edit-and-approve, so there is only ever one send path.
+     */
+    Route::prefix('inbox')->group(function () {
+        Route::get('filters', [InboxThreadController::class, 'filterOptions']);
+        Route::get('threads', [InboxThreadController::class, 'index']);
+        Route::get('threads/{conversation}', [InboxThreadController::class, 'show']);
+        Route::post('threads/{conversation}/read', [InboxThreadController::class, 'read']);
+        Route::post('threads/{conversation}/notes', [InboxThreadController::class, 'addNote']);
+        Route::get('threads/{conversation}/recipients', [InboxReplyController::class, 'recipients']);
+        Route::post('threads/{conversation}/reply', [InboxReplyController::class, 'store']);
+        Route::post('bulk', [InboxThreadController::class, 'bulk']);
+        Route::post('emails/{email}/resend-to-ai', [InboxThreadController::class, 'resendToAi']);
+        Route::post('emails/{email}/draft', [InboxThreadController::class, 'requestDraft']);
+    });
 
     // Google Auth Status Endpoint
     Route::get('/google/status', function () {

@@ -397,18 +397,63 @@ class EmailController extends Controller
             $recipients = [];
             if (! empty($email->to)) {
                 $recipients = is_array($email->to) ? $email->to : [$email->to];
-            } elseif ($recipient && ! empty($recipient->email)) {
-                $recipients = [$recipient->email];
+            } else {
+                // Was `$recipient`, an undefined variable — reading it raised a warning
+                // that Laravel's error handler turns into an ErrorException, so any email
+                // reaching here with an empty `to` 500'd instead of falling back.
+                $fallback = $email->conversation?->conversable;
+                if ($fallback && ! empty($fallback->email)) {
+                    $recipients = [$fallback->email];
+                }
+            }
+
+            /*
+             * Threading, for replies composed in the redesigned inbox only.
+             *
+             * Everything below is gated on in_reply_to_email_id, which is null on every
+             * email that predates it — so the legacy composer, PendingApprovals and
+             * Rejected pages send byte-for-byte what they sent before.
+             *
+             * What it changes for a reply:
+             *  - In-Reply-To / References are stamped from the parent's RFC Message-ID, so
+             *    Gmail hangs the reply off the original conversation.
+             *  - The quoted chain is appended HERE, on the way out. It is deliberately not
+             *    stored in emails.body: the AI checker reads that column, and a stored
+             *    quote would re-send the whole conversation to the model on every reply.
+             *  - We stamp our own Message-ID and record it, so the next reply in the
+             *    thread has something to point at. Gmail's send response returns its API
+             *    id, not the header, so setting it ourselves is the only reliable way.
+             */
+            $threading = app(\App\Services\Inbox\ReplyThreading::class);
+            $isReply = $threading->isReply($email);
+            $threadHeaders = [];
+            $outgoingMessageId = null;
+
+            if ($isReply) {
+                $threadHeaders = $threading->headersFor($email);
+                $finalRenderedBody = $threading->withQuotedThread($email, $finalRenderedBody);
+                $outgoingMessageId = $threading->newMessageId($email, config('mail.from.address'));
             }
 
             if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && ! empty($recipients)) {
                 foreach ($recipients as $recipientEmail) {
                     if (! empty($recipientEmail)) {
-                        $this->gmailService->sendEmail(
+                        $sent = $this->gmailService->sendMessage(
                             $recipientEmail,
                             $subject,
-                            $finalRenderedBody
+                            $finalRenderedBody,
+                            $threadHeaders,
+                            $outgoingMessageId
                         );
+
+                        // Record what we stamped, once — a multi-recipient send is one
+                        // logical message and later replies thread onto the same id.
+                        if ($isReply && ! $email->rfc_message_id) {
+                            $email->forceFill([
+                                'rfc_message_id' => $outgoingMessageId,
+                                'gmail_thread_id' => $sent['threadId'] ?? null,
+                            ])->save();
+                        }
                     }
                 }
             }

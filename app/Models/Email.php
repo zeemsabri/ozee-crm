@@ -118,6 +118,19 @@ class Email extends Model
         'template_data',
         'email_template',
         'is_private',
+        // Redesigned inbox (/inbox/beta) — see config/inbox.php and the
+        // 2026_08_19_1001 migration. Null ai_status means never checked.
+        'ai_status',
+        'ai_reason',
+        'ai_checked_at',
+        'ai_summary',
+        'ai_draft',
+        'ai_draft_at',
+        // Threading (2026_08_19_100300). rfc_message_id is the RFC 5322 Message-ID
+        // header — NOT message_id above, which is Gmail's API id.
+        'rfc_message_id',
+        'gmail_thread_id',
+        'in_reply_to_email_id',
         'last_communication_at',
         'contacted_at',
     ];
@@ -130,11 +143,26 @@ class Email extends Model
         'is_private' => 'boolean',
         'status' => \App\Enums\EmailStatus::class,
         'type' => \App\Enums\EmailType::class,
+        'ai_status' => \App\Enums\EmailAiStatus::class,
+        'ai_checked_at' => 'datetime',
+        'ai_draft_at' => 'datetime',
     ];
 
     public function conversation()
     {
         return $this->belongsTo(Conversation::class);
+    }
+
+    /**
+     * The message this one replies to, when it was composed in the redesigned inbox.
+     *
+     * Null on everything that predates it, which is deliberate: the send path only adds
+     * threading headers and the quoted chain when this is set, so legacy flows are
+     * untouched. See App\Services\Inbox\ReplyThreading.
+     */
+    public function inReplyTo()
+    {
+        return $this->belongsTo(self::class, 'in_reply_to_email_id');
     }
 
     public function project()

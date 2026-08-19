@@ -43,10 +43,48 @@ class GmailService
      */
     public function sendEmail(string $to, string $subject, string $body): string
     {
+        return $this->sendMessage($to, $subject, $body)['id'];
+    }
+
+    /**
+     * Send an email, optionally as part of an existing thread.
+     *
+     * Split out of sendEmail() so replies can carry the two headers Gmail actually threads
+     * on. sendEmail() is unchanged for every existing caller — it just delegates and
+     * returns the Gmail API id as before.
+     *
+     * @param  array<string,string>  $headers  extra RFC headers, e.g. In-Reply-To / References
+     * @param  string|null  $messageId  the Message-ID header to stamp on this message. Pass
+     *                                  one when you need to know it afterwards: Gmail's
+     *                                  send response returns its own API id, NOT the header
+     *                                  it generated, so a value we set is the only value we
+     *                                  can reliably record for later replies to thread onto.
+     * @return array{id:string,threadId:?string,messageId:?string}
+     */
+    public function sendMessage(
+        string $to,
+        string $subject,
+        string $body,
+        array $headers = [],
+        ?string $messageId = null
+    ): array {
         // Construct the raw email message in RFC 2822 format.
         $rawMessage = "To: $to\r\n";
         $rawMessage .= 'From: '.$this->getAuthorizedEmail()."\r\n";
         $rawMessage .= 'Subject: =?utf-8?B?'.base64_encode($subject)."?=\r\n";
+
+        if ($messageId) {
+            $rawMessage .= 'Message-ID: '.$this->sanitiseHeader($messageId)."\r\n";
+        }
+
+        foreach ($headers as $name => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $rawMessage .= $this->sanitiseHeader((string) $name).': '
+                .$this->sanitiseHeader((string) $value)."\r\n";
+        }
+
         $rawMessage .= "MIME-Version: 1.0\r\n";
         $rawMessage .= "Content-type: text/html; charset=utf-8\r\n";
         $rawMessage .= "Content-Transfer-Encoding: base64\r\n";
@@ -58,10 +96,26 @@ class GmailService
         try {
             $sentMessage = $this->gmailService->users_messages->send('me', $message);
 
-            return $sentMessage->getId();
+            return [
+                'id' => $sentMessage->getId(),
+                'threadId' => $sentMessage->getThreadId(),
+                'messageId' => $messageId,
+            ];
         } catch (Exception $e) {
             throw new Exception('Failed to send email: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Strip CR/LF from a header value.
+     *
+     * Header values here are built from stored data, and a newline inside one would let
+     * that data inject arbitrary extra headers into the message — Bcc being the obvious
+     * one. Cheap to prevent, so prevent it unconditionally rather than trusting callers.
+     */
+    private function sanitiseHeader(string $value): string
+    {
+        return trim(str_replace(["\r", "\n"], '', $value));
     }
 
     /**
@@ -114,6 +168,10 @@ class GmailService
             $emailData = [
                 'id' => $message->getId(),
                 'threadId' => $message->getThreadId(),
+                // The RFC 5322 Message-ID header — distinct from 'id' above, which is
+                // Gmail's own API handle. This is the value In-Reply-To/References must
+                // carry for a reply to thread; the API id matches nothing.
+                'messageIdHeader' => $parsedHeaders['message-id'] ?? null,
                 'from' => $parsedHeaders['from'] ?? 'N/A',
                 'to' => $parsedHeaders['to'] ?? 'N/A',
                 'subject' => $parsedHeaders['subject'] ?? 'N/A',

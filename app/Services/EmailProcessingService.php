@@ -90,14 +90,44 @@ class EmailProcessingService
             $recipients = [$recipient->email];
         }
 
+        /*
+         * Threading for replies composed in the redesigned inbox. Identical to the hook in
+         * Api\EmailController::editAndApprove and gated the same way — on
+         * in_reply_to_email_id, which is null on every email that predates it, so the
+         * auto-send and draft paths are unchanged for everything else.
+         *
+         * This path matters for a reply that was saved as a draft and later processed by
+         * ProcessDraftEmailJob rather than approved by hand: without it, that reply would
+         * go out unthreaded and unquoted while the approved one would not.
+         */
+        $threading = app(\App\Services\Inbox\ReplyThreading::class);
+        $isReply = $threading->isReply($email);
+        $threadHeaders = [];
+        $outgoingMessageId = null;
+
+        if ($isReply) {
+            $threadHeaders = $threading->headersFor($email);
+            $finalRenderedBody = $threading->withQuotedThread($email, $finalRenderedBody);
+            $outgoingMessageId = $threading->newMessageId($email, config('mail.from.address'));
+        }
+
         if (! empty($recipients)) {
             foreach ($recipients as $recipientEmail) {
                 if (! empty($recipientEmail)) {
-                    $this->gmailService->sendEmail(
+                    $sent = $this->gmailService->sendMessage(
                         $recipientEmail,
                         $subject,
-                        $finalRenderedBody
+                        $finalRenderedBody,
+                        $threadHeaders,
+                        $outgoingMessageId
                     );
+
+                    if ($isReply && ! $email->rfc_message_id) {
+                        $email->forceFill([
+                            'rfc_message_id' => $outgoingMessageId,
+                            'gmail_thread_id' => $sent['threadId'] ?? null,
+                        ])->save();
+                    }
                 }
             }
 

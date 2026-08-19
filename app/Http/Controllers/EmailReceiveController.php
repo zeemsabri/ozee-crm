@@ -200,6 +200,11 @@ class EmailReceiveController extends Controller
             'type' => 'received',
             'status' => EmailStatus::Draft,
             'message_id' => $emailDetails['id'],
+            // The RFC 5322 Message-ID header, which is what a reply's In-Reply-To and
+            // References must carry. `message_id` above is Gmail's API id and stays the
+            // de-duplication key — the two are different values and are not interchangeable.
+            'rfc_message_id' => $emailDetails['messageIdHeader'] ?? null,
+            'gmail_thread_id' => $emailDetails['threadId'] ?? null,
             'sent_at' => Carbon::parse($emailDetails['date']),
         ]);
 
@@ -311,6 +316,10 @@ class EmailReceiveController extends Controller
             'template_data' => json_encode($rawData),
             'is_private' => true,
             'message_id' => $emailDetails['id'],
+            // See the note on the other create() above: this is the header value, not the
+            // API id, and it is what makes replies thread in Gmail.
+            'rfc_message_id' => $emailDetails['messageIdHeader'] ?? null,
+            'gmail_thread_id' => $emailDetails['threadId'] ?? null,
             'sent_at' => Carbon::parse($emailDetails['date']),
         ]);
 

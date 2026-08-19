@@ -27,6 +27,13 @@ import {
 } from '@heroicons/vue/24/outline';
 import Notification from "@/src/Components/Notification.vue";
 
+// Link across to the redesigned React inbox at /inbox/beta. Null when
+// config('inbox.beta') is off, so the link and its destination disappear together
+// and this can never point at a 404. Nothing else on this page reads it.
+defineProps({
+    betaUrl: { type: String, default: null },
+});
+
 
 // Centralized UI state for the entire inbox dashboard
 const inboxState = reactive({
@@ -292,6 +299,19 @@ watch(() => inboxState.filters, () => {
                     Inbox
                 </h2>
                 <div class="flex items-center gap-2">
+                    <!--
+                      Plain <a>, deliberately not an Inertia <Link>: /inbox/beta is a React
+                      page and only one of Vue/React boots per page load, so this has to be
+                      a full navigation for app.js to re-dispatch. See the
+                      frontend_react_vue_coexistence note.
+                    -->
+                    <a
+                        v-if="betaUrl"
+                        :href="betaUrl"
+                        class="inline-flex items-center px-4 py-2 bg-white border border-indigo-300 rounded-md font-semibold text-xs text-indigo-700 uppercase tracking-widest hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition"
+                    >
+                        Try the new inbox
+                    </a>
                     <button
                         v-if="canComposeEmails"
                         @click="openComposeEmail"
