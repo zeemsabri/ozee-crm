@@ -1,0 +1,317 @@
+/**
+ * AppShell — the chrome every redesigned *internal* page renders inside.
+ *
+ * Design source: Redesign/Multi-proposal milestone submission page/Inbox.dc.html
+ * (the header + 64px icon rail at the top of that file).
+ *
+ * This is the authenticated counterpart to ReactComponents/portal/PortalChrome.jsx: same
+ * inline-style-plus-CSS-custom-property convention, but with the app's real navigation,
+ * permission gating and a theme switcher. It is deliberately NOT the Vue
+ * Layouts/AuthenticatedLayout — that one carries a dozen global modals and sidebars tied
+ * to Vue components. While the port runs, a page is served by exactly one of the two,
+ * which is why cross-framework links must be plain <a> (a full reload re-runs the
+ * app.js dispatcher).
+ *
+ * Contract for pages:
+ *   <AppShell title="Inbox" activeKey="inbox" toasts={toasts} onDismissToast={dismiss}
+ *             headerSearch={{ value, onChange, placeholder }}>
+ *      …page body…
+ *   </AppShell>
+ * The shell owns the page's vertical space: children get a flex column with min-height 0,
+ * so a page can scroll its own panes rather than the window.
+ */
+
+import { useMemo } from 'react';
+import { Head, usePage, router } from '@inertiajs/react';
+import '../../../css/ozee-ds/index.css';
+
+import { Avatar, ButtonGroup, Icon, IconButton, MenuButton, Search, Toast } from '../ds';
+import { useTheme, THEME_OPTIONS } from './useTheme';
+import { usePermissions } from './usePermissions';
+import { RAIL_ITEMS, USER_MENU_ITEMS, FOOTER_LINKS, url, activeRailKey } from './navigation';
+
+const HEADER_HEIGHT = 56;
+const RAIL_WIDTH = 64;
+
+function Rail({ activeKey, can, badges }) {
+    return (
+        <nav
+            aria-label="Primary"
+            style={{
+                width: RAIL_WIDTH,
+                flex: 'none',
+                background: 'var(--primary-background-color)',
+                borderInlineEnd: '1px solid var(--layout-border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                paddingTop: 8,
+                gap: 2,
+            }}
+        >
+            {RAIL_ITEMS.filter((item) => !item.permission || can(item.permission)).map((item) => {
+                const active = item.key === activeKey;
+                const badge = badges?.[item.key];
+
+                return (
+                    <div key={item.key} style={{ position: 'relative' }}>
+                        <a
+                            href={url(item.route, item.href)}
+                            title={item.label}
+                            aria-label={item.label}
+                            aria-current={active ? 'page' : undefined}
+                            style={{
+                                width: 48,
+                                height: 44,
+                                borderRadius: 4,
+                                background: active ? 'var(--primary-selected-color)' : 'transparent',
+                                color: active ? 'var(--primary-color)' : 'var(--icon-color)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                textDecoration: 'none',
+                                transition: 'background 100ms cubic-bezier(.4,0,.2,1)',
+                            }}
+                            onMouseEnter={(e) => {
+                                if (!active)
+                                    e.currentTarget.style.background =
+                                        'var(--primary-background-hover-color)';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!active) e.currentTarget.style.background = 'transparent';
+                            }}
+                        >
+                            <Icon name={item.icon} size={20} color="currentColor" />
+                        </a>
+                        {badge ? (
+                            <span
+                                aria-label={`${badge} needing attention`}
+                                style={{
+                                    position: 'absolute',
+                                    top: 2,
+                                    right: 0,
+                                    minWidth: 16,
+                                    height: 16,
+                                    padding: '0 4px',
+                                    borderRadius: 8,
+                                    background: 'var(--negative-color)',
+                                    color: '#fff',
+                                    font: '700 10px/16px Figtree, sans-serif',
+                                    textAlign: 'center',
+                                    pointerEvents: 'none',
+                                    animation: 'dcPulseAlert 2s ease-out 2',
+                                }}
+                            >
+                                {badge}
+                            </span>
+                        ) : null}
+                    </div>
+                );
+            })}
+        </nav>
+    );
+}
+
+function AppFooter() {
+    const year = new Date().getFullYear();
+
+    return (
+        <footer
+            style={{
+                flex: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                flexWrap: 'wrap',
+                padding: '10px 24px',
+                background: 'var(--primary-background-color)',
+                borderTop: '1px solid var(--layout-border-color)',
+                font: '400 12px/16px Figtree, sans-serif',
+                color: 'var(--secondary-text-color)',
+            }}
+        >
+            <span>&copy; {year} OZee Web &amp; Digital</span>
+            <span aria-hidden="true">·</span>
+            {FOOTER_LINKS.map((link) => (
+                <a key={link.label} href={url(link.route, link.href)} style={{ color: 'inherit' }}>
+                    {link.label}
+                </a>
+            ))}
+            <span style={{ marginInlineStart: 'auto' }}>OZee CRM</span>
+        </footer>
+    );
+}
+
+export function AppShell({
+    title,
+    activeKey,
+    railBadges,
+    headerSearch,
+    headerExtra,
+    toasts = [],
+    onDismissToast,
+    showFooter = true,
+    children,
+}) {
+    const page = usePage();
+    const user = page?.props?.auth?.user || null;
+    const { theme, setTheme } = useTheme();
+    const { can } = usePermissions();
+
+    const resolvedActiveKey = useMemo(
+        () => activeKey || activeRailKey(typeof window !== 'undefined' ? window.location.pathname : '/'),
+        [activeKey]
+    );
+
+    const onUserMenu = (value) => {
+        if (value === 'logout') {
+            // Inertia post rather than <a>: logout is a POST and the Vue side clears the
+            // same localStorage keys on success.
+            router.post(url('logout', '/logout'), {}, {
+                onFinish: () => {
+                    ['authToken', 'userRole', 'userId', 'userEmail', 'remembered'].forEach((k) => {
+                        try {
+                            localStorage.removeItem(k);
+                        } catch {
+                            /* ignore */
+                        }
+                    });
+                },
+            });
+            return;
+        }
+
+        const item = USER_MENU_ITEMS.find((i) => i.value === value);
+        if (item) window.location.assign(url(item.route, item.href));
+    };
+
+    return (
+        <div
+            className="ozds"
+            style={{
+                height: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                fontFamily: 'Figtree, sans-serif',
+                color: 'var(--primary-text-color)',
+                background: 'var(--grey-background-color)',
+            }}
+        >
+            {title ? <Head title={title} /> : null}
+
+            <header
+                style={{
+                    height: HEADER_HEIGHT,
+                    flex: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '0 16px',
+                    background: 'var(--primary-background-color)',
+                    borderBottom: '1px solid var(--layout-border-color)',
+                }}
+            >
+                <a
+                    href={url('dashboard', '/dashboard')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                    <img
+                        src="/ozee-ds/ozee-logo-sm.png"
+                        alt="OZee Web &amp; Digital"
+                        data-brandmark="true"
+                        style={{ height: 26 }}
+                    />
+                    <span
+                        style={{
+                            font: '600 14px/20px Figtree, sans-serif',
+                            color: 'var(--secondary-text-color)',
+                        }}
+                    >
+                        CRM
+                    </span>
+                </a>
+
+                {headerSearch ? (
+                    <div style={{ flex: 1, maxWidth: 380, marginInlineStart: 8 }}>
+                        <Search
+                            size="small"
+                            placeholder={headerSearch.placeholder || 'Search'}
+                            value={headerSearch.value}
+                            onChange={headerSearch.onChange}
+                            onClear={headerSearch.onClear}
+                        />
+                    </div>
+                ) : null}
+
+                <div
+                    style={{
+                        marginInlineStart: 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                    }}
+                >
+                    {headerExtra}
+                    <ButtonGroup
+                        options={THEME_OPTIONS}
+                        value={theme}
+                        onChange={setTheme}
+                        size="small"
+                    />
+                    <span
+                        aria-hidden="true"
+                        style={{ width: 1, height: 24, background: 'var(--layout-border-color)' }}
+                    />
+                    <IconButton name="Notifications" size="small" ariaLabel="Notifications" />
+                    <MenuButton
+                        items={USER_MENU_ITEMS}
+                        onSelect={onUserMenu}
+                        ariaLabel={user?.name ? `Account menu for ${user.name}` : 'Account menu'}
+                        iconName="DropdownChevronDown"
+                        size="small"
+                    >
+                        <Avatar text={user?.name || user?.email || '?'} size="small" />
+                    </MenuButton>
+                </div>
+            </header>
+
+            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+                <Rail activeKey={resolvedActiveKey} can={can} badges={railBadges} />
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        {children}
+                    </div>
+                    {showFooter ? <AppFooter /> : null}
+                </div>
+            </div>
+
+            {toasts.length ? (
+                <div
+                    style={{
+                        position: 'fixed',
+                        insetInlineEnd: 0,
+                        bottom: 0,
+                        zIndex: 10001,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                    }}
+                >
+                    {toasts.map((t) => (
+                        <Toast
+                            key={t.id}
+                            open
+                            type={t.type}
+                            withIcon
+                            onClose={() => onDismissToast && onDismissToast(t.id)}
+                        >
+                            {t.message}
+                        </Toast>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+export default AppShell;

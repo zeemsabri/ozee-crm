@@ -83,3 +83,29 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* Skeleton shimmer — a stepped opacity pulse rather than a moving gradient, so it
+   stays cheap when a list renders dozens of them at once. */
+@keyframes ozeeShine {
+  0% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Attention pulse on the negative-toned nav badge (unanswered mail past the reply
+   rule). Runs a fixed number of iterations at the call site rather than forever — a
+   permanently pulsing badge stops being read as urgent. */
+@keyframes dcPulseAlert {
+  0% {
+    box-shadow: 0 0 0 0 rgba(216, 58, 82, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(216, 58, 82, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(216, 58, 82, 0);
+  }
+}

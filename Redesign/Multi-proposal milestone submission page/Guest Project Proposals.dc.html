@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/colors.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/brand.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/typography.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/radius.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/shadows.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/motion.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/semantic.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/base.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/styles.css">
+<script>window.OZEE_ICON_BASE = "assets/icons";</script>
+<script src="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;background:var(--grey-background-color);-webkit-font-smoothing:antialiased}
+a{color:var(--primary-color);text-decoration:none;transition:color 100ms cubic-bezier(.4,0,.2,1)}
+a:hover{color:var(--primary-hover-color);text-decoration:underline}
+
+:root{--om-hairline:#e6e9ef;--om-hairline-soft:#eef0f5}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --primary-color:#4a90f0;
+  --primary-hover-color:#6aa4f5;
+  --primary-selected-color:#2b3f6e;
+  --primary-selected-hover-color:#354c81;
+  --primary-highlighted-color:#23335c;
+  --primary-surface-color:#2a2c46;
+  --primary-text-color:#e6e9ef;
+  --secondary-text-color:#c5c7d0;
+  --disabled-text-color:rgba(255,255,255,0.4);
+  --inverted-color-background:#ffffff;
+  --primary-background-color:#30324e;
+  --primary-background-hover-color:rgba(255,255,255,0.1);
+  --secondary-background-color:#30324e;
+  --allgrey-background-color:#292b45;
+  --grey-background-color:#181b34;
+  --dark-background-color:#181b34;
+  --backdrop-color:rgba(12,14,28,0.72);
+  --ui-border-color:#5c6081;
+  --ui-background-color:#3f4260;
+  --ui-background-hover-color:#4b4f70;
+  --layout-border-color:#454962;
+  --disabled-background-color:#3f4260;
+  --placeholder-color:#9699a6;
+  --icon-color:#c5c7d0;
+  --link-color:#7fb0f5;
+  --label-background-color:#2b3f6e;
+  --modal-background-color:#30324e;
+  --dialog-background-color:#30324e;
+  --positive-color:#00c875;
+  --positive-color-hover:#00b268;
+  --negative-color:#ff6b81;
+  --negative-color-hover:#ff8496;
+  --om-hairline:#3c3f5c;
+  --om-hairline-soft:#363954;
+}
+@media (prefers-color-scheme:dark){:root[data-theme="system"]{
+  color-scheme: dark;
+  --primary-color:#4a90f0;
+  --primary-hover-color:#6aa4f5;
+  --primary-selected-color:#2b3f6e;
+  --primary-selected-hover-color:#354c81;
+  --primary-highlighted-color:#23335c;
+  --primary-surface-color:#2a2c46;
+  --primary-text-color:#e6e9ef;
+  --secondary-text-color:#c5c7d0;
+  --disabled-text-color:rgba(255,255,255,0.4);
+  --inverted-color-background:#ffffff;
+  --primary-background-color:#30324e;
+  --primary-background-hover-color:rgba(255,255,255,0.1);
+  --secondary-background-color:#30324e;
+  --allgrey-background-color:#292b45;
+  --grey-background-color:#181b34;
+  --dark-background-color:#181b34;
+  --backdrop-color:rgba(12,14,28,0.72);
+  --ui-border-color:#5c6081;
+  --ui-background-color:#3f4260;
+  --ui-background-hover-color:#4b4f70;
+  --layout-border-color:#454962;
+  --disabled-background-color:#3f4260;
+  --placeholder-color:#9699a6;
+  --icon-color:#c5c7d0;
+  --link-color:#7fb0f5;
+  --label-background-color:#2b3f6e;
+  --modal-background-color:#30324e;
+  --dialog-background-color:#30324e;
+  --positive-color:#00c875;
+  --positive-color-hover:#00b268;
+  --negative-color:#ff6b81;
+  --negative-color-hover:#ff8496;
+  --om-hairline:#3c3f5c;
+  --om-hairline-soft:#363954;
+}}
+:root[data-theme="dark"] img[data-brandmark]{filter:brightness(1.3)}
+@media (prefers-color-scheme:dark){:root[data-theme="system"] img[data-brandmark]{filter:brightness(1.3)}}
+@keyframes dcRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes dcFade{from{opacity:0}to{opacity:1}}
+@keyframes dcPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes dcSlideIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+@keyframes dcPulseRing{0%{box-shadow:0 0 0 0 rgba(26,115,232,.35)}70%{box-shadow:0 0 0 8px rgba(26,115,232,0)}100%{box-shadow:0 0 0 0 rgba(26,115,232,0)}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;font-family:Figtree,sans-serif;color:var(--primary-text-color);background:var(--grey-background-color)">
+
+  <header style="min-height:56px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 24px;background:var(--primary-background-color);border-bottom:1px solid var(--layout-border-color);position:sticky;top:0;z-index:20">
+    <img src="assets/ozee-logo-sm.png" alt="OZee Web &amp; Digital" data-brandmark="true" style="height:26px">
+    <div style="display:flex;flex-direction:column;line-height:1">
+      <span style="font:600 14px/18px Figtree,sans-serif">OZee Web &amp; Digital</span>
+      <a href="https://OZeeWeb.com.au" style="font:400 12px/16px Figtree,sans-serif">OZeeWeb.com.au</a>
+    </div>
+    <sc-if value="{{ isProjectView }}" hint-placeholder-val="{{ true }}">
+      <div style="margin-inline-start:8px;flex:1 1 200px;min-width:160px;max-width:280px">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ projectOptions }}" value="{{ projectId }}" onChange="{{ onProjectChange }}" size="small" searchable="{{ true }}" hint-size="280px,32px"></x-import>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isSignedIn }}" hint-placeholder-val="{{ true }}">
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" active="{{ isProjectsView }}" onClick="{{ onViewProjects }}" hint-size="100px,32px">All projects</x-import>
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" active="{{ isProfileView }}" onClick="{{ onViewProfile }}" hint-size="80px,32px">Profile</x-import>
+    </sc-if>
+    <div style="margin-inline-start:auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;min-width:0">
+      <sc-if value="{{ isSignedIn }}" hint-placeholder-val="{{ true }}">
+        <span style="font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ guestEmail }}</span>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Avatar" text="{{ guestInitials }}" size="medium" hint-size="32px,32px"></x-import>
+      </sc-if>
+      <sc-if value="{{ isSignedOut }}" hint-placeholder-val="{{ true }}">
+        <span style="font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">Guest — not signed in</span>
+      </sc-if>
+      <div style="width:1px;height:24px;background:var(--layout-border-color)"></div>
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.ButtonGroup" options="{{ themeOptions }}" value="{{ themeValue }}" onChange="{{ onThemeChange }}" size="small" hint-size="150px,32px"></x-import>
+    </div>
+  </header>
+
+  <sc-if value="{{ isProjectView }}" hint-placeholder-val="{{ true }}">
+  <div style="max-width:1240px;margin:0 auto;padding:24px;display:grid;grid-template-columns:minmax(0,1fr) 404px;gap:24px;align-items:start">
+
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+
+      <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:20px;animation:dcRise 400ms cubic-bezier(0,0,.35,1) both">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ projectStatus }}" color="{{ projectStatusTone }}" size="small" hint-size="88px,20px"></x-import>
+          <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ projectOpenUntil }}</span>
+        </div>
+        <h1 style="margin:0;font:600 32px/40px Poppins,sans-serif;letter-spacing:-0.5px">{{ projectName }}</h1>
+        <p style="margin:8px 0 0;max-width:74ch;font:400 16px/24px Figtree,sans-serif;color:var(--secondary-text-color);text-wrap:pretty">{{ projectDescription }}</p>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--om-hairline);display:flex;flex-wrap:wrap;gap:32px">
+          <div>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Target completion</div>
+            <div style="font:600 14px/20px Figtree,sans-serif">{{ projectDue }}</div>
+          </div>
+          <div>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Active phases</div>
+            <div style="font:600 14px/20px Figtree,sans-serif">{{ projectPhaseCount }}</div>
+          </div>
+          <div>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Open deliverables</div>
+            <div style="font:600 14px/20px Figtree,sans-serif">{{ projectDeliverableCount }}</div>
+          </div>
+          <div>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Contact</div>
+            <div style="font:600 14px/20px Figtree,sans-serif">{{ projectContact }}</div>
+          </div>
+        </div>
+      </section>
+
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Tabs" tabs="{{ mainTabs }}" value="{{ mainTab }}" onChange="{{ onMainTabChange }}" hint-size="380px,40px"></x-import>
+        <sc-if value="{{ isListTab }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-inline-start:auto;width:fit-content">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.ButtonGroup" options="{{ listScopeOptions }}" value="{{ listScope }}" onChange="{{ onListScopeChange }}" size="small" hint-size="220px,32px"></x-import>
+          </div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ isPhasesTab }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <h2 style="margin:0;font:600 24px/30px Poppins,sans-serif;letter-spacing:-0.1px">Work phases</h2>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Counter" count="{{ milestoneCount }}" kind="line" color="dark" size="small" hint-size="24px,20px"></x-import>
+        <span style="margin-inline-start:auto;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">Completed and cancelled phases are hidden</span>
+      </div>
+
+      <sc-for list="{{ milestones }}" as="ms" hint-placeholder-count="3">
+        <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;overflow:hidden;animation:dcRise 400ms cubic-bezier(0,0,.35,1) both;transition:box-shadow 150ms cubic-bezier(.4,0,.2,1),border-color 150ms cubic-bezier(.4,0,.2,1),transform 150ms cubic-bezier(.4,0,.2,1)" style-hover="box-shadow:0 4px 8px rgba(0,0,0,.06);border-color:var(--ui-border-color);transform:translateY(-1px)">
+          <div style="display:flex;gap:16px;padding:16px;border-inline-start:3px solid {{ ms.tone }}">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <h3 style="margin:0;font:600 18px/24px Poppins,sans-serif;letter-spacing:-0.1px">{{ ms.name }}</h3>
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ ms.status }}" color="{{ ms.tone }}" size="small" hint-size="80px,20px"></x-import>
+              </div>
+              <p style="margin:6px 0 0;max-width:70ch;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color);text-wrap:pretty">{{ ms.description }}</p>
+              <div style="margin-top:8px;display:flex;align-items:center;gap:6px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="DueDate" size="{{ 14 }}" color="var(--secondary-text-color)" hint-size="14px,14px"></x-import>
+                <span>Target {{ ms.due }}</span>
+                <span style="color:var(--ui-border-color)">·</span>
+                <span>{{ ms.deliverableLine }}</span>
+              </div>
+              <div style="margin-top:10px;max-width:320px;display:flex;align-items:center;gap:10px">
+                <div style="flex:1">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.ProgressBar" value="{{ ms.progressValue }}" max="{{ 100 }}" color="{{ ms.progressColor }}" size="small" hint-size="100%,4px"></x-import>
+                </div>
+                <span style="font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ ms.progressLabel }}</span>
+              </div>
+            </div>
+            <div style="flex:none;width:200px;display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+              <sc-if value="{{ ms.hasProposal }}" hint-placeholder-val="{{ true }}">
+                <div style="width:100%;padding:8px 10px;border-radius:4px;background:var(--grey-background-color);text-align:end">
+                  <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ ms.proposalLabel }}</div>
+                  <div style="font:600 14px/20px Figtree,sans-serif">{{ ms.proposalAmount }}</div>
+                  <sc-if value="{{ ms.hasScopeNote }}" hint-placeholder-val="{{ true }}">
+                    <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ ms.proposalScopeNote }}</div>
+                  </sc-if>
+                  <div style="margin-top:4px;display:flex;justify-content:flex-end">
+                    <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ ms.proposalStatus }}" color="{{ ms.proposalTone }}" kind="line" size="small" hint-size="90px,20px"></x-import>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ms.noProposal }}" hint-placeholder-val="{{ true }}">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ ms.onPropose }}" hint-size="170px,32px">Propose for this phase</x-import>
+              </sc-if>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--om-hairline);background:var(--allgrey-background-color)">
+            <button style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 16px;border:none;background:transparent;cursor:pointer;font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color);transition:background 100ms cubic-bezier(.4,0,.2,1),color 100ms cubic-bezier(.4,0,.2,1)" style-hover="background:rgba(103,104,121,0.08);color:var(--primary-text-color)" onClick="{{ ms.onToggle }}">
+              <span style="display:inline-flex;transition:transform 150ms cubic-bezier(.4,0,.2,1);transform:rotate({{ ms.chevron }})">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="DropdownChevronRight" size="{{ 16 }}" color="currentColor" hint-size="16px,16px"></x-import>
+              </span>
+              <span>{{ ms.toggleLabel }}</span>
+            </button>
+            <sc-if value="{{ ms.isOpen }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ ms.deliverables }}" as="d" hint-placeholder-count="2">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--om-hairline-soft);display:flex;gap:12px;align-items:flex-start;transition:background 100ms cubic-bezier(.4,0,.2,1)" style-hover="background:rgba(103,104,121,0.06)">
+                <span style="flex:none;margin-top:5px;width:10px;height:10px;border-radius:50%;background:{{ d.tone }}"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="font:600 14px/20px Figtree,sans-serif">{{ d.name }}</span>
+                    <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ d.status }} · due {{ d.due }}</span>
+                  </div>
+                  <div style="font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">{{ d.description }}</div>
+                  <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 20px">
+                    <sc-for list="{{ d.checklist }}" as="c" hint-placeholder-count="3">
+                      <span style="display:inline-flex;align-items:center;gap:6px;font:400 12px/16px Figtree,sans-serif;color:{{ c.color }}">
+                        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="{{ c.icon }}" size="{{ 14 }}" color="{{ c.color }}" hint-size="14px,14px"></x-import>
+                        <span style="text-decoration:{{ c.strike }}">{{ c.label }}</span>
+                      </span>
+                    </sc-for>
+                  </div>
+                </div>
+                <span style="flex:none;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ d.progress }}</span>
+              </div>
+            </sc-for>
+            </sc-if>
+          </div>
+        </section>
+      </sc-for>
+
+      <sc-if value="{{ hasLooseDeliverables }}" hint-placeholder-val="{{ true }}">
+      <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Item" size="{{ 16 }}" color="var(--secondary-text-color)" hint-size="16px,16px"></x-import>
+          <h3 style="margin:0;font:600 18px/24px Poppins,sans-serif;letter-spacing:-0.1px">Not tied to a phase</h3>
+        </div>
+        <sc-for list="{{ looseDeliverables }}" as="d" hint-placeholder-count="2">
+          <div style="padding:10px 8px;margin:0 -8px;border-top:1px solid var(--om-hairline-soft);display:flex;gap:12px;align-items:center;border-radius:4px;transition:background 100ms cubic-bezier(.4,0,.2,1)" style-hover="background:rgba(103,104,121,0.06)">
+            <span style="flex:none;width:10px;height:10px;border-radius:50%;background:{{ d.tone }}"></span>
+            <div style="flex:1;min-width:0">
+              <div style="font:600 14px/20px Figtree,sans-serif">{{ d.name }}</div>
+              <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ d.description }}</div>
+            </div>
+            <span style="flex:none;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ d.status }} · due {{ d.due }}</span>
+          </div>
+        </sc-for>
+      </section>
+      </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isProposalsTab }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
+            <sc-for list="{{ proposals }}" as="p" hint-placeholder-count="2">
+              <article style="border:1px solid var(--layout-border-color);border-radius:8px;overflow:hidden;animation:dcSlideIn 250ms cubic-bezier(0,0,.35,1) both;transition:box-shadow 150ms cubic-bezier(.4,0,.2,1),border-color 150ms cubic-bezier(.4,0,.2,1)" style-hover="box-shadow:0 4px 8px rgba(0,0,0,.06);border-color:var(--ui-border-color)">
+                <div style="padding:12px;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:flex-start;gap:8px">
+                    <div style="flex:1;min-width:0">
+                      <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ p.scopeKind }}</div>
+                      <div style="font:600 14px/20px Figtree,sans-serif">{{ p.scopeName }}</div>
+                    </div>
+                    <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ p.status }}" color="{{ p.tone }}" size="small" hint-size="90px,20px"></x-import>
+                  </div>
+                  <div style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font:700 20px/26px Figtree,sans-serif">{{ p.amount }}</span>
+                    <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ p.currency }} · sent {{ p.sent }}</span>
+                  </div>
+                  <sc-if value="{{ p.hasTerms }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:6px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Update" size="{{ 14 }}" color="var(--secondary-text-color)" hint-size="14px,14px"></x-import>
+                      <span>{{ p.termsText }}</span>
+                    </div>
+                  </sc-if>
+                  <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ p.note }}</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <sc-if value="{{ p.canEdit }}" hint-placeholder-val="{{ true }}">
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ p.onEdit }}" hint-size="90px,32px">Edit</x-import>
+                    </sc-if>
+                    <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" hint-size="110px,32px">{{ p.docLabel }}</x-import>
+                  </div>
+                </div>
+                <div style="padding:10px 12px;background:var(--grey-background-color);border-top:1px solid var(--om-hairline);display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ p.bills }}" as="b" hint-placeholder-count="1">
+                    <div style="display:flex;align-items:flex-start;gap:8px;animation:dcFade 150ms cubic-bezier(0,0,.35,1) both">
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Doc" size="{{ 16 }}" color="var(--secondary-text-color)" hint-size="16px,16px"></x-import>
+                      <div style="flex:1;min-width:0">
+                        <div style="font:600 12px/16px Figtree,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.name }}</div>
+                        <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ b.meta }}</div>
+                        <sc-if value="{{ b.hasMethod }}" hint-placeholder-val="{{ true }}">
+                          <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ b.methodLine }}</div>
+                        </sc-if>
+                      </div>
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ b.status }}" color="{{ b.tone }}" kind="line" size="small" hint-size="70px,20px"></x-import>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ p.hasBills }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--om-hairline)">
+                      <span style="flex:1;min-width:0;font:400 12px/16px Figtree,sans-serif;color:{{ p.billTotalColor }}">{{ p.billTotalLine }}</span>
+                      <sc-if value="{{ p.canAddBill }}" hint-placeholder-val="{{ true }}">
+                        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ p.onUploadBill }}" hint-size="120px,32px">Add another bill</x-import>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ p.noBillsYet }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div style="flex:1;min-width:0;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">No bills yet — invoice it in one go or in parts.</div>
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ p.onUploadBill }}" hint-size="110px,32px">Upload bill</x-import>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ p.billLocked }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:6px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Info" size="{{ 14 }}" color="var(--secondary-text-color)" hint-size="14px,14px"></x-import>
+                      <span>{{ p.billLockedText }}</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </article>
+            </sc-for>
+        </div>
+        <sc-if value="{{ noProposals }}" hint-placeholder-val="{{ true }}">
+          <div style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:24px;text-align:center">
+            <div style="font:600 16px/22px Figtree,sans-serif">No proposals here yet</div>
+            <div style="margin-top:4px;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">Quote a phase and it'll show up with its status.</div>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isBillsTab }}" hint-placeholder-val="{{ true }}">
+        <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:1.6fr 1.4fr 0.9fr 1.1fr 0.8fr;gap:12px;padding:10px 16px;border-bottom:1px solid var(--layout-border-color);font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+            <span>Invoice</span>
+            <span>Proposal</span>
+            <span style="text-align:end">Amount</span>
+            <span>Paid to</span>
+            <span style="text-align:end">Status</span>
+          </div>
+          <sc-for list="{{ billRows }}" as="b" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:1.6fr 1.4fr 0.9fr 1.1fr 0.8fr;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--om-hairline-soft);transition:background 100ms cubic-bezier(.4,0,.2,1)" style-hover="background:rgba(103,104,121,0.06)">
+              <div style="min-width:0">
+                <div style="font:600 14px/20px Figtree,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.name }}</div>
+                <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Uploaded {{ b.date }}</div>
+              </div>
+              <div style="min-width:0">
+                <div style="font:400 14px/20px Figtree,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.scopeName }}</div>
+                <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ b.projectName }}</div>
+              </div>
+              <span style="text-align:end;font:600 14px/20px Figtree,sans-serif">{{ b.amountText }}</span>
+              <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.method }}</span>
+              <span style="display:flex;justify-content:flex-end">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ b.status }}" color="{{ b.tone }}" kind="line" size="small" hint-size="70px,20px"></x-import>
+              </span>
+            </div>
+          </sc-for>
+          <div style="padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px">
+            <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ billsSummary }}</span>
+            <sc-if value="{{ hasUnbilled }}" hint-placeholder-val="{{ true }}">
+              <span style="margin-inline-start:auto;font:600 12px/16px Figtree,sans-serif;color:var(--primary-color)">{{ unbilledLine }}</span>
+            </sc-if>
+          </div>
+        </section>
+      </sc-if>
+    </div>
+
+    <div style="position:sticky;top:80px;display:flex;flex-direction:column;gap:16px">
+
+      <sc-if value="{{ isSignedOut }}" hint-placeholder-val="{{ true }}">
+        <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:20px;animation:dcPop 250ms cubic-bezier(0,0,.2,1.4) both">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Security" size="{{ 20 }}" color="var(--primary-color)" hint-size="20px,20px"></x-import>
+            <h2 style="margin:0;font:600 18px/24px Poppins,sans-serif;letter-spacing:-0.1px">Sign in to propose</h2>
+          </div>
+          <p style="margin:0 0 16px;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">No password needed — enter your email and we'll send a 6-digit code.</p>
+
+          <sc-if value="{{ isEmailStep }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Email address" placeholder="you@example.com" iconName="Email" value="{{ emailValue }}" onChange="{{ onEmailChange }}" hint-size="100%,64px"></x-import>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" fullWidth="{{ true }}" onClick="{{ onRequestCode }}" hint-size="100%,40px">Send code</x-import>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isOtpStep }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:12px;animation:dcSlideIn 250ms cubic-bezier(0,0,.35,1) both">
+              <div style="padding:8px 10px;border-radius:4px;background:var(--primary-highlighted-color);font:400 12px/16px Figtree,sans-serif;color:var(--primary-text-color);animation:dcPulseRing 900ms cubic-bezier(.4,0,.2,1) 1">Code sent to {{ emailValue }}</div>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="6-digit code" placeholder="000000" value="{{ otpValue }}" onChange="{{ onOtpChange }}" style="{{ otpStyle }}" hint-size="100%,64px"></x-import>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" fullWidth="{{ true }}" onClick="{{ onVerify }}" hint-size="100%,40px">Verify and continue</x-import>
+              <div style="display:flex;justify-content:space-between;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                <span>Code expires in 9:41</span>
+                <a href="#resend" onClick="{{ onResend }}">Resend code</a>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isProfileStep }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:12px;animation:dcSlideIn 250ms cubic-bezier(0,0,.35,1) both">
+              <div style="display:flex;align-items:center;gap:6px;font:600 12px/16px Figtree,sans-serif;color:var(--positive-color)">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Check" size="{{ 14 }}" color="var(--positive-color)" hint-size="14px,14px"></x-import>
+                <span>Email verified</span>
+              </div>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Full name" placeholder="Your name" iconName="Person" value="{{ nameValue }}" onChange="{{ onNameChange }}" required="{{ true }}" hint-size="100%,64px"></x-import>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Phone number" placeholder="+61 4xx xxx xxx" iconName="Mobile" value="{{ phoneValue }}" onChange="{{ onPhoneChange }}" required="{{ true }}" hint-size="100%,64px"></x-import>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" fullWidth="{{ true }}" onClick="{{ onSaveProfile }}" hint-size="100%,40px">Save and continue</x-import>
+            </div>
+          </sc-if>
+
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--om-hairline);font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Your details are only visible to the OZee team running this project.</div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{ isSignedIn }}" hint-placeholder-val="{{ true }}">
+        <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;animation:dcRise 400ms cubic-bezier(0,0,.35,1) both">
+          <div style="padding:16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--om-hairline)">
+            <h2 style="margin:0;font:600 18px/24px Poppins,sans-serif;letter-spacing:-0.1px">Your proposals</h2>
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Counter" count="{{ proposalCount }}" kind="fill" color="primary" size="small" hint-size="24px,20px"></x-import>
+            <div style="margin-inline-start:auto">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" size="small" onClick="{{ onNewProposal }}" hint-size="120px,32px">New proposal</x-import>
+            </div>
+          </div>
+
+          <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <sc-for list="{{ statusTiles }}" as="st" hint-placeholder-count="4">
+              <button style="text-align:start;border:1px solid var(--layout-border-color);border-radius:4px;padding:8px 10px;background:transparent;cursor:pointer;transition:border-color 100ms cubic-bezier(.4,0,.2,1),background 100ms cubic-bezier(.4,0,.2,1)" style-hover="border-color:var(--ui-border-color);background:var(--allgrey-background-color)" onClick="{{ st.onClick }}">
+                <div style="font:700 20px/26px Figtree,sans-serif;color:{{ st.color }}">{{ st.count }}</div>
+                <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ st.label }}</div>
+              </button>
+            </sc-for>
+          </div>
+          <div style="padding:0 16px 12px">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.AttentionBox" title="One proposal per phase" type="primary" withIcon="{{ true }}" hint-size="100%,80px">Quote one phase, several at once, or the whole project. Each phase is saved and reviewed as its own proposal, and a pending one never blocks the next.</x-import>
+          </div>
+
+          <div style="padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px">
+
+            <sc-if value="{{ hasOpenPhases }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1px dashed var(--ui-border-color);border-radius:8px;padding:12px">
+                <div style="font:600 14px/20px Figtree,sans-serif">Phases you haven't quoted</div>
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:184px;overflow-y:auto;overflow-x:hidden">
+                  <sc-for list="{{ openPhases }}" as="op" hint-placeholder-count="1">
+                    <button style="display:flex;align-items:center;gap:8px;width:100%;padding:8px;border:none;border-radius:4px;background:transparent;cursor:pointer;text-align:start;font:400 14px/20px Figtree,sans-serif;color:var(--primary-text-color);transition:background 100ms cubic-bezier(.4,0,.2,1),padding 100ms cubic-bezier(.4,0,.2,1)" style-hover="background:rgba(103,104,121,0.1);padding-inline-start:12px" style-active="transform:scale(0.97)" onClick="{{ op.onPropose }}">
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Add" size="{{ 16 }}" color="var(--primary-color)" hint-size="16px,16px"></x-import>
+                      <span style="flex:1">{{ op.name }}</span>
+                      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="NavigationChevronRight" size="{{ 16 }}" color="var(--secondary-text-color)" hint-size="16px,16px"></x-import>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </section>
+
+        <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:16px">
+          <div style="font:600 14px/20px Figtree,sans-serif">Signed in as</div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Avatar" text="{{ guestInitials }}" size="large" hint-size="40px,40px"></x-import>
+            <div style="flex:1;min-width:0">
+              <div style="font:600 14px/20px Figtree,sans-serif">{{ guestName }}</div>
+              <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ guestEmail }} · {{ guestPhone }}</div>
+            </div>
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ onSignOut }}" hint-size="90px,32px">Sign out</x-import>
+          </div>
+        </section>
+      </sc-if>
+    </div>
+  </div>
+
+  </sc-if>
+
+  <sc-if value="{{ isProjectsView }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width:1240px;margin:0 auto;padding:24px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <h1 style="margin:0;font:600 32px/40px Poppins,sans-serif;letter-spacing:-0.5px">Projects shared with you</h1>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Counter" count="{{ projectCount }}" kind="line" color="dark" size="small" hint-size="24px,20px"></x-import>
+      </div>
+      <p style="margin:0 0 20px;font:400 16px/24px Figtree,sans-serif;color:var(--secondary-text-color)">Open a project to read the brief and quote for its phases. Your proposals stay with each project.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px">
+        <sc-for list="{{ projectCards }}" as="pj" hint-placeholder-count="3">
+          <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;animation:dcRise 400ms cubic-bezier(0,0,.35,1) both;transition:box-shadow 150ms cubic-bezier(.4,0,.2,1),border-color 150ms cubic-bezier(.4,0,.2,1),transform 150ms cubic-bezier(.4,0,.2,1)" style-hover="box-shadow:0 4px 8px rgba(0,0,0,.06);border-color:var(--ui-border-color);transform:translateY(-1px)">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ pj.company }}</div>
+                <h2 style="margin:2px 0 0;font:600 18px/24px Poppins,sans-serif;letter-spacing:-0.1px">{{ pj.name }}</h2>
+              </div>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ pj.status }}" color="{{ pj.tone }}" size="small" hint-size="88px,20px"></x-import>
+            </div>
+            <p style="margin:0;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color);text-wrap:pretty">{{ pj.summary }}</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 20px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+              <span>{{ pj.phaseLine }}</span>
+              <span>{{ pj.proposalLine }}</span>
+              <span>Target {{ pj.due }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:8px;border-top:1px solid var(--om-hairline)">
+              <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ pj.activity }}</span>
+              <div style="margin-inline-start:auto">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" size="small" onClick="{{ pj.onOpen }}" hint-size="120px,32px">Open project</x-import>
+              </div>
+            </div>
+          </section>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isProfileView }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width:1240px;margin:0 auto;padding:24px;display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:24px;align-items:start">
+      <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:20px;animation:dcRise 400ms cubic-bezier(0,0,.35,1) both">
+        <h1 style="margin:0;font:600 24px/30px Poppins,sans-serif;letter-spacing:-0.1px">Your details</h1>
+        <p style="margin:4px 0 20px;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">Used on every proposal and bill you send to the OZee team.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px">
+          <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Full name" iconName="Person" value="{{ nameValue }}" onChange="{{ onNameChange }}" hint-size="100%,64px"></x-import></div>
+          <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Phone number" iconName="Mobile" value="{{ phoneValue }}" onChange="{{ onPhoneChange }}" hint-size="100%,64px"></x-import></div>
+          <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Email address" iconName="Email" value="{{ guestEmail }}" readOnly="{{ true }}" subText="Verified — this is how you sign in" hint-size="100%,64px"></x-import></div>
+          <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Business or trading name" placeholder="Optional" value="{{ businessValue }}" onChange="{{ onBusinessChange }}" hint-size="100%,64px"></x-import></div>
+        </div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--om-hairline)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Security" size="{{ 16 }}" color="var(--secondary-text-color)" hint-size="16px,16px"></x-import>
+            <span style="font:600 14px/20px Figtree,sans-serif">Verification details</span>
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ benStatusText }}" color="{{ benStatusTone }}" kind="line" size="small" hint-size="80px,20px"></x-import>
+          </div>
+          <div style="margin-bottom:12px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Entered once and reused on every bank transfer — banks ask for these before an international payment clears. Paid to the name above: {{ nameValue }}.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px">
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Date of birth" type="date" value="{{ benDob }}" onChange="{{ onBenDob }}" hint-size="100%,64px"></x-import></div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" label="ID document" options="{{ idTypeOptions }}" value="{{ benIdType }}" onChange="{{ onBenIdType }}" hint-size="100%,64px"></x-import></div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="{{ benIdLabel }}" placeholder="{{ benIdHint }}" value="{{ benIdNumber }}" onChange="{{ onBenIdNumber }}" hint-size="100%,64px"></x-import></div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="City" placeholder="Lahore" value="{{ benCity }}" onChange="{{ onBenCity }}" hint-size="100%,64px"></x-import></div>
+            <div style="grid-column:1 / -1;min-width:0">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Residential address" placeholder="House 14, Street 8, Gulberg III" value="{{ benAddress }}" onChange="{{ onBenAddress }}" hint-size="100%,64px"></x-import>
+            </div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Post code" placeholder="54660" value="{{ benPostcode }}" onChange="{{ onBenPostcode }}" hint-size="100%,64px"></x-import></div>
+          </div>
+        </div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--om-hairline);display:flex;align-items:center;gap:12px">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" onClick="{{ onSaveProfileDetails }}" hint-size="130px,40px">Save changes</x-import>
+          <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ profileActivity }}</span>
+        </div>
+      </section>
+
+      <section style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;animation:dcRise 400ms cubic-bezier(0,0,.35,1) both">
+        <div style="padding:16px;border-bottom:1px solid var(--om-hairline);display:flex;align-items:center;gap:8px">
+          <h2 style="margin:0;font:600 18px/24px Poppins,sans-serif;letter-spacing:-0.1px">Payment methods</h2>
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Counter" count="{{ methodCount }}" kind="fill" color="primary" size="small" hint-size="24px,20px"></x-import>
+        </div>
+        <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ methods }}" as="pm" hint-placeholder-count="2">
+            <div style="border:1px solid var(--layout-border-color);border-radius:4px;padding:10px 12px;display:flex;align-items:center;gap:10px;animation:dcFade 150ms cubic-bezier(0,0,.35,1) both;transition:border-color 150ms cubic-bezier(.4,0,.2,1)" style-hover="border-color:var(--ui-border-color)">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font:600 14px/20px Figtree,sans-serif">{{ pm.label }}</span>
+                  <sc-if value="{{ pm.isDefault }}" hint-placeholder-val="{{ true }}">
+                    <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="Default" color="primary" size="small" hint-size="60px,20px"></x-import>
+                  </sc-if>
+                </div>
+                <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ pm.detailLine }}</div>
+              </div>
+              <sc-if value="{{ pm.canDefault }}" hint-placeholder-val="{{ true }}">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ pm.onMakeDefault }}" hint-size="110px,32px">Make default</x-import>
+              </sc-if>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.IconButton" name="Delete" size="small" kind="tertiary" ariaLabel="Remove payment method" onClick="{{ pm.onRemove }}" hint-size="32px,32px"></x-import>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noMethods }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:12px;border:1px dashed var(--ui-border-color);border-radius:4px;font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">No payment methods yet — add one so your bills can be paid.</div>
+          </sc-if>
+        </div>
+        <div style="padding:12px 16px 16px;border-top:1px solid var(--om-hairline);display:flex;flex-direction:column;gap:16px">
+          <div>
+            <span style="font:600 14px/20px Figtree,sans-serif">Add a method</span>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Fields follow the country — international transfers need more than a local one.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" label="Method type" options="{{ methodTypeOptions }}" value="{{ newMethodType }}" onChange="{{ onNewMethodType }}" size="small" hint-size="100%,56px"></x-import></div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Name it" size="small" placeholder="e.g. Business account" value="{{ newMethodLabel }}" onChange="{{ onNewMethodLabel }}" hint-size="100%,56px"></x-import></div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" label="Account country" options="{{ countryOptions }}" value="{{ newMethodCountry }}" onChange="{{ onNewMethodCountry }}" size="small" searchable="{{ true }}" hint-size="100%,56px"></x-import></div>
+            <div style="min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" label="Account currency" options="{{ currencyOptions }}" value="{{ newMethodCurrency }}" onChange="{{ onNewMethodCurrency }}" size="small" hint-size="100%,56px"></x-import></div>
+          </div>
+
+          <div>
+            <div style="font:600 12px/16px Figtree,sans-serif;margin-bottom:8px;color:var(--secondary-text-color)">{{ accountSectionLabel }}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+              <sc-for list="{{ accountFields }}" as="fd" hint-placeholder-count="4">
+                <div style="grid-column:{{ fd.span }};min-width:0">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="{{ fd.label }}" size="small" placeholder="{{ fd.placeholder }}" value="{{ fd.value }}" onChange="{{ fd.onChange }}" hint-size="100%,56px"></x-import>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <sc-if value="{{ benIncomplete }}" hint-placeholder-val="{{ true }}">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.AttentionBox" title="Finish your verification details" type="warning" withIcon="{{ true }}" hint-size="100%,72px">International transfers can't clear without your date of birth, ID number and address — they're in "Your details" on the left, and you only enter them once.</x-import>
+          </sc-if>
+
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" disabled="{{ addMethodDisabled }}" onClick="{{ onAddMethod }}" hint-size="120px,32px">Add method</x-import>
+            <span style="font:400 12px/16px Figtree,sans-serif;color:{{ addMethodHintColor }}">{{ addMethodHint }}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <footer style="margin-top:auto;background:var(--primary-background-color);border-top:1px solid var(--layout-border-color)">
+    <div style="max-width:1240px;margin:0 auto;padding:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px">
+      <div>
+        <img src="assets/ozee-logo-sm.png" alt="OZee Web &amp; Digital" data-brandmark="true" style="height:24px">
+        <div style="margin-top:8px;font:600 14px/20px Figtree,sans-serif">OZee Web &amp; Digital Services</div>
+        <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Thornlie, Western Australia</div>
+      </div>
+      <div>
+        <div style="font:600 12px/16px Figtree,sans-serif;margin-bottom:8px">Get in touch</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+          <a href="tel:+61456639389">+61 456 639 389</a>
+          <a href="https://OZeeWeb.com.au">OZeeWeb.com.au</a>
+          <span>Project contact: {{ projectContact }}</span>
+        </div>
+      </div>
+      <div>
+        <div style="font:600 12px/16px Figtree,sans-serif;margin-bottom:8px">This link</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+          <span>Shared with {{ guestEmail }}</span>
+          <span>Only you and the OZee team can see your proposals.</span>
+        </div>
+      </div>
+      <div>
+        <div style="font:600 12px/16px Figtree,sans-serif;margin-bottom:8px">Need a hand?</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+          <a href="mailto:accounts@ozeeweb.com.au">accounts@ozeeweb.com.au</a>
+          <span>Bills are paid on 7-day terms.</span>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--om-hairline)">
+      <div style="max-width:1240px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;gap:8px 16px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+        <span>© 2026 OZee Web &amp; Digital Services</span>
+        <span style="margin-inline-start:auto">Your website and social media are like your home, first impressions matter!</span>
+      </div>
+    </div>
+  </footer>
+
+  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Modal" open="{{ formOpen }}" onClose="{{ onCloseForm }}" title="{{ formTitle }}" description="Quote one phase, several at once, or the whole project. Several phases are saved as one proposal each, so every phase carries its own price." size="large" footer="{{ formFooter }}" hint-size="0px,0px">
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font:600 14px/20px Figtree,sans-serif">What does this proposal cover?</span>
+          <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ scopeCountLabel }}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="width:fit-content;align-self:flex-start">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.ButtonGroup" options="{{ scopeKindOptions }}" value="{{ scopeKind }}" onChange="{{ onScopeKindChange }}" size="small" hint-size="260px,32px"></x-import>
+          </div>
+          <sc-if value="{{ isPhaseScope }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px;animation:dcFade 150ms cubic-bezier(0,0,.35,1) both">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ phaseOptions }}" value="{{ phaseValue }}" onChange="{{ onPhaseChange }}" placeholder="Pick a phase" searchable="{{ true }}" hint-size="100%,40px"></x-import>
+              <div style="display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 12px;border-radius:4px;background:var(--allgrey-background-color);border:1px solid var(--om-hairline)">
+                <span style="display:inline-flex;align-items:center;gap:6px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="DueDate" size="{{ 14 }}" color="var(--secondary-text-color)" hint-size="14px,14px"></x-import>
+                  <span>Target {{ phaseDue }}</span>
+                </span>
+                <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ phaseDeliverables }}</span>
+                <span style="margin-inline-start:auto;font:600 12px/16px Figtree,sans-serif;color:{{ phaseNoteColor }}">{{ phaseNote }}</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isMultiScope }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px;animation:dcFade 150ms cubic-bezier(0,0,.35,1) both">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ multiPhaseOptions }}" value="{{ multiValue }}" onChange="{{ onMultiChange }}" placeholder="Pick the phases this covers" multi="{{ true }}" searchable="{{ true }}" clearable="{{ true }}" hint-size="100%,40px"></x-import>
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 12px;border-radius:4px;background:var(--allgrey-background-color);border:1px solid var(--om-hairline)">
+                <span style="font:600 12px/16px Figtree,sans-serif">{{ multiCountLabel }}</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="DueDate" size="{{ 14 }}" color="var(--secondary-text-color)" hint-size="14px,14px"></x-import>
+                  <span>Last target {{ multiDue }}</span>
+                </span>
+                <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ multiDeliverablesLabel }}</span>
+                <span style="font:600 12px/16px Figtree,sans-serif;color:{{ multiNoteColor }}">{{ multiNote }}</span>
+                <div style="margin-inline-start:auto;display:flex;gap:4px">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="xs" onClick="{{ onSelectAllPhases }}" hint-size="90px,24px">Select all</x-import>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="xs" onClick="{{ onClearPhases }}" hint-size="60px,24px">Clear</x-import>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Info" size="{{ 14 }}" color="var(--secondary-text-color)" hint-size="14px,14px"></x-import>
+                <span>Sent as one proposal per phase — each keeps its own amount, sharing this cover letter and payment terms.</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isProjectScope }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:4px;background:var(--allgrey-background-color);border:1px solid var(--om-hairline);animation:dcFade 150ms cubic-bezier(0,0,.35,1) both">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Info" size="{{ 16 }}" color="var(--secondary-text-color)" hint-size="16px,16px"></x-import>
+              <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ projectScopeNote }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextArea" label="Cover letter" placeholder="How you'd approach this work, what's included, and how long it will take." rows="{{ 6 }}" maxLength="{{ 5000 }}" value="{{ descValue }}" onChange="{{ onDescChange }}" subText="{{ descSubText }}" validation="{{ descValidation }}" hint-size="100%,160px"></x-import>
+
+      <sc-if value="{{ isSingleAmount }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:1fr 140px;gap:12px;align-items:start">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Amount" placeholder="0.00" value="{{ amountValue }}" onChange="{{ onAmountChange }}" required="{{ true }}" hint-size="100%,64px"></x-import>
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" label="Currency" options="{{ currencyOptions }}" value="{{ currencyValue }}" onChange="{{ onCurrencyChange }}" hint-size="140px,64px"></x-import>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isMultiScope }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font:600 14px/20px Figtree,sans-serif">Amount per phase</span>
+            <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Each phase is priced and invoiced on its own</span>
+            <div style="margin-inline-start:auto;width:120px">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ currencyOptions }}" value="{{ currencyValue }}" onChange="{{ onCurrencyChange }}" size="small" hint-size="120px,32px"></x-import>
+            </div>
+          </div>
+          <div style="border:1px solid var(--layout-border-color);border-radius:4px;background:var(--allgrey-background-color);padding:12px;display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ amountRows }}" as="a" hint-placeholder-count="2">
+              <div style="display:grid;grid-template-columns:1fr 140px;gap:12px;align-items:center;animation:dcFade 150ms cubic-bezier(0,0,.35,1) both">
+                <div>
+                  <div style="font:600 14px/20px Figtree,sans-serif">{{ a.name }}</div>
+                  <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ a.meta }}</div>
+                </div>
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="0.00" value="{{ a.value }}" onChange="{{ a.onChange }}" validation="{{ a.validation }}" hint-size="140px,32px"></x-import>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noAmountRows }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">Pick the phases above and their prices appear here.</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--om-hairline)">
+              <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ amountsSummary }}</span>
+              <span style="font:700 16px/22px Figtree,sans-serif">{{ amountsTotalText }}</span>
+              <div style="margin-inline-start:auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;min-width:0">
+                <div style="width:130px">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Total to split" value="{{ splitTotalValue }}" onChange="{{ onSplitTotalChange }}" hint-size="130px,32px"></x-import>
+                </div>
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ onSplitEvenly }}" hint-size="110px,32px">Split evenly</x-import>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font:600 14px/20px Figtree,sans-serif">Payment terms</span>
+          <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ payTermsHint }}</span>
+        </div>
+        <div style="border:1px solid var(--layout-border-color);border-radius:4px;background:var(--allgrey-background-color);padding:12px;display:flex;flex-direction:column;gap:12px">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ payTypeOptions }}" value="{{ payType }}" onChange="{{ onPayTypeChange }}" hint-size="100%,40px"></x-import>
+
+          <sc-if value="{{ isFixed }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:4px;background:var(--primary-background-color);border:1px solid var(--om-hairline)">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Info" size="{{ 16 }}" color="var(--secondary-text-color)" hint-size="16px,16px"></x-import>
+              <span style="font:400 14px/20px Figtree,sans-serif;color:var(--secondary-text-color)">100% of <strong style="color:var(--primary-text-color)">{{ totalText }}</strong> due on final delivery and sign-off.</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isSplit }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:grid;grid-template-columns:1fr 88px 110px 32px;gap:8px;font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+                <span>Stage</span>
+                <span>Share</span>
+                <span style="text-align:end">{{ splitAmountHeader }}</span>
+                <span></span>
+              </div>
+              <sc-for list="{{ payRows }}" as="r" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1fr 88px 110px 32px;gap:8px;align-items:center;animation:dcFade 150ms cubic-bezier(0,0,.35,1) both">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="e.g. Kickoff" value="{{ r.label }}" onChange="{{ r.onLabelChange }}" hint-size="100%,32px"></x-import>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="0 %" value="{{ r.pct }}" onChange="{{ r.onPctChange }}" validation="{{ r.validation }}" hint-size="88px,32px"></x-import>
+                  <span style="text-align:end;font:600 14px/20px Figtree,sans-serif">{{ r.amountText }}</span>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.IconButton" name="Delete" size="small" kind="tertiary" ariaLabel="Remove stage" onClick="{{ r.onRemove }}" hint-size="32px,32px"></x-import>
+                </div>
+              </sc-for>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--om-hairline)">
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;background:{{ pctBg }};color:{{ pctColor }};font:600 12px/16px Figtree,sans-serif;transition:background 150ms cubic-bezier(.4,0,.2,1),color 150ms cubic-bezier(.4,0,.2,1)">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="{{ pctIcon }}" size="{{ 14 }}" color="currentColor" hint-size="14px,14px"></x-import>
+                  <span>{{ pctText }}</span>
+                </span>
+                <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ splitSummary }}</span>
+                <div style="margin-inline-start:auto;display:flex;gap:8px">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ onDistribute }}" hint-size="130px,32px">Distribute evenly</x-import>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ onAddRow }}" hint-size="100px,32px">Add stage</x-import>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isRetainer }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Monthly rate" value="{{ totalText }}" readOnly="{{ true }}" subText="Taken from the amount above" hint-size="100%,64px"></x-import>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Number of months" placeholder="6" value="{{ months }}" onChange="{{ onMonthsChange }}" hint-size="100%,64px"></x-import>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:8px;padding:10px 12px;border-radius:4px;background:var(--primary-background-color);border:1px solid var(--om-hairline)">
+              <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Total contract value</span>
+              <span style="margin-inline-start:auto;font:700 18px/24px Figtree,sans-serif">{{ retainerTotal }}</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isHourly }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Hourly rate" placeholder="0.00" value="{{ hourlyRate }}" onChange="{{ onRateChange }}" hint-size="100%,64px"></x-import>
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Estimated hours" placeholder="0" value="{{ hours }}" onChange="{{ onHoursChange }}" hint-size="100%,64px"></x-import>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:8px;padding:10px 12px;border-radius:4px;background:var(--primary-background-color);border:1px solid var(--om-hairline)">
+              <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Estimated total</span>
+              <span style="margin-inline-start:auto;font:700 18px/24px Figtree,sans-serif">{{ hourlyTotal }}</span>
+            </div>
+          </sc-if>
+
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextArea" label="Extra conditions (optional)" placeholder="e.g. 7-day invoice terms, expenses billed at cost." rows="{{ 2 }}" maxLength="{{ 10000 }}" value="{{ termsValue }}" onChange="{{ onTermsChange }}" hint-size="100%,90px"></x-import>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+          <span style="font:600 14px/20px Figtree,sans-serif">Supporting document (optional)</span>
+          <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Backs up this quote — nothing is signed here</span>
+        </div>
+        <div style="margin-bottom:8px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color);text-wrap:pretty">Attach a detailed quote, scope of work, rate card or a contract you'd like the team to review. Not the place for a bill — invoices go on the proposal itself once it's accepted.</div>
+        <div style="border:1px dashed var(--ui-border-color);border-radius:4px;padding:16px;display:flex;align-items:center;gap:12px;background:var(--allgrey-background-color)">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Upload" size="{{ 20 }}" color="var(--secondary-text-color)" hint-size="20px,20px"></x-import>
+          <div style="flex:1;min-width:0">
+            <div style="font:600 14px/20px Figtree,sans-serif">{{ docName }}</div>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">PDF only, up to 10MB</div>
+          </div>
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ onPickDoc }}" hint-size="110px,32px">Choose file</x-import>
+        </div>
+      </div>
+    </div>
+  </x-import>
+
+  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Modal" open="{{ billOpen }}" onClose="{{ onCloseBill }}" title="Upload your bill" description="{{ billFor }}" size="small" footer="{{ billFooter }}" hint-size="0px,0px">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="border:1px dashed var(--ui-border-color);border-radius:4px;padding:20px;text-align:center;background:var(--allgrey-background-color)">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Doc" size="{{ 24 }}" color="var(--secondary-text-color)" hint-size="24px,24px"></x-import>
+        <div style="margin-top:8px;font:600 14px/20px Figtree,sans-serif">{{ billFileName }}</div>
+        <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">PDF invoice, up to 10MB</div>
+        <div style="margin-top:12px;display:flex;justify-content:center">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ onPickBill }}" hint-size="120px,32px">Choose file</x-import>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Invoice number" placeholder="INV-1043" value="{{ billNumber }}" onChange="{{ onBillNumberChange }}" hint-size="100%,64px"></x-import>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" label="Amount billed" placeholder="0.00" value="{{ billAmount }}" onChange="{{ onBillAmountChange }}" hint-size="100%,64px"></x-import>
+      </div>
+      <div>
+        <div style="font:600 14px/20px Figtree,sans-serif;margin-bottom:8px">Pay this bill to</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ billMethodChoices }}" as="bm" hint-placeholder-count="2">
+            <div style="border:1px solid {{ bm.border }};background:{{ bm.bg }};border-radius:4px;padding:10px 12px;cursor:pointer;transition:border-color 100ms cubic-bezier(.4,0,.2,1),background 100ms cubic-bezier(.4,0,.2,1)" style-hover="border-color:var(--primary-color)" onClick="{{ bm.onSelect }}">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.RadioButton" label="{{ bm.label }}" name="billmethod" checked="{{ bm.checked }}" onChange="{{ bm.onSelect }}" hint-size="100%,20px"></x-import>
+              <div style="margin-top:2px;padding-inline-start:26px;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ bm.detailLine }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{ noMethods }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:4px;background:var(--allgrey-background-color);border:1px solid var(--om-hairline)">
+          <span style="flex:1;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">No payment methods saved yet — add one and it'll be offered here.</span>
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ onViewProfile }}" hint-size="110px,32px">Add one</x-import>
+        </div>
+      </sc-if>
+      <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">The OZee team is notified as soon as your bill lands. Payment status shows here once it's processed.</div>
+    </div>
+  </x-import>
+
+  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Toast" open="{{ toastOpen }}" type="positive" withIcon="{{ true }}" onClose="{{ onCloseToast }}" hint-size="0px,0px">{{ toastText }}</x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;system&quot;,&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;system&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;authState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;signedOut&quot;,&quot;otp&quot;,&quot;profile&quot;,&quot;signedIn&quot;],&quot;default&quot;:&quot;signedIn&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Guest state&quot;},&quot;allowBillBeforeAccepted&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
+const TONES = {
+  pending: "var(--color-working-orange)",
+  progress: "var(--color-working-orange)",
+  review: "var(--primary-color)",
+  accepted: "var(--positive-color)",
+  declined: "var(--negative-color)",
+  neutral: "var(--secondary-text-color)"
+};
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const auth = props.authState ?? "signedIn";
+    this.state = {
+      auth,
+      email: auth === "signedOut" ? "" : "hamza.rafiq@studioloop.dev",
+      otp: "",
+      name: "Hamza Rafiq",
+      phone: "+61 431 887 204",
+      formOpen: false,
+      editingId: null,
+      scope: "project",
+      desc: "",
+      amount: "",
+      currency: "AUD",
+      terms: "",
+      docName: "No file chosen",
+      billOpen: false,
+      billTarget: null,
+      billFileName: "No file chosen",
+      billNumber: "",
+      billAmount: "",
+      expanded: {},
+      view: "project",
+      mainTab: "phases",
+      listScope: "project",
+      projectId: "pr1",
+      business: "Studio Loop",
+      profileSaved: "Last updated 12 Aug",
+      methods: [
+        { id: "pm1", type: "Bank transfer", label: "Business account", country: "Australia", currency: "AUD", detail: "Commonwealth Bank · BSB 066-000 · ****4821" },
+        { id: "pm2", type: "Bank transfer", label: "Meezan (PKR)", country: "Pakistan", currency: "PKR", detail: "Meezan Bank · IBAN PK36MEZN****6702 · CNIC 35202-*******-3" },
+        { id: "pm3", type: "Wise", label: "Wise (multi-currency)", country: "Australia", currency: "AUD", detail: "hamza.rafiq@studioloop.dev" }
+      ],
+      defaultMethod: "pm1",
+      newMethodType: "Bank transfer",
+      newMethodLabel: "",
+      newMethodCountry: "Pakistan",
+      newMethodCurrency: "PKR",
+      newMethodFields: {},
+      ben: { dob: "1991-04-18", idType: "National ID card (CNIC)", idNumber: "35202-1234567-3", address: "House 14, Street 8, Gulberg III", city: "Lahore", postcode: "54660" },
+      billMethodId: "pm1",
+      payType: "fixed",
+      payRows: [{ label: "Kickoff", pct: "30" }, { label: "Midpoint", pct: "30" }, { label: "Final delivery", pct: "40" }],
+      months: "6",
+      scopeKind: "phase",
+      scopeIds: [],
+      phaseAmounts: {},
+      splitTotal: "",
+      hourlyRate: "",
+      hours: "",
+      theme: props.theme ?? (function () { try { return localStorage.getItem("om-guest-theme") || "system"; } catch (e) { return "system"; } })(),
+      toast: "",
+      proposals: [
+        {
+          id: "p1", projectId: "pr1", scopeId: "m2", amount: 4200, currency: "AUD", status: "Accepted",
+          sent: "9 Aug", note: "Accepted by Sarah Bennett on 11 Aug — start once phase 1 signs off.",
+          termsText: "30% / 30% / 40% across 3 stages",
+          doc: "studioloop-build-quote.pdf",
+          bills: [
+            { name: "INV-1043 · studioloop.pdf", amount: 2100, date: "12 Aug", meta: "AUD 2,100 · uploaded 12 Aug", status: "Paid", tone: TONES.accepted, method: "Business account" },
+            { name: "INV-1052 · studioloop.pdf", amount: 1400, date: "15 Aug", meta: "AUD 1,400 · uploaded 15 Aug", status: "Received", tone: TONES.review, method: "Business account" }
+          ]
+        },
+        {
+          id: "p2", projectId: "pr1", scopeId: "m1", amount: 1150, currency: "AUD", status: "Under review",
+          sent: "14 Aug", note: "Waiting on the team — you can still edit or replace this one.",
+          termsText: "100% on final delivery", bills: [],
+          doc: "discovery-scope.pdf", bill: null
+        }
+      ]
+    };
+  }
+
+  componentDidMount() {
+    this.applyTheme();
+    this.mq = window.matchMedia("(prefers-color-scheme: dark)");
+    this.mqHandler = () => this.forceUpdate();
+    this.mq.addEventListener("change", this.mqHandler);
+  }
+
+  componentWillUnmount() {
+    if (this.mq) this.mq.removeEventListener("change", this.mqHandler);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.theme !== this.props.theme && this.props.theme) this.setState({ theme: this.props.theme });
+    this.applyTheme();
+  }
+
+  applyTheme() {
+    document.documentElement.setAttribute("data-theme", this.state.theme);
+  }
+
+  setTheme(v) {
+    try { localStorage.setItem("om-guest-theme", v); } catch (e) {}
+    this.setState({ theme: v });
+  }
+
+  projectData() {
+    return [
+      {
+        id: "pr1", company: "Northshore Dental", name: "Northshore Dental — site refresh",
+        status: "In progress", tone: TONES.progress, due: "30 Sep 2026", contact: "Sarah Bennett",
+        openUntil: "Open for proposals until 29 Aug", phaseCount: "6 of 8",
+        description: "Rebuild of a 12-page dental practice site on WordPress, with new content, an online booking hand-off and a technical SEO pass. Copy and photography are supplied by the client. Work runs in six phases — you can quote for one phase or the whole job.",
+        summary: "WordPress rebuild, new content, booking hand-off and a technical SEO pass.",
+        activity: "You last quoted 14 Aug",
+        milestones: this.phasesPr1(),
+        loose: [
+          { name: "Brand asset pack", description: "Logo files, colour codes and fonts from the client.", status: "Pending", due: "20 Aug", tone: TONES.pending },
+          { name: "Hosting access", description: "cPanel and DNS credentials handed over.", status: "In progress", due: "21 Aug", tone: TONES.progress }
+        ]
+      },
+      {
+        id: "pr2", company: "Bayside Legal", name: "Bayside Legal — SEO retainer",
+        status: "In progress", tone: TONES.progress, due: "31 Mar 2027", contact: "Mia Lu",
+        openUntil: "Open for proposals until 5 Sep", phaseCount: "3 of 3",
+        description: "Twelve-month SEO retainer for a five-partner law firm: technical clean-up, a content plan built around practice areas, and monthly reporting the partners can read.",
+        summary: "Twelve-month SEO retainer — technical clean-up, content plan, monthly reporting.",
+        activity: "Shared with you 15 Aug",
+        milestones: [
+          {
+            id: "b1", name: "Technical audit", status: "In progress", tone: TONES.progress, due: "5 Sep",
+            description: "Crawl, indexation and Core Web Vitals review with a prioritised fix list.",
+            deliverables: [
+              { name: "Audit report", description: "Findings by severity, with effort estimates.", status: "In progress", due: "3 Sep", done: 1, checklist: [["Crawl site", true], ["Vitals review", false]] }
+            ]
+          },
+          {
+            id: "b2", name: "Content plan", status: "Pending", tone: TONES.pending, due: "26 Sep",
+            description: "Keyword map across the six practice areas plus a six-month publishing calendar.",
+            deliverables: [
+              { name: "Keyword map", description: "Terms grouped by practice area and intent.", status: "Pending", due: "19 Sep", done: 0, checklist: [["Research", false], ["Partner review", false]] }
+            ]
+          },
+          {
+            id: "b3", name: "Monthly reporting setup", status: "Pending", tone: TONES.pending, due: "10 Oct",
+            description: "Looker Studio dashboard and a one-page monthly summary template.",
+            deliverables: [
+              { name: "Dashboard", description: "Rankings, traffic and enquiries in one view.", status: "Pending", due: "8 Oct", done: 0, checklist: [["Connect data", false], ["Design layout", false]] }
+            ]
+          }
+        ],
+        loose: [
+          { name: "Search Console access", description: "Owner access for the two firm domains.", status: "Pending", due: "1 Sep", tone: TONES.pending }
+        ]
+      },
+      {
+        id: "pr3", company: "Coast Cafe", name: "Coast Cafe — online ordering",
+        status: "Pending", tone: TONES.pending, due: "14 Nov 2026", contact: "Aisha Khan",
+        openUntil: "Open for proposals until 12 Sep", phaseCount: "2 of 2",
+        description: "Add pickup ordering to an existing Squarespace site: menu sync, payments and a short staff training session before launch.",
+        summary: "Pickup ordering on Squarespace — menu sync, payments, staff training.",
+        activity: "No proposals from you yet",
+        milestones: [
+          {
+            id: "c1", name: "Menu and payments setup", status: "Pending", tone: TONES.pending, due: "24 Oct",
+            description: "Menu items, modifiers and pickup windows configured, with Stripe connected.",
+            deliverables: [
+              { name: "Menu build", description: "38 items with modifiers and daily specials.", status: "Pending", due: "17 Oct", done: 0, checklist: [["Import items", false], ["Set modifiers", false]] },
+              { name: "Payments", description: "Stripe account connected and tested end to end.", status: "Pending", due: "24 Oct", done: 0, checklist: [["Connect Stripe", false], ["Test orders", false]] }
+            ]
+          },
+          {
+            id: "c2", name: "Staff training", status: "Pending", tone: TONES.pending, due: "14 Nov",
+            description: "One session for the floor team plus a printed one-pager for the counter.",
+            deliverables: [
+              { name: "Training session", description: "45 minutes, on site, before opening.", status: "Pending", due: "12 Nov", done: 0, checklist: [["Book session", false], ["Print one-pager", false]] }
+            ]
+          }
+        ],
+        loose: []
+      }
+    ];
+  }
+
+  currentProject() {
+    const all = this.projectData();
+    return all.find((p) => p.id === this.state.projectId) || all[0];
+  }
+
+  milestoneData() {
+    return this.currentProject().milestones;
+  }
+
+  phasesPr1() {
+    return [
+      {
+        id: "m1", name: "Discovery & content", status: "In progress", tone: TONES.progress, due: "29 Aug",
+        description: "Content audit of the current site, sitemap for the new one, and a brief for the client's copywriter.",
+        deliverables: [
+          { name: "Content audit sheet", description: "Every existing page mapped to keep, merge or drop.", status: "In progress", due: "22 Aug", done: 2, checklist: [["Crawl current site", true], ["Tag duplicate pages", true], ["Sign-off from client", false]] },
+          { name: "Sitemap v2", description: "12-page structure with booking flow entry points.", status: "Pending", due: "27 Aug", done: 0, checklist: [["Draft structure", false], ["Review with Sarah", false]] }
+        ]
+      },
+      {
+        id: "m2", name: "Design & build", status: "Pending", tone: TONES.pending, due: "19 Sep",
+        description: "Six templates designed and built on WordPress, responsive down to 360px, with the booking hand-off wired in.",
+        deliverables: [
+          { name: "Template set", description: "Home, service, team, blog index, article, contact.", status: "Pending", due: "12 Sep", done: 0, checklist: [["Home design", false], ["Service design", false], ["Build pass", false]] },
+          { name: "Booking hand-off", description: "Deep links into the practice's booking provider.", status: "Pending", due: "17 Sep", done: 0, checklist: [["Confirm provider URLs", false], ["Test on mobile", false]] }
+        ]
+      },
+      {
+        id: "m3", name: "Launch & SEO setup", status: "Pending", tone: TONES.pending, due: "30 Sep",
+        description: "Redirect map, technical SEO pass, analytics and Search Console, then go live out of hours.",
+        deliverables: [
+          { name: "Redirect map", description: "301s for all retired URLs.", status: "Pending", due: "24 Sep", done: 0, checklist: [["Export old URLs", false], ["Map to new", false]] },
+          { name: "Launch checklist", description: "Backups, DNS cutover, post-launch crawl.", status: "Pending", due: "30 Sep", done: 0, checklist: [["Staging sign-off", false], ["DNS window booked", false], ["Post-launch crawl", false]] }
+        ]
+      },
+      {
+        id: "m4", name: "Content migration", status: "Pending", tone: TONES.pending, due: "8 Oct",
+        description: "Move 40 blog posts and 6 service pages across, reformatted to the new templates.",
+        deliverables: [
+          { name: "Blog migration", description: "Posts, categories and author bios moved over.", status: "Pending", due: "5 Oct", done: 0, checklist: [["Export from old CMS", false], ["Reformat to template", false]] }
+        ]
+      },
+      {
+        id: "m5", name: "Accessibility pass", status: "Pending", tone: TONES.pending, due: "15 Oct",
+        description: "WCAG 2.2 AA review across the new templates, with fixes and a short report.",
+        deliverables: [
+          { name: "Audit report", description: "Issues by severity with recommended fixes.", status: "Pending", due: "12 Oct", done: 0, checklist: [["Automated scan", false], ["Manual keyboard pass", false], ["Contrast fixes", false]] }
+        ]
+      },
+      {
+        id: "m6", name: "Training & handover", status: "Pending", tone: TONES.pending, due: "22 Oct",
+        description: "Two training sessions for practice staff plus a short written guide for everyday edits.",
+        deliverables: [
+          { name: "Editor guide", description: "How to update team, services and opening hours.", status: "Pending", due: "20 Oct", done: 0, checklist: [["Draft guide", false], ["Record walkthrough", false]] }
+        ]
+      }
+    ];
+  }
+
+  accountSchema(type, country) {
+    if (type === "PayPal" || type === "Wise" || type === "Stripe") {
+      return [{ key: "account_email", label: "Account email or ID", placeholder: "you@example.com", span: "1 / -1" }];
+    }
+    if (type === "Cheque") {
+      return [
+        { key: "payee", label: "Payee name", placeholder: "Studio Loop Pty Ltd" },
+        { key: "post", label: "Postal address", placeholder: "Where to post it", span: "1 / -1" }
+      ];
+    }
+    const title = { key: "account_title", label: "Account title", placeholder: "Name exactly as the bank has it" };
+    const bank = { key: "bank_name", label: "Bank name", placeholder: "e.g. Meezan Bank" };
+    const swift = { key: "swift", label: "SWIFT / BIC", placeholder: "MEZNPKKA" };
+    const byCountry = {
+      Pakistan: [title, bank, { key: "iban", label: "IBAN", placeholder: "PK36MEZN0000001123456702" }, { key: "branch", label: "Branch code", placeholder: "0123" }, swift],
+      India: [title, bank, { key: "account_number", label: "Account number", placeholder: "0000 1234 5678" }, { key: "ifsc", label: "IFSC code", placeholder: "HDFC0001234" }, swift],
+      Australia: [title, bank, { key: "bsb", label: "BSB", placeholder: "066-000" }, { key: "account_number", label: "Account number", placeholder: "12345678" }],
+      "United Kingdom": [title, bank, { key: "sort_code", label: "Sort code", placeholder: "20-00-00" }, { key: "account_number", label: "Account number", placeholder: "12345678" }, { key: "iban", label: "IBAN", placeholder: "GB29NWBK60161331926819" }],
+      "United States": [title, bank, { key: "routing", label: "Routing number (ABA)", placeholder: "021000021" }, { key: "account_number", label: "Account number", placeholder: "12345678" }],
+      "United Arab Emirates": [title, bank, { key: "iban", label: "IBAN", placeholder: "AE070331234567890123456" }, swift]
+    };
+    return byCountry[country] || [title, bank, { key: "iban", label: "IBAN or account number", placeholder: "Account identifier" }, swift];
+  }
+
+  plural(n, word) {
+    return n + " " + word + (n === 1 ? "" : "s");
+  }
+
+  num(v) {
+    return Number(String(v == null ? "" : v).replace(/[^0-9.]/g, "")) || 0;
+  }
+
+  setBen(key, value) {
+    this.setState((st) => ({ ben: Object.assign({}, st.ben, { [key]: value }) }));
+  }
+
+  addMethod(schema) {
+    this.setState((st) => {
+      const id = "pm" + (st.methods.length + 1 + Date.now() % 1000);
+      const parts = schema.map((fd) => String(st.newMethodFields[fd.key] || "").trim()).filter(Boolean);
+      const detail = parts.slice(0, 3).join(" · ");
+      return {
+        methods: st.methods.concat([{
+          id, type: st.newMethodType, label: st.newMethodLabel.trim(),
+          country: st.newMethodCountry, currency: st.newMethodCurrency,
+          detail: detail,
+          beneficiary: st.newMethodType === "Bank transfer" ? Object.assign({ name: st.name }, st.ben) : null
+        }]),
+        defaultMethod: st.defaultMethod || id,
+        newMethodLabel: "", newMethodFields: {},
+        toast: "Payment method added"
+      };
+    });
+  }
+
+  setPayType(v) {
+    const patch = { payType: v };
+    if (v === "milestones") {
+      const all = this.milestoneData();
+      const sel = this.state.scopeKind === "phases" && this.state.scopeIds.length ? this.state.scopeIds
+        : this.state.scopeKind === "phase" ? [this.state.scope] : all.map((m) => m.id);
+      const ms = all.filter((m) => sel.indexOf(m.id) > -1);
+      const even = Math.floor(100 / ms.length);
+      patch.payRows = ms.map((m, i) => ({ label: m.name, pct: String(i === ms.length - 1 ? 100 - even * (ms.length - 1) : even) }));
+    }
+    this.setState(patch);
+  }
+
+  proposalView(p, ms, allowEarlyBill, projectName) {
+    const ids = p.scopeIds || [p.scopeId];
+    const names = ids.filter((id) => id !== "project").map((id) => (ms.find((m) => m.id === id) || {}).name).filter(Boolean);
+    const label = p.scopeId === "project" ? "Whole project"
+      : names.length > 2 ? names.slice(0, 2).join(", ") + " +" + (names.length - 2) + " more"
+      : names.join(", ");
+    const bills = p.bills || [];
+    const billed = bills.reduce((n, b) => n + (b.amount || 0), 0);
+    const remaining = Math.max(0, p.amount - billed);
+    const canBill = (p.status === "Accepted" || allowEarlyBill) && p.status !== "Declined" && remaining > 0;
+    return {
+      id: p.id, scopeKind: p.scopeId === "project" ? "Whole project" : names.length > 1 ? names.length + " phases" : "Phase proposal", scopeName: label,
+      status: p.status, tone: this.toneFor(p.status),
+      amount: this.money(p.amount, p.currency), currency: p.currency, sent: p.sent, note: p.note,
+      canEdit: p.status !== "Accepted",
+      projectName: projectName,
+      hasTerms: !!p.termsText, termsText: p.termsText || "",
+      docLabel: p.doc ? "View document" : "No document",
+      bills: bills.map((b) => ({
+        name: b.name, meta: b.meta, status: b.status, tone: b.tone,
+        hasMethod: !!b.method, methodLine: "Paid to " + b.method
+      })),
+      hasBills: bills.length > 0,
+      noBillsYet: bills.length === 0 && canBill,
+      billTotalLine: remaining > 0
+        ? this.plural(bills.length, "bill") + " · " + this.money(billed, p.currency) + " of " + this.money(p.amount, p.currency) + " billed · " + this.money(remaining, p.currency) + " left"
+        : this.plural(bills.length, "bill") + " · fully billed at " + this.money(billed, p.currency),
+      billTotalColor: remaining > 0 ? "var(--secondary-text-color)" : "var(--positive-color)",
+      canAddBill: canBill,
+      billLocked: bills.length === 0 && !canBill,
+      billLockedText: p.status === "Declined" ? "This proposal was declined — no bill needed." : "You can add your bill once this proposal is accepted.",
+      onEdit: () => this.openForm(p.scopeId, p),
+      onUploadBill: () => this.setState({ billOpen: true, billTarget: p.id, billFileName: "No file chosen", billNumber: "", billAmount: String(remaining || p.amount), billMethodId: this.state.defaultMethod || (this.state.methods[0] || {}).id || null })
+    };
+  }
+
+  termsSummary() {
+    const s = this.state;
+    const total = s.scopeKind === "phases"
+      ? s.scopeIds.reduce((n, id) => n + this.num(s.phaseAmounts[id]), 0)
+      : this.num(s.amount);
+    if (s.payType === "installments" || s.payType === "milestones") {
+      return s.payRows.map((r) => this.num(r.pct) + "%").join(" / ") + " across " + s.payRows.length + " stages";
+    }
+    if (s.payType === "retainer") return this.money(total, s.currency) + "/month for " + (this.num(s.months) || 0) + " months";
+    if (s.payType === "hourly") return this.money(this.num(s.hourlyRate), s.currency) + "/hour × " + this.num(s.hours) + " hours";
+    return "100% on final delivery";
+  }
+
+  money(a, c) {
+    return (c === "PKR" ? "₨" : c === "EUR" ? "€" : c === "GBP" ? "£" : c === "INR" ? "₹" : "$") + Number(a || 0).toLocaleString();
+  }
+
+  toneFor(status) {
+    if (status === "Accepted") return TONES.accepted;
+    if (status === "Declined") return TONES.declined;
+    if (status === "Under review") return TONES.review;
+    return TONES.pending;
+  }
+
+  openForm(scopeId, fromProposal) {
+    const existing = fromProposal || this.state.proposals.find((p) => (p.scopeIds || [p.scopeId]).indexOf(scopeId) > -1 && p.status !== "Accepted");
+    const ids = existing && existing.scopeIds ? existing.scopeIds.slice() : [];
+    const kind = existing ? (existing.scopeIds && existing.scopeIds.length > 1 ? "phases" : existing.scopeId === "project" ? "project" : "phase")
+      : (scopeId === "project" ? "project" : "phase");
+    this.setState({
+      formOpen: true,
+      scope: kind === "phases" ? (ids[0] || scopeId) : (existing ? existing.scopeId : scopeId),
+      scopeKind: kind,
+      scopeIds: ids.length ? ids : (kind === "phase" && scopeId !== "project" ? [scopeId] : []),
+      editingId: existing ? existing.id : null,
+      phaseAmounts: {},
+      splitTotal: "",
+      desc: existing ? (existing.desc ?? "Full content audit, sitemap and copy brief. Two rounds of revisions included; delivered within three weeks of kick-off.") : "",
+      amount: existing ? String(existing.amount) : "",
+      currency: existing ? existing.currency : this.state.currency,
+      terms: existing ? (existing.terms ?? "50% on acceptance, 50% on phase sign-off. 7-day invoice terms.") : "",
+      docName: existing && existing.doc ? existing.doc : "No file chosen"
+    });
+  }
+
+  submitForm() {
+    const { scope, scopeKind, scopeIds, amount, currency, desc, terms, docName, editingId, proposals } = this.state;
+    const ids = scopeKind === "project" ? ["project"] : scopeKind === "phases" ? scopeIds.slice() : [scope];
+    const next = proposals.slice();
+    const payload = {
+      scopeId: ids[0], scopeIds: ids, amount: Number(String(amount).replace(/[^0-9.]/g, "")) || 0, currency,
+      projectId: this.state.projectId, desc, terms, termsText: this.termsSummary(), doc: docName === "No file chosen" ? null : docName,
+      status: "Under review", sent: "Today", note: "Just sent — the team usually responds within two business days.", bills: []
+    };
+    if (scopeKind === "phases") {
+      ids.forEach((id, n) => {
+        const each = Object.assign({}, payload, {
+          scopeId: id, scopeIds: [id],
+          amount: this.num(this.state.phaseAmounts[id]),
+          note: ids.length === 1
+            ? "Just sent — the team usually responds within two business days."
+            : "Just sent as part of a " + ids.length + "-phase batch — reviewed on its own."
+        });
+        const j = next.findIndex((p) => p.scopeId === id && p.status !== "Accepted");
+        if (j > -1) next[j] = Object.assign({}, next[j], each, { note: "Updated today — replaces your earlier version." });
+        else next.push(Object.assign({ id: "p" + (next.length + 1 + n + Date.now() % 100) }, each));
+      });
+      this.setState({ proposals: next, formOpen: false, toast: this.plural(ids.length, "proposal") + " sent — one per phase" });
+      return;
+    }
+    const i = next.findIndex((p) => p.id === editingId);
+    if (i > -1) next[i] = Object.assign({}, next[i], payload, { note: "Updated today — replaces your earlier version." });
+    else next.push(Object.assign({ id: "p" + (next.length + 1 + Date.now() % 100) }, payload));
+    this.setState({ proposals: next, formOpen: false, toast: i > -1 ? "Proposal updated" : "Proposal sent — you can quote another phase any time" });
+  }
+
+  saveBill() {
+    const { proposals, billTarget, billFileName, billNumber, billAmount } = this.state;
+    const method = (this.state.methods.find((m) => m.id === this.state.billMethodId) || {}).label || "";
+    const next = proposals.map((p) => {
+      if (p.id !== billTarget) return p;
+      const amount = this.num(billAmount) || p.amount;
+      const bill = {
+        name: (billNumber ? billNumber + " · " : "") + (billFileName === "No file chosen" ? "bill.pdf" : billFileName),
+        amount: amount,
+        date: "today",
+        meta: p.currency + " " + amount.toLocaleString() + " · uploaded today",
+        status: "Received", tone: TONES.review, method: method
+      };
+      return Object.assign({}, p, { bills: (p.bills || []).concat([bill]) });
+    });
+    this.setState({ proposals: next, billOpen: false, toast: "Bill uploaded — the team has been notified" });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const allowEarlyBill = this.props.allowBillBeforeAccepted ?? true;
+    const project = this.currentProject();
+    const allProjects = this.projectData();
+    const ms = this.milestoneData();
+    const projectsById = {};
+    allProjects.forEach((pp) => { projectsById[pp.id] = pp; });
+    const projProposals = s.proposals.filter((p) => (p.projectId || "pr1") === project.id);
+    const listSource = (s.listScope === "all" ? s.proposals : projProposals);
+    const byScope = {};
+    projProposals.forEach((p) => { (p.scopeIds || [p.scopeId]).forEach((id) => { byScope[id] = p; }); });
+
+    const milestones = ms.map((m) => {
+      const p = byScope[m.id] || byScope["project"];
+      const own = byScope[m.id];
+      const steps = m.deliverables.reduce((n, d) => n + d.checklist.length, 0);
+      const doneSteps = m.deliverables.reduce((n, d) => n + d.checklist.filter((c) => c[1]).length, 0);
+      const pct = steps ? Math.round((doneSteps / steps) * 100) : 0;
+      return {
+        progressValue: pct,
+        progressColor: pct === 100 ? "positive" : pct > 0 ? "primary" : "primary",
+        progressLabel: doneSteps + "/" + steps + " steps",
+        isOpen: s.expanded[m.id] === true,
+        chevron: s.expanded[m.id] === true ? "90deg" : "0deg",
+        toggleLabel: (s.expanded[m.id] === true ? "Hide " : "Show ") + this.plural(m.deliverables.length, "deliverable"),
+        onToggle: () => this.setState((st) => ({ expanded: Object.assign({}, st.expanded, { [m.id]: st.expanded[m.id] !== true }) })),
+        id: m.id, name: m.name, status: m.status, tone: m.tone, due: m.due, description: m.description,
+        deliverableLine: this.plural(m.deliverables.length, "deliverable"),
+        hasProposal: !!p,
+        noProposal: !p,
+        proposalLabel: !p ? "" : (p.scopeIds && p.scopeIds.length > 1) ? "Part of a bundle" : p.scopeId === "project" ? "Whole-project proposal" : "Your proposal",
+        proposalAmount: p ? this.money(p.amount, p.currency) + " " + p.currency : "",
+        proposalScopeNote: !p ? "" : (p.scopeIds && p.scopeIds.length > 1) ? "combined across " + p.scopeIds.length + " phases" : p.scopeId === "project" ? "covers all " + ms.length + " phases" : "",
+        hasScopeNote: !!p && ((p.scopeIds && p.scopeIds.length > 1) || p.scopeId === "project"),
+        proposalStatus: p ? p.status : "",
+        proposalTone: p ? this.toneFor(p.status) : TONES.neutral,
+        onPropose: () => this.openForm(m.id),
+        deliverables: m.deliverables.map((d) => ({
+          name: d.name, description: d.description, status: d.status, due: d.due, tone: d.status === "In progress" ? TONES.progress : TONES.pending,
+          progress: d.done + "/" + d.checklist.length,
+          checklist: d.checklist.map(([label, done]) => ({
+            label, icon: done ? "Check" : "Item", color: done ? "var(--positive-color)" : "var(--secondary-text-color)", strike: done ? "line-through" : "none"
+          }))
+        }))
+      };
+    });
+
+    const openPhases = ms.filter((m) => !byScope[m.id] && !byScope["project"]).map((m) => ({ name: m.name, onPropose: () => this.openForm(m.id) }));
+
+    const kind = s.scopeKind || (s.scope === "project" ? "project" : "phase");
+    const isProjectScope = kind === "project";
+    const isMultiScope = kind === "phases";
+    const currentPhase = ms.find((m) => m.id === s.scope);
+    const selectedPhases = ms.filter((m) => s.scopeIds.indexOf(m.id) > -1);
+    const multiDue = selectedPhases.length ? selectedPhases[selectedPhases.length - 1].due : "—";
+    const multiDeliverables = selectedPhases.reduce((n, m) => n + m.deliverables.length, 0);
+    const multiReplaces = selectedPhases.filter((m) => byScope[m.id] && byScope[m.id].status !== "Accepted").length;
+    const phaseOptions = ms.map((m) => {
+      const ex = byScope[m.id];
+      const locked = ex && ex.status === "Accepted" && s.scope !== m.id;
+      return {
+        value: m.id,
+        label: m.name + (locked ? "  ·  accepted" : ex ? "  ·  quoted" : ""),
+        color: locked ? "var(--positive-color)" : ex ? "var(--primary-color)" : undefined
+      };
+    });
+    const existingForPhase = currentPhase ? byScope[currentPhase.id] : null;
+    const phaseLocked = existingForPhase && existingForPhase.status === "Accepted";
+    const quotedCount = ms.filter((m) => byScope[m.id]).length;
+
+    const proposals = listSource.map((p) => {
+      const proj = projectsById[p.projectId || "pr1"] || project;
+      return this.proposalView(p, proj.milestones, allowEarlyBill, proj.company);
+    });
+
+    const phaseAmountList = (s.scopeKind === "phases" ? ms.filter((m) => s.scopeIds.indexOf(m.id) > -1) : []);
+    const amountsTotal = phaseAmountList.reduce((n, m) => n + this.num(s.phaseAmounts[m.id]), 0);
+    const amountsIncomplete = s.scopeKind === "phases" && (phaseAmountList.length === 0 || phaseAmountList.some((m) => this.num(s.phaseAmounts[m.id]) <= 0));
+    const total = s.scopeKind === "phases" ? amountsTotal : this.num(s.amount);
+    const isSplit = s.payType === "installments" || s.payType === "milestones";
+    const pctTotal = Math.round(s.payRows.reduce((n, r) => n + this.num(r.pct), 0) * 10) / 10;
+    const pctOk = pctTotal === 100;
+    const termsInvalid = isSplit && !pctOk;
+    const accountSchema = this.accountSchema(s.newMethodType, s.newMethodCountry);
+    const missingAccount = accountSchema.filter((fd) => !String(s.newMethodFields[fd.key] || "").trim());
+    const benNeeded = s.newMethodType === "Bank transfer";
+    const missingBen = ["dob", "idNumber", "address", "city"].filter((k) => !String(s.ben[k] || "").trim());
+    const methodReady = !!s.newMethodLabel.trim() && missingAccount.length === 0;
+    const missingHint = !s.newMethodLabel.trim() ? "Name this method so you can pick it later"
+      : missingAccount.length + " account field" + (missingAccount.length > 1 ? "s" : "") + " still needed";
+    const descLen = s.desc.length;
+    const descBad = descLen > 0 && descLen < 20;
+    const billTargetProposal = proposals.find((p) => p.id === s.billTarget);
+
+    const btn = (props, label) => React.createElement(window.OZeeCRMDesignSystem_3d3bcd.Button, props, label);
+
+    return {
+      isSignedIn: s.auth === "signedIn",
+      isSignedOut: s.auth !== "signedIn",
+      isEmailStep: s.auth === "signedOut",
+      isOtpStep: s.auth === "otp",
+      isProfileStep: s.auth === "profile",
+      guestName: s.name, guestEmail: s.email, guestPhone: s.phone,
+      guestInitials: (s.name || "G").split(" ").map((w) => w[0]).join("").slice(0, 2),
+      emailValue: s.email, otpValue: s.otp, nameValue: s.name, phoneValue: s.phone,
+      otpStyle: { letterSpacing: "8px", fontWeight: 600 },
+      onEmailChange: (e) => this.setState({ email: e.target.value }),
+      onOtpChange: (e) => this.setState({ otp: e.target.value.replace(/\D/g, "").slice(0, 6) }),
+      onNameChange: (e) => this.setState({ name: e.target.value }),
+      onPhoneChange: (e) => this.setState({ phone: e.target.value }),
+      onRequestCode: () => this.setState({ auth: "otp" }),
+      onVerify: () => this.setState({ auth: "profile" }),
+      onResend: (e) => { e.preventDefault(); this.setState({ toast: "New code sent" }); },
+      onSaveProfile: () => this.setState({ auth: "signedIn" }),
+      onSignOut: () => this.setState({ auth: "signedOut", otp: "" }),
+
+      isProjectView: s.view === "project",
+      isProjectsView: s.view === "projects",
+      isProfileView: s.view === "profile",
+      onViewProjects: () => this.setState({ view: "projects", formOpen: false, billOpen: false }),
+      onViewProfile: () => this.setState({ view: "profile", formOpen: false, billOpen: false }),
+      projectId: project.id,
+      projectOptions: allProjects.map((p) => ({ value: p.id, label: p.company })),
+      onProjectChange: (v) => this.setState({ projectId: v, view: "project", expanded: {}, scopeIds: [], scopeKind: "phase", scope: "project" }),
+      projectCount: allProjects.length,
+      projectName: project.name,
+      projectDescription: project.description,
+      projectStatus: project.status,
+      projectStatusTone: project.tone,
+      projectOpenUntil: project.openUntil,
+      projectDue: project.due,
+      projectContact: project.contact,
+      projectPhaseCount: project.phaseCount,
+      projectDeliverableCount: ms.reduce((n, m) => n + m.deliverables.length, 0) + project.loose.length,
+      projectCards: allProjects.map((p) => {
+        const mine = s.proposals.filter((pp) => (pp.projectId || "pr1") === p.id);
+        return {
+          company: p.company, name: p.name, status: p.status, tone: p.tone, summary: p.summary, due: p.due,
+          phaseLine: this.plural(p.milestones.length, "active phase"),
+          proposalLine: mine.length ? this.plural(mine.length, "proposal") + " from you" : "No proposals yet",
+          activity: p.activity,
+          onOpen: () => this.setState({ projectId: p.id, view: "project", expanded: {}, scopeIds: [], scopeKind: "phase", scope: "project" })
+        };
+      }),
+
+      businessValue: s.business,
+      onBusinessChange: (e) => this.setState({ business: e.target.value }),
+      onSaveProfileDetails: () => this.setState({ profileSaved: "Saved just now", toast: "Profile updated" }),
+      profileActivity: s.profileSaved,
+      methodCount: s.methods.length,
+      noMethods: s.methods.length === 0,
+      methods: s.methods.map((m) => ({
+        label: m.label,
+        detailLine: m.type + (m.country ? " · " + m.country : "") + (m.currency ? " · " + m.currency : "") + " · " + m.detail,
+        isDefault: m.id === s.defaultMethod,
+        canDefault: m.id !== s.defaultMethod,
+        onMakeDefault: () => this.setState({ defaultMethod: m.id, toast: m.label + " is now your default" }),
+        onRemove: () => this.setState((st) => {
+          const left = st.methods.filter((x) => x.id !== m.id);
+          return { methods: left, defaultMethod: st.defaultMethod === m.id ? (left[0] || {}).id || null : st.defaultMethod, toast: "Payment method removed" };
+        })
+      })),
+      methodTypeOptions: ["Bank transfer", "PayPal", "Wise", "Stripe", "Cheque"].map((t) => ({ value: t, label: t })),
+      countryOptions: ["Pakistan", "India", "Australia", "United Kingdom", "United States", "United Arab Emirates", "Other"].map((c) => ({ value: c, label: c })),
+      newMethodType: s.newMethodType,
+      onNewMethodType: (v) => this.setState({ newMethodType: v, newMethodFields: {} }),
+      newMethodLabel: s.newMethodLabel,
+      onNewMethodLabel: (e) => this.setState({ newMethodLabel: e.target.value }),
+      newMethodCountry: s.newMethodCountry,
+      onNewMethodCountry: (v) => this.setState({ newMethodCountry: v, newMethodFields: {} }),
+      newMethodCurrency: s.newMethodCurrency,
+      onNewMethodCurrency: (v) => this.setState({ newMethodCurrency: v }),
+      accountSectionLabel: s.newMethodType === "Bank transfer" ? "Account details — " + s.newMethodCountry : "Account details",
+      accountFields: accountSchema.map((fd) => ({
+        label: fd.label, placeholder: fd.placeholder, span: fd.span || "auto",
+        value: s.newMethodFields[fd.key] || "",
+        onChange: (e) => this.setState((st) => ({ newMethodFields: Object.assign({}, st.newMethodFields, { [fd.key]: e.target.value }) }))
+      })),
+      benIncomplete: benNeeded && missingBen.length > 0,
+      benStatusText: missingBen.length === 0 ? "Complete" : this.plural(missingBen.length, "field") + " missing",
+      benStatusTone: missingBen.length === 0 ? "var(--positive-color)" : "var(--color-working-orange)",
+      idTypeOptions: ["National ID card (CNIC)", "Aadhaar / PAN", "Passport", "Driver licence"].map((t) => ({ value: t, label: t })),
+      benDob: s.ben.dob, onBenDob: (e) => this.setBen("dob", e.target.value),
+      benIdType: s.ben.idType, onBenIdType: (v) => this.setBen("idType", v),
+      benIdNumber: s.ben.idNumber, onBenIdNumber: (e) => this.setBen("idNumber", e.target.value),
+      benIdLabel: s.ben.idType === "Passport" ? "Passport number" : s.ben.idType === "Driver licence" ? "Licence number" : "ID number",
+      benIdHint: s.ben.idType === "Passport" ? "AB1234567" : s.ben.idType === "Aadhaar / PAN" ? "ABCDE1234F" : "35202-1234567-3",
+      benAddress: s.ben.address, onBenAddress: (e) => this.setBen("address", e.target.value),
+      benCity: s.ben.city, onBenCity: (e) => this.setBen("city", e.target.value),
+      benPostcode: s.ben.postcode, onBenPostcode: (e) => this.setBen("postcode", e.target.value),
+      addMethodDisabled: !methodReady,
+      addMethodHint: methodReady ? "Only the OZee accounts team can see these." : missingHint,
+      addMethodHintColor: methodReady ? "var(--secondary-text-color)" : "var(--negative-color)",
+      onAddMethod: () => this.addMethod(accountSchema),
+      billMethodChoices: s.methods.map((m) => ({
+        label: m.label,
+        detailLine: m.type + (m.country ? " · " + m.country : "") + (m.currency ? " · " + m.currency : "") + " · " + m.detail,
+        checked: s.billMethodId === m.id,
+        border: s.billMethodId === m.id ? "var(--primary-color)" : "var(--ui-border-color)",
+        bg: s.billMethodId === m.id ? "var(--primary-highlighted-color)" : "var(--primary-background-color)",
+        onSelect: () => this.setState({ billMethodId: m.id })
+      })),
+      onBillMethodChange: (v) => this.setState({ billMethodId: v }),
+
+      mainTab: s.mainTab,
+      mainTabs: [
+        { value: "phases", label: "Work phases", count: ms.length },
+        { value: "proposals", label: "Proposals", count: projProposals.length },
+        { value: "bills", label: "Bills", count: projProposals.reduce((n, p) => n + (p.bills || []).length, 0) }
+      ],
+      onMainTabChange: (v) => this.setState({ mainTab: v }),
+      isPhasesTab: s.mainTab === "phases",
+      isProposalsTab: s.mainTab === "proposals",
+      isBillsTab: s.mainTab === "bills",
+      isListTab: s.mainTab !== "phases",
+      listScope: s.listScope,
+      listScopeOptions: [{ value: "project", text: "This project" }, { value: "all", text: "All projects" }],
+      onListScopeChange: (v) => this.setState({ listScope: v }),
+      noProposals: proposals.length === 0,
+      statusTiles: (function (self) {
+        const counts = { "Under review": 0, Accepted: 0, Declined: 0 };
+        projProposals.forEach((p) => { counts[p.status] = (counts[p.status] || 0) + 1; });
+        const billed = projProposals.reduce((n, p) => n + (p.bills || []).reduce((m, b) => m + (b.amount || 0), 0), 0);
+        return [
+          { count: String(counts["Under review"] || 0), label: "Under review", color: "var(--primary-color)", onClick: () => self.setState({ mainTab: "proposals" }) },
+          { count: String(counts.Accepted || 0), label: "Accepted", color: "var(--positive-color)", onClick: () => self.setState({ mainTab: "proposals" }) },
+          { count: String(projProposals.reduce((n, p) => n + (p.bills || []).length, 0)), label: "Bills sent", color: "var(--primary-text-color)", onClick: () => self.setState({ mainTab: "bills" }) },
+          { count: self.money(billed, "AUD"), label: "Billed so far", color: "var(--primary-text-color)", onClick: () => self.setState({ mainTab: "bills" }) }
+        ];
+      })(this),
+      billRows: listSource.reduce((rows, p) => {
+        const proj = projectsById[p.projectId || "pr1"] || project;
+        const names = (p.scopeIds || [p.scopeId]).filter((id) => id !== "project").map((id) => (proj.milestones.find((m) => m.id === id) || {}).name).filter(Boolean);
+        (p.bills || []).forEach((b) => rows.push({
+          name: b.name, date: b.date || "today",
+          scopeName: p.scopeId === "project" ? "Whole project" : (names.join(", ") || "Phase proposal"),
+          projectName: proj.company,
+          amountText: this.money(b.amount || 0, p.currency),
+          method: b.method || "—",
+          status: b.status, tone: b.tone
+        }));
+        return rows;
+      }, []),
+      billsSummary: (function (self) {
+        const bills = listSource.reduce((n, p) => n + (p.bills || []).length, 0);
+        const billed = listSource.reduce((n, p) => n + (p.bills || []).reduce((m, b) => m + (b.amount || 0), 0), 0);
+        return bills ? self.plural(bills, "bill") + " · " + self.money(billed, "AUD") + " billed in total" : "No bills uploaded yet — open a proposal and attach your invoice.";
+      })(this),
+      hasUnbilled: listSource.some((p) => p.status === "Accepted" && (p.amount - (p.bills || []).reduce((m, b) => m + (b.amount || 0), 0)) > 0),
+      unbilledLine: (function (self) {
+        const left = listSource.reduce((n, p) => n + (p.status === "Accepted" ? Math.max(0, p.amount - (p.bills || []).reduce((m, b) => m + (b.amount || 0), 0)) : 0), 0);
+        return self.money(left, "AUD") + " accepted but not yet billed";
+      })(this),
+
+      milestones, milestoneCount: ms.length,
+      looseDeliverables: project.loose,
+      hasLooseDeliverables: project.loose.length > 0,
+
+      proposals, proposalCount: proposals.length,
+      openPhases, hasOpenPhases: openPhases.length > 0,
+      onNewProposal: () => this.openForm(openPhases.length ? ms.find((m) => m.name === openPhases[0].name).id : "project"),
+
+      formOpen: s.formOpen,
+      formTitle: s.editingId ? "Update your proposal" : "New proposal",
+      onCloseForm: () => this.setState({ formOpen: false }),
+      scopeCountLabel: ms.length + " active phases · " + quotedCount + " already quoted",
+      scopeKind: kind,
+      scopeKindOptions: [
+        { value: "phase", text: "One phase" },
+        { value: "phases", text: "Several phases" },
+        { value: "project", text: "Whole project" }
+      ],
+      onScopeKindChange: (v) => this.setState((st) => {
+        if (v === "project") return { scopeKind: "project", scope: "project" };
+        if (v === "phases") return { scopeKind: "phases", scopeIds: st.scopeIds.length ? st.scopeIds : (st.scope !== "project" ? [st.scope] : []) };
+        const first = st.scopeIds[0] || (st.scope !== "project" ? st.scope : (ms.find((m) => !byScope[m.id]) || ms[0]).id);
+        return { scopeKind: "phase", scope: first };
+      }),
+      isProjectScope,
+      isMultiScope,
+      isPhaseScope: kind === "phase",
+      multiPhaseOptions: ms.filter((m) => !(byScope[m.id] && byScope[m.id].status === "Accepted") || s.scopeIds.indexOf(m.id) > -1)
+        .map((m) => ({ value: m.id, label: m.name + (byScope[m.id] ? "  ·  quoted" : "") })),
+      multiValue: s.scopeIds,
+      onMultiChange: (v) => this.setState({ scopeIds: Array.isArray(v) ? v : (v ? [v] : []) }),
+      multiCountLabel: selectedPhases.length ? selectedPhases.length + " of " + ms.length + " phases selected" : "No phases selected yet",
+      multiDue: multiDue,
+      multiDeliverablesLabel: this.plural(multiDeliverables, "deliverable") + " in scope",
+      multiNote: !selectedPhases.length ? "Pick at least one phase" : multiReplaces ? "Replaces " + multiReplaces + " pending proposal" + (multiReplaces > 1 ? "s" : "") : this.plural(selectedPhases.length, "separate proposal") + " will be sent",
+      multiNoteColor: !selectedPhases.length ? "var(--negative-color)" : multiReplaces ? "var(--primary-color)" : "var(--secondary-text-color)",
+      onSelectAllPhases: () => this.setState({ scopeIds: ms.filter((m) => !(byScope[m.id] && byScope[m.id].status === "Accepted")).map((m) => m.id) }),
+      onClearPhases: () => this.setState({ scopeIds: [] }),
+      phaseOptions,
+      phaseValue: isProjectScope ? null : s.scope,
+      onPhaseChange: (v) => this.setState({ scope: v }),
+      phaseDue: currentPhase ? currentPhase.due : "—",
+      phaseDeliverables: currentPhase ? this.plural(currentPhase.deliverables.length, "deliverable") + " in this phase" : "",
+      phaseNote: phaseLocked ? "Already accepted — pick another phase" : existingForPhase ? "Replaces your pending proposal" : "No proposal from you yet",
+      phaseNoteColor: phaseLocked ? "var(--negative-color)" : existingForPhase ? "var(--primary-color)" : "var(--secondary-text-color)",
+      projectScopeNote: "One price covering all " + ms.length + " active phases. This replaces any phase quotes you've sent.",
+      descValue: s.desc, descSubText: descBad ? "At least 20 characters" : descLen + " / 5,000 characters",
+      descValidation: descBad ? "error" : undefined,
+      onDescChange: (e) => this.setState({ desc: e.target.value }),
+      amountValue: s.amount, onAmountChange: (e) => this.setState({ amount: e.target.value }),
+      currencyValue: s.currency,
+      currencyOptions: ["AUD", "USD", "EUR", "GBP", "PKR", "INR"].map((c) => ({ value: c, label: c })),
+      onCurrencyChange: (v) => this.setState({ currency: v }),
+      termsValue: s.terms, onTermsChange: (e) => this.setState({ terms: e.target.value }),
+
+      isSingleAmount: s.scopeKind !== "phases",
+      amountRows: phaseAmountList.map((m) => ({
+        name: m.name,
+        meta: "Target " + m.due + " · " + this.plural(m.deliverables.length, "deliverable"),
+        value: s.phaseAmounts[m.id] || "",
+        validation: this.num(s.phaseAmounts[m.id]) <= 0 ? "error" : undefined,
+        onChange: (e) => this.setState((st) => ({ phaseAmounts: Object.assign({}, st.phaseAmounts, { [m.id]: e.target.value.replace(/[^0-9.]/g, "") }) }))
+      })),
+      noAmountRows: phaseAmountList.length === 0,
+      amountsSummary: phaseAmountList.length ? "Total across " + this.plural(phaseAmountList.length, "proposal") : "",
+      amountsTotalText: phaseAmountList.length ? this.money(amountsTotal, s.currency) + " " + s.currency : "",
+      splitTotalValue: s.splitTotal,
+      onSplitTotalChange: (e) => this.setState({ splitTotal: e.target.value.replace(/[^0-9.]/g, "") }),
+      onSplitEvenly: () => this.setState((st) => {
+        const list = ms.filter((m) => st.scopeIds.indexOf(m.id) > -1);
+        if (!list.length) return {};
+        const t = this.num(st.splitTotal) || list.reduce((n, m) => n + this.num(st.phaseAmounts[m.id]), 0);
+        const each = Math.floor((t / list.length) * 100) / 100;
+        const next = Object.assign({}, st.phaseAmounts);
+        list.forEach((m, i) => { next[m.id] = String(i === list.length - 1 ? Math.round((t - each * (list.length - 1)) * 100) / 100 : each); });
+        return { phaseAmounts: next };
+      }),
+      splitAmountHeader: s.scopeKind === "phases" ? "Of each" : "Amount",
+      payTermsHint: s.scopeKind === "phases" ? "Saved on every proposal in this batch — shares apply to each phase's own amount" : "How you'd like to be paid",
+
+      payType: s.payType,
+      payTypeOptions: [
+        { value: "fixed", label: "Fixed price — full on completion" },
+        { value: "installments", label: "Custom installments" }
+      ].concat(s.scopeKind === "phases" ? [] : [{ value: "milestones", label: "Milestone based" }]).concat([
+
+        { value: "retainer", label: "Monthly retainer" },
+        { value: "hourly", label: "Hourly" }
+      ]),
+      onPayTypeChange: (v) => this.setPayType(v),
+      isFixed: s.payType === "fixed",
+      isSplit: isSplit,
+      isRetainer: s.payType === "retainer",
+      isHourly: s.payType === "hourly",
+      totalText: this.money(total, s.currency) + " " + s.currency,
+      payRows: s.payRows.map((r, i) => ({
+        label: r.label, pct: r.pct,
+        amountText: s.scopeKind === "phases" ? this.num(r.pct) + "% of each" : this.money(Math.round(total * this.num(r.pct)) / 100, s.currency),
+        validation: this.num(r.pct) <= 0 ? "error" : undefined,
+        onLabelChange: (e) => this.setState((st) => { const rows = st.payRows.slice(); rows[i] = Object.assign({}, rows[i], { label: e.target.value }); return { payRows: rows }; }),
+        onPctChange: (e) => this.setState((st) => { const rows = st.payRows.slice(); rows[i] = Object.assign({}, rows[i], { pct: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) }); return { payRows: rows }; }),
+        onRemove: () => this.setState((st) => ({ payRows: st.payRows.filter((x, j) => j !== i) }))
+      })),
+      pctText: pctTotal + "% of 100%",
+      pctBg: pctOk ? "rgba(0,133,77,0.12)" : "rgba(216,58,82,0.12)",
+      pctColor: pctOk ? "var(--positive-color)" : "var(--negative-color)",
+      pctIcon: pctOk ? "Check" : "Warning",
+      splitSummary: pctOk ? "Adds up — each stage is invoiced on sign-off." : (pctTotal > 100 ? (pctTotal - 100) + "% over" : (100 - pctTotal) + "% left to allocate"),
+      onDistribute: () => this.setState((st) => {
+        const n = st.payRows.length || 1;
+        const even = Math.floor(100 / n);
+        return { payRows: st.payRows.map((r, i) => Object.assign({}, r, { pct: String(i === n - 1 ? 100 - even * (n - 1) : even) })) };
+      }),
+      onAddRow: () => this.setState((st) => ({ payRows: st.payRows.concat([{ label: "", pct: "0" }]) })),
+      months: s.months,
+      onMonthsChange: (e) => this.setState({ months: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) }),
+      retainerTotal: this.money(total * this.num(s.months), s.currency) + " " + s.currency,
+      hourlyRate: s.hourlyRate,
+      onRateChange: (e) => this.setState({ hourlyRate: e.target.value }),
+      hours: s.hours,
+      onHoursChange: (e) => this.setState({ hours: e.target.value.replace(/[^0-9.]/g, "").slice(0, 6) }),
+      hourlyTotal: this.money(this.num(s.hourlyRate) * this.num(s.hours), s.currency) + " " + s.currency,
+      docName: s.docName,
+      onPickDoc: () => this.setState({ docName: "proposal-" + s.scope + ".pdf" }),
+      formFooter: React.createElement("div", { style: { display: "flex", gap: 8 } },
+        btn({ kind: "tertiary", onClick: () => this.setState({ formOpen: false }) }, "Cancel"),
+        btn({ onClick: () => this.submitForm(), disabled: descBad || termsInvalid || (isMultiScope ? amountsIncomplete : (!s.amount || phaseLocked)) }, s.editingId ? "Update proposal" : (isMultiScope && s.scopeIds.length > 1 ? "Send " + this.plural(s.scopeIds.length, "proposal") : "Send proposal"))
+      ),
+
+      billOpen: s.billOpen,
+      billFor: billTargetProposal ? billTargetProposal.scopeName + " · " + billTargetProposal.amount + " " + billTargetProposal.currency : "",
+      billFileName: s.billFileName, billNumber: s.billNumber, billAmount: s.billAmount,
+      onBillNumberChange: (e) => this.setState({ billNumber: e.target.value }),
+      onBillAmountChange: (e) => this.setState({ billAmount: e.target.value }),
+      onPickBill: () => this.setState({ billFileName: "invoice.pdf" }),
+      onCloseBill: () => this.setState({ billOpen: false }),
+      billFooter: React.createElement("div", { style: { display: "flex", gap: 8 } },
+        btn({ kind: "tertiary", onClick: () => this.setState({ billOpen: false }) }, "Cancel"),
+        btn({ onClick: () => this.saveBill(), disabled: s.billFileName === "No file chosen" || !s.billMethodId }, "Upload bill")
+      ),
+
+      themeValue: s.theme,
+      themeOptions: [
+        { value: "system", text: "Auto" },
+        { value: "light", text: "Light" },
+        { value: "dark", text: "Dark" }
+      ],
+      onThemeChange: (v) => this.setTheme(v),
+
+      toastOpen: !!s.toast, toastText: s.toast, onCloseToast: () => this.setState({ toast: "" })
+    };
+  }
+}
+</script>
+</body>
+</html>
