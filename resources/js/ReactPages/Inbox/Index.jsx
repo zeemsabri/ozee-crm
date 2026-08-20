@@ -36,6 +36,16 @@ import { longTime, plural } from '../../ReactComponents/inbox/format';
 /** Short label for "which message am I answering", e.g. "Today, 9:18 am". */
 const shortWhen = (iso) => longTime(iso);
 
+/**
+ * How often an open thread re-checks itself while something on it is still moving.
+ *
+ * One minute, matching how the automation actually behaves: the workflow is queued, the AI
+ * call takes seconds, and the scheduler runs on a minute tick — so a faster poll would
+ * mostly return the same answer, and a slower one would leave people staring at "In
+ * review" after it had already gone out.
+ */
+const POLL_MS = 60_000;
+
 const BACK_LABELS = {
     needsReply: 'Back to needs reply',
     new: 'Back to new mail',
@@ -59,6 +69,7 @@ export default function InboxIndex({ settings, initialThreadId }) {
 
     const [selectedIds, setSelectedIds] = useState([]);
     const [recipients, setRecipients] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
     const [replyOpen, setReplyOpen] = useState(false);
     // Set when the reply box is editing an EXISTING pending draft rather than composing a
     // new reply. Carries the email id so the send goes to that email, not a new one.
@@ -130,6 +141,76 @@ export default function InboxIndex({ settings, initialThreadId }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [actions]
     );
+
+    /**
+     * Keep an open thread current while anything on it is still moving.
+     *
+     * Submitting a reply hands it to the automation: the workflow runs the AI check and
+     * then either sends it or parks it for a human. None of that produces a page event, so
+     * without this the thread sits on "In review" until someone navigates away and back.
+     *
+     * Three things make this cheap rather than a permanent background poll:
+     *  - It only runs while `thread.in_flight` is true. Once everything is sent, rejected
+     *    or received, the server says so and the interval is torn down.
+     *  - It pauses when the tab is hidden. A backgrounded tab polling a Laravel route once
+     *    a minute all afternoon is pure waste, and browsers throttle the timer anyway, so
+     *    the behaviour would be unpredictable as well as wasteful.
+     *  - It reloads only the open thread, never the list.
+     *
+     * `silent` so the reload does not flip the thread into its loading skeleton every
+     * minute — the content would blank out under whoever is reading it.
+     */
+    const inFlight = !!thread.thread?.in_flight;
+    const openThreadId = thread.thread?.id;
+
+    useEffect(() => {
+        if (!inFlight || !openThreadId) return undefined;
+
+        let timer = null;
+
+        const stop = () => {
+            if (timer) clearInterval(timer);
+            timer = null;
+        };
+
+        const start = () => {
+            if (timer) return;
+            timer = setInterval(() => thread.reload({ silent: true }), POLL_MS);
+        };
+
+        const onVisibility = () => {
+            if (document.hidden) {
+                stop();
+            } else {
+                // Catch up immediately on return — a minute of a hidden tab usually means
+                // the answer is already waiting.
+                thread.reload({ silent: true });
+                start();
+            }
+        };
+
+        if (!document.hidden) start();
+        document.addEventListener('visibilitychange', onVisibility);
+
+        return () => {
+            stop();
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inFlight, openThreadId]);
+
+    /** The header's refresh button. Same reload, but visible. */
+    const refreshThread = useCallback(async () => {
+        if (!thread.openId.current) return;
+        setRefreshing(true);
+        try {
+            await thread.reload({ silent: true });
+            inbox.refresh();
+        } finally {
+            setRefreshing(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [thread.reload, inbox.refresh]);
 
     // Deep link: /inbox/beta?thread=123, e.g. from a notification.
     useEffect(() => {
@@ -578,6 +659,8 @@ export default function InboxIndex({ settings, initialThreadId }) {
                             }
                             backLabel={BACK_LABELS[inbox.filters.view] || 'Back'}
                             onBack={closeThread}
+                            onRefresh={refreshThread}
+                            refreshing={refreshing}
                             onOpenReply={() => {
                                 setReplyTarget(null); // falls back to the newest inbound message
                                 setReplyOpen(true);

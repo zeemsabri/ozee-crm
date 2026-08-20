@@ -14,6 +14,7 @@ import {
     initials,
     plural,
     replyStatus,
+    exactTime,
     shortTime,
     VIEW_DEFS,
     viewSubtitle,
@@ -157,6 +158,10 @@ function ThreadCard({ thread, checked, onCheck, onOpen, onReply, onRelease, onRe
                         >
                             <StatusPill status={status} />
                             <span
+                                // The compact form drops whatever is inferable — no year
+                                // for this year, a weekday inside the last week. Hovering
+                                // gives the unambiguous one.
+                                title={exactTime(thread.last_message_at)}
                                 style={{
                                     font: '400 12px/16px Figtree, sans-serif',
                                     color: 'var(--secondary-text-color)',

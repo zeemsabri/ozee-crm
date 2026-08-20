@@ -75,6 +75,9 @@ class InboxThreadController extends Controller
             'emails.template.placeholders',
             'emails.categories:id,name',
             'emails.files',
+            // Deliberately NOT emails.contexts here: the list shows a one-line preview,
+            // never the context, so loading it would be two extra queries per page for
+            // something nobody sees. The thread detail loads it.
         ]);
 
         return response()->json([
@@ -113,6 +116,11 @@ class InboxThreadController extends Controller
             'emails.approver:id,name',
             'emails.categories:id,name',
             'emails.files',
+            // The AI context the automation writes per email (Context model). Eager
+            // loaded because the timeline reads it for every message, and its author is
+            // shown alongside it.
+            'emails.contexts' => fn ($q) => $q->latest('id'),
+            'emails.contexts.user:id,name',
         ]);
 
         // Opening a thread marks it read — the same UserInteraction row the legacy page
@@ -149,6 +157,11 @@ class InboxThreadController extends Controller
             'emails.approver:id,name',
             'emails.categories:id,name',
             'emails.files',
+            // The AI context the automation writes per email (Context model). Eager
+            // loaded because the timeline reads it for every message, and its author is
+            // shown alongside it.
+            'emails.contexts' => fn ($q) => $q->latest('id'),
+            'emails.contexts.user:id,name',
         ]);
 
         return response()->json(['data' => $this->presenter->thread($conversation, $user)]);

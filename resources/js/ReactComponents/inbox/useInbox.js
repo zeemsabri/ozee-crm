@@ -192,10 +192,19 @@ export function useThread({ onError } = {}) {
         [onError]
     );
 
+    /**
+     * Open a thread, or re-read the one already open.
+     *
+     * `silent` skips the loading state and leaves the previous content in place on
+     * failure. That is for the background poll and the refresh button: flipping a thread
+     * someone is reading into a skeleton once a minute would be worse than not refreshing
+     * at all, and a transient network blip must not blank a thread and drop them back to
+     * the list.
+     */
     const open = useCallback(
-        async (id) => {
+        async (id, { silent = false } = {}) => {
             openId.current = id;
-            setLoading(true);
+            if (!silent) setLoading(true);
 
             try {
                 const { data } = await axios.get(`/api/inbox/threads/${id}`);
@@ -203,11 +212,14 @@ export function useThread({ onError } = {}) {
                 setThread(data.data);
             } catch (error) {
                 if (openId.current !== id) return;
+                // A failed background refresh is not worth a toast, and definitely not
+                // worth closing the thread — keep showing what we last had.
+                if (silent) return;
                 fail(error, 'Could not open that thread.');
                 setThread(null);
                 openId.current = null;
             } finally {
-                if (openId.current === id) setLoading(false);
+                if (!silent && openId.current === id) setLoading(false);
             }
         },
         [fail]
@@ -218,10 +230,13 @@ export function useThread({ onError } = {}) {
         setThread(null);
     }, []);
 
-    const reload = useCallback(() => {
-        if (openId.current) return open(openId.current);
-        return Promise.resolve();
-    }, [open]);
+    const reload = useCallback(
+        (options = {}) => {
+            if (openId.current) return open(openId.current, options);
+            return Promise.resolve();
+        },
+        [open]
+    );
 
     return { thread, setThread, loading, open, close, reload, openId };
 }

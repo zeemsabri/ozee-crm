@@ -24,7 +24,7 @@ import {
     TextArea,
 } from '../ds';
 import { ReplyBox } from './ReplyBox';
-import { categoryColour, fileSize, initials, longTime, replyStatus } from './format';
+import { categoryColour, exactTime, fileSize, initials, longTime, replyStatus } from './format';
 
 const MORE_ITEMS = [
     { value: 'unread', label: 'Mark as unread', icon: 'Email' },
@@ -274,7 +274,7 @@ function NoteCard({ note }) {
                         color: 'var(--secondary-text-color)',
                     }}
                 >
-                    {longTime(note.created_at)}
+                    <span title={exactTime(note.created_at)}>{longTime(note.created_at)}</span>
                 </span>
             </div>
             <p style={{ margin: '6px 0 0', font: '400 14px/20px Figtree, sans-serif', whiteSpace: 'pre-wrap', textWrap: 'pretty' }}>
@@ -394,7 +394,9 @@ function MessageCard({
                                 color: 'var(--secondary-text-color)',
                             }}
                         >
-                            {longTime(message.created_at)}
+                            <span title={exactTime(message.created_at)}>
+                                {longTime(message.created_at)}
+                            </span>
                         </span>
                     </div>
 
@@ -455,6 +457,82 @@ function MessageCard({
                                             }}
                                         >
                                             {message.summary}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {/*
+                              The AI context the automation recorded for this email.
+
+                              Separate from the block above: that one is our own optional
+                              inbox AI (`inbox.ai.enabled`, off by default), this is the
+                              Context row the approval workflow already writes on live
+                              data. It was never rendered — the design has the slot and the
+                              thread showed nothing in it.
+
+                              Not gated on the AI feature switch, deliberately. That switch
+                              decides whether WE call a model; letting it also decide
+                              whether existing business records are visible would be a
+                              different thing wearing the same name.
+                            */}
+                            {message.context?.summary ? (
+                                <div
+                                    style={{
+                                        marginBottom: 12,
+                                        padding: '8px 10px',
+                                        borderInlineStart: '2px solid var(--color-indigo)',
+                                        background: 'var(--allgrey-background-color)',
+                                        borderRadius: '0 4px 4px 0',
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <Icon
+                                        name="Bolt"
+                                        size={14}
+                                        color="var(--color-indigo)"
+                                        style={{ marginTop: 3 }}
+                                    />
+                                    <div style={{ minWidth: 0 }}>
+                                        <span
+                                            style={{
+                                                font: '600 11px/16px Figtree, sans-serif',
+                                                color: 'var(--color-indigo)',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '.4px',
+                                            }}
+                                        >
+                                            Context
+                                        </span>
+                                        {message.context.created_at ? (
+                                            <span
+                                                title={exactTime(message.context.created_at)}
+                                                style={{
+                                                    marginInlineStart: 8,
+                                                    font: '400 11px/16px Figtree, sans-serif',
+                                                    color: 'var(--secondary-text-color)',
+                                                }}
+                                            >
+                                                {/* Author only when a person wrote it. A
+                                                    workflow-written context has no user,
+                                                    and inventing one would misattribute a
+                                                    machine's read to a colleague. */}
+                                                {message.context.author
+                                                    ? `${message.context.author} · ${longTime(message.context.created_at)}`
+                                                    : longTime(message.context.created_at)}
+                                            </span>
+                                        ) : null}
+                                        <div
+                                            style={{
+                                                font: '400 13px/20px Figtree, sans-serif',
+                                                color: 'var(--secondary-text-color)',
+                                                maxWidth: '80ch',
+                                                textWrap: 'pretty',
+                                            }}
+                                        >
+                                            {message.context.summary}
                                         </div>
                                     </div>
                                 </div>
@@ -636,6 +714,9 @@ export function ThreadView({
     canAddressManually,
     backLabel,
     onBack,
+    // Manual refresh, plus whether one is in flight so the icon can spin.
+    onRefresh,
+    refreshing,
     onOpenReply,
     onReplyToMessage,
     onCloseReply,
@@ -715,6 +796,24 @@ export function ThreadView({
                         {thread.project?.name}
                     </span>
                     <span style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {/*
+                          Manual refresh.
+
+                          The thread already reloads itself once a minute while anything on
+                          it is still moving (see `in_flight`), but "is it sent yet" is a
+                          question people ask on their own schedule, and waiting up to 60
+                          seconds to find out feels broken. The spinning state matters as
+                          much as the reload: without it a fast, unchanged response looks
+                          like the button did nothing.
+                        */}
+                        <IconButton
+                            name="Update"
+                            size="small"
+                            ariaLabel={refreshing ? 'Checking for updates' : 'Check for updates'}
+                            disabled={refreshing}
+                            onClick={onRefresh}
+                            style={refreshing ? { animation: 'ozeeSpin 900ms linear infinite' } : undefined}
+                        />
                         {thread.can?.create_task ? (
                             <Button
                                 kind="secondary"

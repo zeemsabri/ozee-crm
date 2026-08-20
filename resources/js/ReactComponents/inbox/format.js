@@ -94,6 +94,29 @@ export function formatMinutes(total) {
     return `${days}d`;
 }
 
+/**
+ * The day part of a date, with the year ONLY when it is not this year.
+ *
+ * "14 Mar" for something from this year, "14 Mar 2025" for anything older. Showing the
+ * year always would put a redundant "2026" on almost every row; never showing it — which
+ * is what this did before — makes a two-year-old email indistinguishable from last
+ * month's, and on a client thread that is the difference between "we replied recently"
+ * and "nobody has touched this since 2024".
+ *
+ * Calendar year, not a rolling 365 days: a date in January reading "14 Mar" when it means
+ * last March is exactly the ambiguity being removed, and "is it the same year number" is
+ * the rule a reader can apply themselves.
+ */
+function dayPart(date, now) {
+    const sameYear = date.getFullYear() === now.getFullYear();
+
+    return date.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        ...(sameYear ? {} : { year: 'numeric' }),
+    });
+}
+
 /** Clock time for today, weekday for this week, date beyond that. */
 export function shortTime(iso) {
     if (!iso) return '';
@@ -111,7 +134,7 @@ export function shortTime(iso) {
     if (daysAgo === 1) return 'Yesterday';
     if (daysAgo < 7) return date.toLocaleDateString(undefined, { weekday: 'short' });
 
-    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    return dayPart(date, now);
 }
 
 /** "Today, 9:18 am" — the fuller form used inside a thread. */
@@ -131,7 +154,29 @@ export function longTime(iso) {
     yesterday.setDate(now.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
 
-    return `${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${time}`;
+    return `${dayPart(date, now)}, ${time}`;
+}
+
+/**
+ * The unambiguous form, for tooltips: "Thu 14 Mar 2025, 9:18 am".
+ *
+ * Always carries the year and the weekday. The compact forms above drop whatever is
+ * inferable from context; this one drops nothing, so hovering any timestamp answers the
+ * question the short form left open.
+ */
+export function exactTime(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return date.toLocaleString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
 }
 
 /**

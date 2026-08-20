@@ -302,6 +302,20 @@ class ThreadPresenter
                 'create_task' => ! $blocked,
             ],
 
+            /*
+             * Is anything on this thread still moving?
+             *
+             * One boolean rather than making the client reassemble it from `approval`,
+             * `ai.checking` and the message statuses — it decides whether the open thread
+             * polls for changes, and a client-side guess would either poll forever or stop
+             * while an email was still in the workflow.
+             *
+             * True while any outbound email is a draft (the automation has it), awaiting a
+             * human, or with our own checker. Once everything is sent, rejected or
+             * received, it goes false and the polling stops.
+             */
+            'in_flight' => $emails->contains(fn (Email $e) => $this->isInFlight($e)),
+
             // Why the reply box is locked, in the words the design uses. Null when it is
             // not locked — the client does not compose this sentence itself.
             'reply_lock' => $this->replyLock($emails, $user, $blocked, (bool) $withAi),
@@ -344,6 +358,24 @@ class ThreadPresenter
                 : $this->preview($email, 120),
 
             'summary' => $redacted ? null : $email->ai_summary,
+
+            /*
+             * The AI context the automation writes for this email — the Context model.
+             *
+             * Distinct from `summary` above, which is our own optional inbox AI and is off
+             * by default. A Context row is produced by the approval workflow (and by the
+             * lead flows), already exists on live data, and was simply never surfaced: the
+             * design has a slot for it and the thread rendered nothing there.
+             *
+             * Not gated on `inbox.ai.enabled` for that reason. That flag governs whether
+             * WE call a model; this is a record the business already generated, and hiding
+             * it behind our feature switch would mean the switch decided whether existing
+             * data was visible.
+             *
+             * Newest only. Several workflow runs can write a context for one email, and
+             * the timeline has room for the current read, not a history of them.
+             */
+            'context' => $redacted ? null : $this->contextFor($email),
             // Column names are FileAttachment's, not guesses: `filename`, `file_size`,
             // and the appended `path_url` accessor.
             'files' => $redacted ? [] : $email->files->map(fn ($f) => [
@@ -608,6 +640,64 @@ class ThreadPresenter
         $name = $this->correspondent->nameFor($email->conversation?->conversable);
 
         return $name ? 'to '.$name : ($count === 1 ? 'to the client' : '');
+    }
+
+    /**
+     * The newest Context row for this email, shaped for the timeline.
+     *
+     * `contexts` is eager-loaded with `latest('id')` by InboxThreadController, so `first()`
+     * here is the newest one and costs no query. Falling back to sorting in PHP keeps it
+     * correct if some other caller loads the relation unordered.
+     */
+    /**
+     * "This email has not finished going out yet."
+     *
+     * `draft` on an OUTBOUND email means the automation workflow has it — in this schema
+     * that status is the submission, not a parked draft. On an inbound email it means
+     * "arrived, not yet processed", which is not something the sender is waiting on, hence
+     * the type check.
+     */
+    private function isInFlight(Email $email): bool
+    {
+        if ($email->ai_status?->isPending()) {
+            return true;
+        }
+
+        $status = $this->statusValue($email);
+
+        if ($status === EmailStatus::PendingApproval->value
+            || $status === EmailStatus::PendingApprovalReceived->value) {
+            return true;
+        }
+
+        return ! $this->isInbound($email)
+            && in_array($status, [
+                EmailStatus::Draft->value,
+                EmailStatus::AutoSend->value,
+            ], true);
+    }
+
+    private function contextFor(Email $email): ?array
+    {
+        if (! $email->relationLoaded('contexts')) {
+            return null;
+        }
+
+        $context = $email->contexts->sortByDesc('id')->first();
+
+        $summary = trim((string) ($context->summary ?? ''));
+
+        if ($summary === '') {
+            return null;
+        }
+
+        return [
+            'summary' => $summary,
+            // Who or what produced it. Workflow-written contexts have no user_id, which
+            // is the honest signal that nobody typed this.
+            'author' => $context->user?->name,
+            'created_at' => $this->iso($context->created_at),
+        ];
     }
 
     private function project(Conversation $conversation): array
