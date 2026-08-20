@@ -57,6 +57,7 @@ class ThreadPresenter
         private readonly EmailBodyRenderer $bodies,
         private readonly BlockComposition $blocks,
         private readonly ReplyClock $clock,
+        private readonly Correspondent $correspondent,
     ) {}
 
     private function isManager(User $user): bool
@@ -553,40 +554,60 @@ class ThreadPresenter
         };
     }
 
+    /**
+     * Who wrote this message.
+     *
+     * Through Correspondent::nameFor rather than `->name` directly, because Lead has no
+     * `name` attribute — it carries first_name/last_name — so every lead thread used to
+     * fall through to the literal string "Client".
+     */
     private function authorName(Email $email): string
     {
-        if ($email->sender?->name) {
-            return $email->sender->name;
+        if ($name = $this->correspondent->nameFor($email->sender)) {
+            return $name;
         }
 
-        $conversable = $email->conversation?->conversable;
+        if (! $this->isInbound($email)) {
+            return $this->correspondent->teamLabel();
+        }
 
-        return $this->isInbound($email)
-            ? ($conversable?->name ?? 'Client')
-            : 'OZee team';
+        return $this->correspondent->nameFor($email->conversation?->conversable) ?? 'Client';
     }
 
     /** Who the thread is *with*, from the team's point of view. */
     private function counterpartName(Conversation $conversation, Collection $emails): string
     {
-        if ($conversation->conversable?->name) {
-            return $conversation->conversable->name;
-        }
-
-        $inbound = $emails->last(fn (Email $e) => $this->isInbound($e));
-
-        return $inbound ? $this->authorName($inbound) : 'Unknown sender';
+        return $this->correspondent->labelFor($conversation, $emails);
     }
 
+    /**
+     * Who a message went to — as a NAME, never an address.
+     *
+     * This used to render `implode(', ', $email->to)`, so the timeline read "Sam Ito to
+     * priya@acme.com". That is a contact detail leak with a permission check sitting right
+     * next to it: `Client` hides `email` from anyone without `edit_clients`, and reading
+     * the `emails.to` column walked straight around it. It also undercuts the reason all
+     * client mail goes through one mailbox — staff correspond with clients through the
+     * system, not by holding their addresses.
+     *
+     * So: an inbound message reads "to the OZee Team", an outbound one "to Priya Nair",
+     * and a message to several clients "to 3 clients on this project".
+     */
     private function recipients(Email $email): string
     {
-        $to = $email->to;
-
-        if (is_array($to)) {
-            $to = implode(', ', array_filter($to));
+        if ($this->isInbound($email)) {
+            return 'to '.$this->correspondent->teamLabel();
         }
 
-        return $to ? 'to '.$to : '';
+        $count = count(array_filter((array) ($email->to ?? [])));
+
+        if ($count > 1) {
+            return "to {$count} clients on this project";
+        }
+
+        $name = $this->correspondent->nameFor($email->conversation?->conversable);
+
+        return $name ? 'to '.$name : ($count === 1 ? 'to the client' : '');
     }
 
     private function project(Conversation $conversation): array

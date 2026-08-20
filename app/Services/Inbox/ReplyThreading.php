@@ -307,16 +307,24 @@ class ReplyThreading
             .'</div>';
     }
 
+    /**
+     * The "On <date>, <who> wrote:" attribution inside a quoted reply.
+     *
+     * Through Correspondent, because this string goes out to the client and Lead has no
+     * `name` attribute — every quoted lead reply read "On Tuesday, they wrote:".
+     */
     private function senderLabel(Email $email): string
     {
-        if ($email->sender?->name) {
-            return $email->sender->name;
+        $correspondent = app(Correspondent::class);
+
+        if ($name = $correspondent->nameFor($email->sender)) {
+            return $name;
         }
 
         $type = $email->type instanceof EmailType ? $email->type->value : (string) $email->type;
 
         return $type === EmailType::Received->value
-            ? ($email->conversation?->conversable?->name ?? 'they')
+            ? ($correspondent->nameFor($email->conversation?->conversable) ?? 'they')
             : 'OZee Web & Digital';
     }
 

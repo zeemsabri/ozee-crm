@@ -38,6 +38,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | What we call ourselves
+    |--------------------------------------------------------------------------
+    |
+    | Shown wherever the team is the sender or the recipient of a message —
+    | "Priya Nair to the OZee Team". Never an email address: client mail is
+    | routed through one mailbox precisely so that individual staff neither hold
+    | nor are shown client contact details, and the timeline printing raw
+    | addresses walked around the permission that enforces it.
+    |
+    */
+
+    'team_label' => env('INBOX_TEAM_LABEL', 'OZee Team'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Reply clock scope
     |--------------------------------------------------------------------------
     |
