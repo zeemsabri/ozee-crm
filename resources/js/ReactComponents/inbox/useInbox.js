@@ -17,6 +17,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const DEBOUNCE_MS = 350;
 
+/**
+ * The natural order for a view.
+ *
+ * Only ONE view wants oldest-first, and it is the one whose entire job is a queue: in
+ * "Needs reply" the thread that has been waiting longest is the one to answer next, so it
+ * belongs at the top. First come, first replied.
+ *
+ * Everywhere else, newest first. This is the fix for "I am seeing old emails everywhere":
+ * `breach` was the default sort for every view, not just Needs reply, and it orders by
+ * OLDEST inbound message. So Sent, Received, All mail and the rest all opened on the
+ * oldest thing in the system — correct behaviour for a queue, wrong for a log.
+ *
+ * The sort buttons still override this. Switching view resets to the view's natural order,
+ * which is predictable: clicking "Sent" should show what was sent most recently, not
+ * inherit a queue ordering from the screen before.
+ */
+export function defaultSortFor(view) {
+    return view === 'needsReply' ? 'breach' : 'date';
+}
+
 export const EMPTY_FILTERS = {
     view: 'needsReply',
     project_id: 'all',
@@ -26,7 +46,7 @@ export const EMPTY_FILTERS = {
     to: '',
     unread_only: false,
     overdue_only: false,
-    sort: 'breach',
+    sort: defaultSortFor('needsReply'),
 };
 
 /** Params the server understands, with defaults stripped so URLs stay readable. */
@@ -124,9 +144,14 @@ export function useInbox({ onError } = {}) {
         setPage(1);
     }, []);
 
-    const setView = useCallback((view) => setFilters({ view }), [setFilters]);
+    const setView = useCallback(
+        (view) => setFilters({ view, sort: defaultSortFor(view) }),
+        [setFilters]
+    );
 
     const clearFilters = useCallback(() => {
+        // The view and the chosen sort are not "filters" — clearing the project, the
+        // categories and the search should not also throw you back to another list.
         setFiltersState((current) => ({ ...EMPTY_FILTERS, view: current.view, sort: current.sort }));
         setPage(1);
     }, []);

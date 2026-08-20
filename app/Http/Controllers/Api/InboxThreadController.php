@@ -533,10 +533,14 @@ class InboxThreadController extends Controller
 
     private function filters(Request $request): array
     {
+        // Normalised up front, because the sort default below keys off it — reading the
+        // raw input there would give an unrecognised view the wrong ordering while the
+        // list itself fell back to needsReply.
         $view = $request->input('view', 'needsReply');
+        $view = in_array($view, ThreadQuery::VIEWS, true) ? $view : 'needsReply';
 
         return [
-            'view' => in_array($view, ThreadQuery::VIEWS, true) ? $view : 'needsReply',
+            'view' => $view,
             'project_id' => $request->input('project_id'),
             'category_ids' => array_filter((array) $request->input('category_ids', [])),
             'search' => trim((string) $request->input('search', '')),
@@ -544,7 +548,19 @@ class InboxThreadController extends Controller
             'to' => $request->input('to'),
             'unread_only' => $request->boolean('unread_only'),
             'overdue_only' => $request->boolean('overdue_only'),
-            'sort' => $request->input('sort') === 'date' ? 'date' : 'breach',
+            /*
+             * An explicit sort wins; otherwise the view decides.
+             *
+             * This used to fall back to 'breach' for anything that was not literally
+             * 'date', so a request that omitted the parameter got the queue ordering —
+             * oldest first — whatever it was asking for. Only "Needs reply" wants that.
+             * Mirrors defaultSortFor() on the client so a direct API call and the UI agree.
+             */
+            'sort' => match ($request->input('sort')) {
+                'date' => 'date',
+                'breach' => 'breach',
+                default => $view === 'needsReply' ? 'breach' : 'date',
+            },
             'per_page' => (int) $request->input('per_page', config('inbox.per_page', 25)),
         ];
     }

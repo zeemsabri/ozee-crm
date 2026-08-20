@@ -29,7 +29,7 @@ import {
     TaskModal,
 } from '../../ReactComponents/inbox/modals';
 import { ComposeModal } from '../../ReactComponents/inbox/ComposeModal';
-import { inboxActions, useInbox, useThread } from '../../ReactComponents/inbox/useInbox';
+import { defaultSortFor, inboxActions, useInbox, useThread } from '../../ReactComponents/inbox/useInbox';
 import { useTemplatePreview, useTemplates } from '../../ReactComponents/inbox/useTemplates';
 import { longTime, plural } from '../../ReactComponents/inbox/format';
 
@@ -699,7 +699,15 @@ export default function InboxIndex({ settings, initialThreadId }) {
                             text: 'Show them',
                             onClick: () => {
                                 thread.close();
-                                inbox.setFilters({ view: 'needsReply', overdue_only: true });
+                                // setFilters, not setView — this also switches the
+                                // overdue filter on — so the view's natural order has to
+                                // be named explicitly here. Longest-waiting first is the
+                                // whole point of the banner.
+                                inbox.setFilters({
+                                    view: 'needsReply',
+                                    overdue_only: true,
+                                    sort: defaultSortFor('needsReply'),
+                                });
                             },
                         }}
                     >

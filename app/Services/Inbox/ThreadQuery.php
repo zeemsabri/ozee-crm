@@ -416,6 +416,23 @@ class ThreadQuery
      * ordered by oldest inbound message, then everything else by recency. "Newest first"
      * is a plain recency sort.
      */
+    /**
+     * Two orders, and which one a view gets is decided by the client (defaultSortFor).
+     *
+     * `breach` — the queue order, for "Needs reply". Unanswered threads first, and within
+     * those the one that has been waiting LONGEST at the top: first come, first replied.
+     * Ascending by the client's oldest unanswered message is the point of it.
+     *
+     * `date` — the log order, newest first. This is what every other view wants and it is
+     * now their default. It was not: `breach` was the default everywhere, so Sent,
+     * Received and All mail all opened on the oldest thread in the system. Correct for a
+     * queue, wrong for a log, and the reason the whole inbox looked like it was showing
+     * ancient mail.
+     *
+     * Both end on `conversations.id` so the order is total. Without a unique tiebreaker,
+     * two threads sharing a timestamp can swap places between page 1 and page 2 — one row
+     * appears twice and another is never seen at all.
+     */
     private function applySort(Builder $query, string $sort): void
     {
         $inbound = $this->clock->inboundSql();
@@ -427,15 +444,43 @@ class ThreadQuery
                     "CASE WHEN ($inbound) IS NOT NULL AND (($outbound) IS NULL OR ($outbound) < ($inbound))"
                     .' THEN 0 ELSE 1 END ASC'
                 )
+                // Longest-waiting client at the top.
                 ->orderByRaw("($inbound) ASC")
-                ->orderByRaw('conversations.last_activity_at DESC')
+                // Answered threads fall through to here, and among those recency is what
+                // matters — nobody is waiting on them.
+                ->orderByRaw($this->newestFirstSql())
                 ->orderBy('conversations.id', 'desc');
 
             return;
         }
 
         $query
-            ->orderByRaw('COALESCE(conversations.last_activity_at, conversations.updated_at) DESC')
+            ->orderByRaw($this->newestFirstSql())
             ->orderBy('conversations.id', 'desc');
+    }
+
+    /**
+     * "Newest first", keyed on the newest MESSAGE rather than `last_activity_at`.
+     *
+     * `last_activity_at` is a denormalised column maintained by hand in a dozen create
+     * paths, and anything that writes an email without remembering to bump it leaves the
+     * thread stranded at its old position — which looks exactly like the list being sorted
+     * wrongly. The correlated subquery cannot drift because it reads the emails.
+     *
+     * It falls back to `last_activity_at` and then `updated_at` so a conversation with no
+     * emails still sorts somewhere sensible instead of collapsing to NULL and sinking to
+     * the bottom.
+     *
+     * A subquery rather than the `last_message_at` select alias: ordering by an alias
+     * works in MySQL but not everywhere, and this is on the path of every inbox request —
+     * not somewhere to trade a portability question for a saved subquery the optimiser
+     * already recognises from the SELECT.
+     */
+    private function newestFirstSql(): string
+    {
+        $newest = 'SELECT MAX(COALESCE(e.sent_at, e.created_at)) FROM emails e'
+            .' WHERE e.conversation_id = conversations.id AND e.deleted_at IS NULL';
+
+        return "COALESCE(({$newest}), conversations.last_activity_at, conversations.updated_at) DESC";
     }
 }

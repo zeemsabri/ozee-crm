@@ -346,16 +346,26 @@ export function ThreadList({
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/*
+                          Two orders, and the labels now say which way each one runs.
+
+                          Every view except "Needs reply" defaults to Newest first. The
+                          queue ordering is oldest-first by design — longest-waiting client
+                          at the top — and having it as the silent default everywhere is
+                          what made the whole inbox look like it was showing ancient mail.
+                        */}
                         <Button
                             kind={filters.sort === 'breach' ? 'primary' : 'secondary'}
                             size="small"
+                            title="Unanswered first, longest wait at the top"
                             onClick={() => onSort('breach')}
                         >
-                            Time to reply
+                            Longest waiting
                         </Button>
                         <Button
                             kind={filters.sort === 'date' ? 'primary' : 'secondary'}
                             size="small"
+                            title="Most recent activity first"
                             onClick={() => onSort('date')}
                         >
                             Newest first

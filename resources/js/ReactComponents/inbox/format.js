@@ -95,25 +95,25 @@ export function formatMinutes(total) {
 }
 
 /**
- * The day part of a date, with the year ONLY when it is not this year.
+ * The day part of a date. Always carries the year.
  *
- * "14 Mar" for something from this year, "14 Mar 2025" for anything older. Showing the
- * year always would put a redundant "2026" on almost every row; never showing it — which
- * is what this did before — makes a two-year-old email indistinguishable from last
- * month's, and on a client thread that is the difference between "we replied recently"
- * and "nobody has touched this since 2024".
+ * The first version of this hid the year for the current year, on the reasoning that "14
+ * Mar 2026" is mostly redundant noise. In practice it was worse than redundant: with an
+ * inbox holding years of mail, every row that showed "14 Mar" forced the reader to work
+ * out whether that meant this year, and the only way to be sure was to hover. A reader
+ * who has to check is not reading, and one who does not check is guessing.
  *
- * Calendar year, not a rolling 365 days: a date in January reading "14 Mar" when it means
- * last March is exactly the ambiguity being removed, and "is it the same year number" is
- * the rule a reader can apply themselves.
+ * So the year is always there. It costs five characters and removes the question.
+ *
+ * "Today", "Yesterday" and weekday names are still used inside the last week — those
+ * genuinely cannot be ambiguous, and spelling out the year on something from Tuesday
+ * would be noise with no question attached.
  */
-function dayPart(date, now) {
-    const sameYear = date.getFullYear() === now.getFullYear();
-
+function dayPart(date) {
     return date.toLocaleDateString(undefined, {
         day: 'numeric',
         month: 'short',
-        ...(sameYear ? {} : { year: 'numeric' }),
+        year: 'numeric',
     });
 }
 
@@ -134,7 +134,7 @@ export function shortTime(iso) {
     if (daysAgo === 1) return 'Yesterday';
     if (daysAgo < 7) return date.toLocaleDateString(undefined, { weekday: 'short' });
 
-    return dayPart(date, now);
+    return dayPart(date);
 }
 
 /** "Today, 9:18 am" — the fuller form used inside a thread. */
@@ -154,7 +154,7 @@ export function longTime(iso) {
     yesterday.setDate(now.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
 
-    return `${dayPart(date, now)}, ${time}`;
+    return `${dayPart(date)}, ${time}`;
 }
 
 /**
