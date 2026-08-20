@@ -115,6 +115,9 @@ class UpdateRecordStepHandler implements StepHandlerContract
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($ctx, $path);
+            if (is_bool($val)) {
+                return $val ? 'true' : 'false';
+            }
             return is_scalar($val) || $val === null ? (string)$val : json_encode($val);
         }, $value);
     }

@@ -138,6 +138,10 @@ class CreateRecordStepHandler implements StepHandlerContract
             $path = trim($m[1]);
             $val = $this->getFromContextPath($ctx, $path);
 
+            if (is_bool($val)) {
+                return $val ? 'true' : 'false';
+            }
+
             if (is_scalar($val) || $val === null) {
                 return (string) $val;
             }

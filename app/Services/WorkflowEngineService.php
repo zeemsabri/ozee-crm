@@ -644,6 +644,9 @@ class WorkflowEngineService
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($context) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($context, $path);
+            if (is_bool($val)) {
+                return $val ? 'true' : 'false';
+            }
             if (is_scalar($val) || $val === null) {
                 return (string) $val;
             }

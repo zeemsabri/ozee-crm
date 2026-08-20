@@ -25,6 +25,10 @@ class AIGenerationService
                 }
             }
 
+            if (is_bool($val)) {
+                return $val ? 'true' : 'false';
+            }
+
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $text);
     }
