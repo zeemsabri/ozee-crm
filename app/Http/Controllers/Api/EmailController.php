@@ -129,7 +129,21 @@ class EmailController extends Controller
                 'lead_ids.*.id' => 'required_with:lead_ids|exists:leads,id',
                 // Content
                 'subject' => 'required|string|max:255',
-                'body' => 'required_without:template_id|string|nullable',
+                // `blocks` is the redesigned inbox's block builder — a body built from
+                // structured pieces instead of typed prose. Accepted here so the new
+                // composer can use the SAME creation path as the classic one rather than
+                // growing a second one; handleCustomClientEmail renders it. Nothing that
+                // existed before sends this key, so `body` stays required for everyone
+                // else exactly as it was.
+                'body' => 'required_without_all:template_id,blocks|string|nullable',
+                'composition_type' => 'sometimes|string|in:custom,template,blocks',
+                'blocks' => 'nullable|array|max:60',
+                'blocks.*.type' => 'required_with:blocks|string|in:text,bullets,link,image',
+                'blocks.*.text' => 'nullable|string|max:20000',
+                'blocks.*.label' => 'nullable|string|max:200',
+                'blocks.*.url' => 'nullable|string|max:2000',
+                'blocks.*.alt' => 'nullable|string|max:200',
+                'blocks.*.file_id' => 'nullable|integer',
                 'template_id' => 'nullable|exists:email_templates,id',
                 'template_data' => 'nullable|array',
                 'custom_greeting_name' => 'string|nullable',
@@ -161,6 +175,11 @@ class EmailController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Rethrown rather than swallowed by the generic handler below, which turned
+            // every "you may not do that" into a 500 with the exception text in the
+            // response body — logged as a server error and unreadable to the user.
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error creating/submitting email: '.$e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
 
@@ -197,7 +216,10 @@ class EmailController extends Controller
                     ]);
                 }
             }
-            if ($user->projects->contains($project->id) ||
+            if ($user->isSuperAdmin() ||
+                $user->hasPermission('view_all_projects') ||
+                $user->hasPermission('view_all_emails') ||
+                $user->projects->contains($project->id) ||
                 $project->admin?->id === $user->id ||
                 $project->manager?->id === $user->id
             ) {
@@ -351,19 +373,60 @@ class EmailController extends Controller
             $validated = $request->validate([
                 'subject' => 'sometimes|required|string|max:255',
                 'body' => 'sometimes|required|string',
-                'composition_type' => 'sometimes|string|in:custom,template',
+                'composition_type' => 'sometimes|string|in:custom,template,blocks',
                 'template_id' => 'nullable|exists:email_templates,id',
                 'template_data' => 'nullable|array',
             ]);
 
+            /*
+             * Block-built emails are decided by what is STORED, not by what was posted.
+             *
+             * `template_data['blocks']` is the source of truth for these, and it is only
+             * ever written by InboxReplyController. Trusting a posted composition_type
+             * here would let a client turn a block email into a custom one and replace its
+             * body wholesale — which, because the CID references live in that body, would
+             * send a message whose <img> tags point at parts that are no longer attached.
+             *
+             * isBlockEmail() is false for every email the classic composer, the
+             * PendingApprovals page and the Rejected page ever produce, so all three keep
+             * the exact behaviour they had. See BlockComposition.
+             */
+            $blockComposition = app(\App\Services\Inbox\BlockComposition::class);
+            $isBlockEmail = $blockComposition->isBlockEmail($email);
+            $inlineImages = [];
+
             // Determine if we're dealing with a template-based email or a regular HTML email
-            $isTemplateEmail = ($request->input('composition_type') === 'template' || $email->template_id);
+            $isTemplateEmail = ! $isBlockEmail
+                && ($request->input('composition_type') === 'template' || $email->template_id);
             $senderDetails = $this->getSenderDetails($email);
 
-            if ($isTemplateEmail) {
+            if ($isBlockEmail) {
+                /*
+                 * Re-render from the blocks and collect the matching image parts.
+                 *
+                 * The posted `body` is deliberately discarded. What the composer showed
+                 * the approver was the PREVIEW render — the one where `cid:` references
+                 * have been swapped for signed GCS URLs so a browser can display them.
+                 * Sending that back out would mail the client a set of 24-hour signed
+                 * links that break the next day, and would leak our bucket URLs. The
+                 * subject is still editable; the content is edited by reopening the
+                 * builder, which writes a new draft through the normal submission path.
+                 */
+                $subject = $validated['subject'] ?? $email->subject;
+                $renderedBody = $blockComposition->renderForSend($email) ?? (string) $email->body;
+                $inlineImages = $blockComposition->inlinePartsFor($email);
+
+                $email->update([
+                    'subject' => $subject,
+                    'body' => $renderedBody,
+                ]);
+
+                $template = $email->email_template ?: 'email_template';
+
+            } elseif ($isTemplateEmail) {
                 // For template-based emails
                 $templateId = $validated['template_id'] ?? $email->template_id;
-                $templateData = $validated['template_data'] ?? json_decode($email->template_data, true) ?? [];
+                $templateData = $validated['template_data'] ?? self::decodeTemplateData($email->template_data);
 
                 // Update the email with template data
                 $email->update([
@@ -427,15 +490,51 @@ class EmailController extends Controller
             $threading = app(\App\Services\Inbox\ReplyThreading::class);
             $isReply = $threading->isReply($email);
             $threadHeaders = [];
-            $outgoingMessageId = null;
+
+            /*
+             * A Message-ID is minted for EVERY outbound send, not just replies.
+             *
+             * Threading headers and the quoted chain stay gated on $isReply — those only
+             * make sense mid-conversation. The Message-ID does not: it is the only thing
+             * that lets us recognise our own mail when it comes back to us. The SENT-folder
+             * ingester (IngestSentMail) matches on rfc_message_id to tell "we sent this
+             * through the CRM" apart from "somebody typed this into Gmail"; without a
+             * stamped id on every send, every CRM email would be re-ingested as a second,
+             * duplicate outbound row on its own thread.
+             *
+             * Gmail's send response returns its own API id, not the header, so stamping it
+             * ourselves is the only reliable way to know the value.
+             */
+            $fromAddress = rescue(
+                fn () => $this->gmailService->getAuthorizedEmail(),
+                config('mail.from.address'),
+                false
+            );
+            $outgoingMessageId = $threading->newMessageId($email, $fromAddress);
 
             if ($isReply) {
                 $threadHeaders = $threading->headersFor($email);
+                // Inserted before </body> when the template produced a full document, so
+                // the quote is inside the message rather than trailing after </html>
+                // where strict clients drop it.
                 $finalRenderedBody = $threading->withQuotedThread($email, $finalRenderedBody);
-                $outgoingMessageId = $threading->newMessageId($email, config('mail.from.address'));
+            }
+
+            // Before this, an email with no resolvable recipient fell through the send
+            // loop and was still marked Sent with a sent_at — "Email updated and approved
+            // successfully!", nothing transmitted. EmailProcessingService already marked
+            // this case failed; this brings the two into line.
+            if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && empty($recipients)) {
+                Log::warning('Email approved but has no resolvable recipient.', ['email_id' => $email->id]);
+
+                return response()->json([
+                    'message' => 'This email has no recipient on file, so it was not sent. Add one and try again.',
+                ], 422);
             }
 
             if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && ! empty($recipients)) {
+                $gmailThreadId = null;
+
                 foreach ($recipients as $recipientEmail) {
                     if (! empty($recipientEmail)) {
                         $sent = $this->gmailService->sendMessage(
@@ -443,19 +542,26 @@ class EmailController extends Controller
                             $subject,
                             $finalRenderedBody,
                             $threadHeaders,
-                            $outgoingMessageId
+                            $outgoingMessageId,
+                            // Empty for everything but a block email — see above.
+                            $inlineImages
                         );
 
-                        // Record what we stamped, once — a multi-recipient send is one
-                        // logical message and later replies thread onto the same id.
-                        if ($isReply && ! $email->rfc_message_id) {
-                            $email->forceFill([
-                                'rfc_message_id' => $outgoingMessageId,
-                                'gmail_thread_id' => $sent['threadId'] ?? null,
-                            ])->save();
-                        }
+                        $gmailThreadId ??= $sent['threadId'] ?? null;
                     }
                 }
+
+                // Written only after every recipient succeeded. Persisting inside the loop
+                // meant a mid-loop failure left rfc_message_id naming a message that, on
+                // the inevitable retry, was re-sent under a NEW id — so every later reply
+                // threaded onto a Message-ID that no recipient ever received.
+                // Persisted for every send, not just replies — see the note above. Also
+                // the record of which Gmail thread our copy landed in, which is how the
+                // SENT ingester attaches a Gmail-typed reply to the right conversation.
+                $email->forceFill([
+                    'rfc_message_id' => $outgoingMessageId,
+                    'gmail_thread_id' => $gmailThreadId,
+                ])->save();
             }
 
             app(\App\Services\ValueSetValidator::class)->validate('Email', 'status', \App\Enums\EmailStatus::Sent);
@@ -706,7 +812,7 @@ class EmailController extends Controller
                 ] : null,
                 'sent_at' => $email->sent_at,
                 'template_id' => $email->template_id,
-                'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'template_data' => \App\Support\TemplateData::decode($email->template_data) ?: null,
                 'project_id' => $email->conversation->project_id ?? null,
                 'client_id' => $email->conversation->conversable_id ?? null,
             ];
@@ -884,7 +990,7 @@ class EmailController extends Controller
                 ] : null,
                 'sent_at' => $email->sent_at,
                 'template_id' => $email->template_id,
-                'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'template_data' => \App\Support\TemplateData::decode($email->template_data) ?: null,
                 'project_id' => $email->conversation->project_id ?? null,
                 'client_id' => $email->conversation->conversable_id ?? null,
             ];
@@ -910,7 +1016,7 @@ class EmailController extends Controller
             }
 
             $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
-            $templateData = json_decode($email->template_data, true) ?? [];
+            $templateData = \App\Support\TemplateData::decode($email->template_data);
 
             $subject = $this->populateAllPlaceholders(
                 $template->subject,
@@ -1046,7 +1152,7 @@ class EmailController extends Controller
                 'subject' => $subject,
                 'body_html' => $data['bodyContent'] ?? $data,
                 'template_id' => $email->template_id,
-                'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'template_data' => \App\Support\TemplateData::decode($email->template_data) ?: null,
                 'email_template' => $email->email_template,
                 'client_id' => $email->conversation->conversable_id,
                 'full_html' => $fullHtml,

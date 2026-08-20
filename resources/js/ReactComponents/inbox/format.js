@@ -195,7 +195,16 @@ export const VIEW_DEFS = [
     { key: 'approval', label: 'Waiting approval', icon: 'Security', hint: 'Drafts to approve, plus screened inbound mail to release' },
     { key: 'received', label: 'Received', icon: 'Email', hint: 'Everything from clients and leads' },
     { key: 'sent', label: 'Sent', icon: 'Send', hint: 'Approved and delivered' },
-    { key: 'drafts', label: 'Drafts', icon: 'Doc', hint: 'Saved and unsent' },
+    /*
+      Not "Drafts", however the query is written.
+
+      `status = draft` on an outbound email does not mean "parked, not finished" — it is
+      the status the automation workflow selects on, so a row sitting here has been
+      submitted and is queued for AI review. Calling that column Drafts invited exactly the
+      wrong assumption: that these were safe, private, and would not move until someone
+      came back for them.
+    */
+    { key: 'drafts', label: 'In review', icon: 'Robot', hint: 'Submitted and queued for the AI checker' },
     { key: 'all', label: 'All mail', icon: 'Archive', hint: 'Complete log for your projects' },
 ];
 
@@ -218,7 +227,7 @@ export function viewSubtitle(view, overdueCount, slaMinutes) {
         case 'sent':
             return 'Approved and delivered';
         case 'drafts':
-            return 'Saved and unsent — pick up where you left off';
+            return 'Submitted and queued — the checker sends them or hands them to a human';
         default:
             return 'Complete log for your projects';
     }

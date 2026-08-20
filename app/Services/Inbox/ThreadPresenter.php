@@ -44,7 +44,25 @@ class ThreadPresenter
      */
     private array $abilityCache = [];
 
-    public function __construct(private readonly InboxAccess $access) {}
+    /**
+     * Same reasoning as $abilityCache, and keyed by user for the same reason —
+     * InboxAccess::isManager runs uncached permission queries.
+     *
+     * @var array<int,bool>
+     */
+    private array $isManagerCache = [];
+
+    public function __construct(
+        private readonly InboxAccess $access,
+        private readonly EmailBodyRenderer $bodies,
+        private readonly BlockComposition $blocks,
+        private readonly ReplyClock $clock,
+    ) {}
+
+    private function isManager(User $user): bool
+    {
+        return $this->isManagerCache[$user->id] ??= $this->access->isManager($user);
+    }
 
     /**
      * The single authority for "may this user act on this email".
@@ -57,7 +75,10 @@ class ThreadPresenter
      */
     private function allows(User $user, string $ability, Email $email): bool
     {
-        $key = $ability.':'.$email->id;
+        // Keyed by user as well as email. One presenter serves one request today, but a
+        // cache that silently answers for the wrong user the moment this is bound as a
+        // singleton or reused in a job is not a bug worth leaving available.
+        $key = $user->id.':'.$ability.':'.$email->id;
 
         return $this->abilityCache[$key] ??= $user->can($ability, $email);
     }
@@ -93,7 +114,10 @@ class ThreadPresenter
 
         return [
             'id' => $conversation->id,
-            'subject' => $conversation->subject ?: ($latest?->subject ?: '(no subject)'),
+            // conversations.subject is set on every thread, so the fallback is rare — but
+            // it must not trigger a template render for every row when it does fire.
+            'subject' => $conversation->subject
+                ?: ($latest?->subject ?: '(no subject)'),
             'preview' => $preview,
             'who' => $counterpart,
             'direction' => $latest && $this->isInbound($latest) ? 'in' : 'out',
@@ -122,8 +146,12 @@ class ThreadPresenter
                 // acts on an email, and without this the client had nothing but the
                 // conversation id to send.
                 'ai_email_id' => $withAi?->id,
+                // Outbound only: `status = draft` on an inbound row means "arrived, not
+                // yet processed", so without the type check every thread containing a
+                // client email was labelled "Not sent".
                 'is_draft' => $emails->contains(
-                    fn (Email $e) => $this->statusValue($e) === EmailStatus::Draft->value
+                    fn (Email $e) => ! $this->isInbound($e)
+                        && $this->statusValue($e) === EmailStatus::Draft->value
                 ),
             ],
 
@@ -142,7 +170,7 @@ class ThreadPresenter
                 //    offered in the thread view, where the body is on screen.
                 'release' => $this->canReleaseAny($emails, $user),
                 'approve' => $this->canApproveAny($emails, $user),
-                'resend_to_ai' => $this->access->isManager($user) && (bool) $withAi,
+                'resend_to_ai' => $this->isManager($user) && (bool) $withAi,
                 'delete' => $this->canDeleteAny($emails, $user),
             ],
 
@@ -161,7 +189,7 @@ class ThreadPresenter
     public function thread(Conversation $conversation, User $user): array
     {
         $emails = $this->visibleEmails($conversation, $user);
-        $isManager = $this->access->isManager($user);
+        $isManager = $this->isManager($user);
 
         $messages = $emails->map(fn (Email $email) => $this->message($email, $user))->values()->all();
 
@@ -195,11 +223,18 @@ class ThreadPresenter
 
         return [
             'id' => $conversation->id,
-            'subject' => $conversation->subject ?: ($emails->last()?->subject ?: '(no subject)'),
+            'subject' => $conversation->subject
+                ?: ($emails->last() ? $this->bodies->subject($emails->last()) : '(no subject)'),
             'who' => $this->counterpartName($conversation, $emails),
             'project' => $this->project($conversation),
             'categories' => $this->categories($emails),
             'message_count' => $emails->count(),
+            // POST /api/projects/{id}/email-preview validates client_id against the
+            // clients table, so a lead thread cannot preview a template. Null here tells
+            // the composer to hide the preview rather than fire a request that 422s.
+            'preview_client_id' => $conversation->conversable instanceof \App\Models\Client
+                ? $conversation->conversable->id
+                : null,
             'reply' => $this->replyClock($conversation, $emails),
             'timeline' => $timeline,
 
@@ -217,15 +252,24 @@ class ThreadPresenter
                 'ai_reason' => $held?->ai_reason,
                 // The draft as it stands, so "Edit & approve" can seed the editor and
                 // send THIS email rather than creating a second one.
-                'subject' => $this->isRedacted($awaiting, $user) ? null : $awaiting->subject,
-                'body' => $this->isRedacted($awaiting, $user) ? null : $awaiting->body,
-                // Template-composed drafts cannot be approved from here. The send path
-                // (EmailController::editAndApprove) branches on template_id and re-renders
-                // from template_data — which this UI has no editor for, and whose stored
-                // shape that method mishandles. Approving one here would either send
-                // something other than what is on screen or 500. The classic inbox has the
-                // template editor; the UI sends people there.
+                'subject' => $this->isRedacted($awaiting, $user) ? null : $this->bodies->subject($awaiting),
+                'body' => $this->isRedacted($awaiting, $user) ? null : $this->bodies->body($awaiting),
+                // Templated drafts CAN now be approved here: the body shown above is the
+                // rendered template (EmailBodyRenderer), and editAndApprove re-renders the
+                // same thing from the same template_data on send. The flag stays so the UI
+                // can say the text is template-generated and hide the free-text editor —
+                // "Edit & approve" would otherwise offer a textarea whose contents are
+                // discarded at send time. Editing the template FIELDS is still a classic-
+                // inbox job.
                 'is_template' => (bool) $awaiting->template_id,
+                // Same reasoning as is_template, for the block builder. The body shown
+                // above is the PREVIEW render — `cid:` references swapped for signed GCS
+                // URLs so a browser can display them — and editAndApprove re-renders from
+                // the stored blocks rather than accepting whatever is posted back. So a
+                // free-text editor here would silently discard every edit. The approver
+                // can still approve it or send it back; changing the content means
+                // reopening the builder.
+                'is_blocks' => $this->blocks->isBlockEmail($awaiting),
             ] : null,
 
             'ai' => [
@@ -274,6 +318,7 @@ class ThreadPresenter
             'direction' => $this->isInbound($email) ? 'in' : 'out',
             'author' => $this->authorName($email),
             'to' => $this->recipients($email),
+            'subject' => $redacted ? null : $this->bodies->subject($email),
             'status' => $this->statusValue($email),
             'status_label' => $this->statusLabel($email),
             'created_at' => $this->iso($email->sent_at ?? $email->created_at),
@@ -283,7 +328,16 @@ class ThreadPresenter
             // Bodies are omitted entirely when withheld, not blanked client-side.
             'redacted' => $redacted,
             'redaction' => $privateHidden ? 'private' : ($redacted ? 'screening' : null),
-            'body_html' => $redacted ? null : $email->body,
+            // Rendered, not raw. A templated email stores body = null and keeps its text
+            // in the template plus template_data — reading the column directly showed
+            // every templated email as blank.
+            'body_html' => $redacted ? null : $this->bodies->body($email),
+            'is_templated' => $this->bodies->isTemplated($email),
+            // Distinguishes "nothing to show" from "we could not build it" — the client
+            // shows a link to the classic page for the latter rather than an empty card.
+            'render_failed' => ! $redacted
+                && $this->bodies->isTemplated($email)
+                && $this->bodies->body($email) === null,
             'snippet' => $redacted
                 ? ($privateHidden ? 'Private message — managers only' : 'Held for screening')
                 : $this->preview($email, 120),
@@ -323,21 +377,40 @@ class ThreadPresenter
 
         $inbound = $conversation->last_inbound_at
             ?? $emails->last(fn (Email $e) => $this->isInbound($e))?->created_at;
+        // isDelivered(), not a bare comparison against `sent` — the legacy `approved`
+        // status counts too, and ReplyClock is the one place that decides. Hard-coding it
+        // here is how the list ends up saying "overdue" on a thread this view calls
+        // answered.
         $outbound = $conversation->last_outbound_at
-            ?? $emails->last(fn (Email $e) => ! $this->isInbound($e) && $this->statusValue($e) === EmailStatus::Sent->value)?->created_at;
+            ?? $emails->last(fn (Email $e) => $this->clock->isDelivered($e))?->created_at;
 
         $inbound = $inbound ? Carbon::parse($inbound) : null;
         $outbound = $outbound ? Carbon::parse($outbound) : null;
 
         $needsReply = $inbound !== null && ($outbound === null || $outbound->lt($inbound));
 
-        if (! $needsReply) {
+        /*
+         * Out of the cutover's scope: the clock has no opinion, and must not present one.
+         *
+         * ThreadQuery already excludes these from the "Needs reply" list. Without the same
+         * check here, opening one of those threads from Received or All mail would still
+         * show a red "overdue by 14 months" pill — the list and the thread disagreeing
+         * about the same email, which is exactly the confusion the cutover exists to
+         * remove. `out_of_scope` is returned so the UI can explain the silence rather than
+         * just showing nothing. See ReplyClock.
+         */
+        $inScope = $this->clock->inScope($inbound);
+
+        if (! $needsReply || ! $inScope) {
             return [
                 'needs_reply' => false,
                 'sla_minutes' => $sla,
                 'due_at' => null,
                 'minutes_left' => null,
                 'answered_at' => $this->iso($outbound),
+                // True only when the clock declined to judge, so "answered" and "before
+                // we started measuring" stay distinguishable in the UI.
+                'out_of_scope' => $needsReply && ! $inScope,
             ];
         }
 
@@ -350,6 +423,7 @@ class ThreadPresenter
             'minutes_left' => (int) round(Carbon::now()->diffInSeconds($dueAt, false) / 60),
             'waiting_since' => $this->iso($inbound),
             'answered_at' => null,
+            'out_of_scope' => false,
         ];
     }
 
@@ -561,7 +635,29 @@ class ThreadPresenter
             return '';
         }
 
-        $text = trim(html_entity_decode(strip_tags((string) $email->body), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        /*
+         * A templated email is described, not rendered, in the list.
+         *
+         * Rendering one costs at least two queries (renderEmailContent does its own
+         * EmailTemplate::findOrFail regardless of eager loading) plus a lookup per
+         * source-model placeholder. Doing that for the newest message on each of 25 rows
+         * is ~50+ queries to produce a 220-character preview nobody reads closely. The
+         * template's name comes free off the `emails.template` relation the controller
+         * already eager-loads, and the full rendered text is one click away in the thread.
+         */
+        if ($this->bodies->isTemplated($email)) {
+            $name = $email->relationLoaded('template') ? $email->template?->name : null;
+
+            return $name ? "Template: {$name}" : 'Template email — open the thread to read it';
+        }
+
+        $html = $this->bodies->body($email);
+
+        if ($html === null || trim(strip_tags($html)) === '') {
+            return '';
+        }
+
+        $text = trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
         return mb_strlen($text) > $chars ? mb_substr($text, 0, $chars).'…' : $text;

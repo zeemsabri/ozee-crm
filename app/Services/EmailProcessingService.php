@@ -77,6 +77,35 @@ class EmailProcessingService
      */
     protected function sendApprovedEmail(Email $email, string $subject, string $renderedBody, $template = 'email_template'): void
     {
+        /*
+         * Block-built emails: re-render the body from the stored blocks, and collect the
+         * image parts that travel with it.
+         *
+         * This has to happen HERE — before getData()/renderHtmlTemplate() — for two
+         * reasons. Renders after that point would either be thrown away by the branded
+         * layout wrapper or, worse, replace it, so a block email would go out with no
+         * header and no footer while every other email kept them. And the threading hook
+         * further down appends the quoted history to whatever body it is handed, so a
+         * re-render after that would silently drop the quote.
+         *
+         * Empty for every other email in the system — isBlockEmail() is false unless
+         * `template_data['blocks']` is present, which no classic writer ever sets — so the
+         * existing auto-send path is byte-for-byte what it was.
+         *
+         * Re-rendering rather than trusting the stored `emails.body` guarantees the `cid:`
+         * references in the HTML and the parts attached beside them came from the same
+         * read of `files`: if an image was pruned between submitting and sending, the
+         * reference and the part disappear together instead of leaving a broken image in
+         * the client's mailbox. See BlockComposition.
+         */
+        $blockComposition = app(\App\Services\Inbox\BlockComposition::class);
+        $inlineImages = [];
+
+        if ($blockComposition->isBlockEmail($email)) {
+            $renderedBody = $blockComposition->renderForSend($email) ?? $renderedBody;
+            $inlineImages = $blockComposition->inlinePartsFor($email);
+        }
+
         // This logic is adapted from your `editAndApprove` method.
         $senderDetails = $this->getSenderDetails($email);
         $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
@@ -103,15 +132,36 @@ class EmailProcessingService
         $threading = app(\App\Services\Inbox\ReplyThreading::class);
         $isReply = $threading->isReply($email);
         $threadHeaders = [];
-        $outgoingMessageId = null;
+
+        /*
+         * A Message-ID is minted for EVERY outbound send, not just replies — matching
+         * Api\EmailController::editAndApprove.
+         *
+         * It is what lets the SENT-folder ingester recognise our own mail: IngestSentMail
+         * matches on rfc_message_id to separate "the CRM sent this" from "somebody typed
+         * this into Gmail". Without one on every send, every auto-sent email would come
+         * back as a duplicate outbound row on its own thread.
+         *
+         * rescue(): getAuthorizedEmail() is declared `: string` but reads an untyped
+         * property that is null until the Google client has authorised, so calling it
+         * before the send loop can TypeError. The domain only affects the Message-ID's
+         * right-hand side, so falling back is harmless.
+         */
+        $fromAddress = rescue(
+            fn () => $this->gmailService->getAuthorizedEmail(),
+            config('mail.from.address'),
+            false
+        );
+        $outgoingMessageId = $threading->newMessageId($email, $fromAddress);
 
         if ($isReply) {
             $threadHeaders = $threading->headersFor($email);
             $finalRenderedBody = $threading->withQuotedThread($email, $finalRenderedBody);
-            $outgoingMessageId = $threading->newMessageId($email, config('mail.from.address'));
         }
 
         if (! empty($recipients)) {
+            $gmailThreadId = null;
+
             foreach ($recipients as $recipientEmail) {
                 if (! empty($recipientEmail)) {
                     $sent = $this->gmailService->sendMessage(
@@ -119,17 +169,21 @@ class EmailProcessingService
                         $subject,
                         $finalRenderedBody,
                         $threadHeaders,
-                        $outgoingMessageId
+                        $outgoingMessageId,
+                        $inlineImages
                     );
 
-                    if ($isReply && ! $email->rfc_message_id) {
-                        $email->forceFill([
-                            'rfc_message_id' => $outgoingMessageId,
-                            'gmail_thread_id' => $sent['threadId'] ?? null,
-                        ])->save();
-                    }
+                    $gmailThreadId ??= $sent['threadId'] ?? null;
                 }
             }
+
+            // After the whole loop, not inside it — see the matching note in
+            // Api\EmailController::editAndApprove. Written for every send now, not just
+            // replies, so the SENT ingester can recognise this message when it sees it.
+            $email->forceFill([
+                'rfc_message_id' => $outgoingMessageId,
+                'gmail_thread_id' => $gmailThreadId,
+            ])->save();
 
             // Update email status after sending
             $email->update([

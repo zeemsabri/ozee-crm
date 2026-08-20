@@ -44,7 +44,7 @@ class EmailPolicy
     public function create(User $user, ?Project $project = null): bool
     {
 
-        if ($user->hasPermission('view_all_emails') || $user->hasPermission('compose_emails')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('view_all_projects') || $user->hasPermission('view_all_emails') || $user->hasPermission('compose_emails')) {
             return true;
         }
 

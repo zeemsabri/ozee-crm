@@ -10,8 +10,8 @@
  * left-aligned trigger without running off-screen.
  */
 
-import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { Popover, useAnchoredPopover } from './Popover';
 
 export function DialogContentContainer({ children, size = 'medium', style }) {
     return (
@@ -120,29 +120,19 @@ export function MenuButton({
     style,
     menuStyle,
 }) {
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
-
-    useEffect(() => {
-        if (!open) return undefined;
-        const onDown = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-        };
-        const onKey = (e) => {
-            if (e.key === 'Escape') setOpen(false);
-        };
-        document.addEventListener('mousedown', onDown);
-        document.addEventListener('keydown', onKey);
-        return () => {
-            document.removeEventListener('mousedown', onDown);
-            document.removeEventListener('keydown', onKey);
-        };
-    }, [open]);
+    // Portalled for the same reason as Dropdown — see Popover.jsx. Not currently clipped
+    // anywhere, but a menu that silently loses its bottom half the first time someone puts
+    // this inside a modal is not a failure worth waiting for.
+    const { open, setOpen, anchorRef, panelRef, position } = useAnchoredPopover({
+        preferredHeight: 240,
+        align,
+        minWidth: 200,
+    });
 
     const box = MB_BOX[size] || 32;
 
     return (
-        <span ref={ref} style={{ position: 'relative', display: 'inline-flex', ...style }}>
+        <span ref={anchorRef} style={{ position: 'relative', display: 'inline-flex', ...style }}>
             <button
                 type="button"
                 aria-label={ariaLabel}
@@ -169,24 +159,18 @@ export function MenuButton({
                 <Icon name={iconName} size={16} />
             </button>
             {open ? (
-                <span
-                    role="menu"
-                    style={{
-                        position: 'absolute',
-                        top: 'calc(100% + 4px)',
-                        [align === 'start' ? 'insetInlineStart' : 'insetInlineEnd']: 0,
-                        zIndex: 60,
-                    }}
-                >
-                    <Menu
-                        items={items}
-                        style={menuStyle}
-                        onSelect={(v, it) => {
-                            setOpen(false);
-                            onSelect && onSelect(v, it);
-                        }}
-                    />
-                </span>
+                <Popover position={position} panelRef={panelRef}>
+                    <div role="menu" style={{ maxHeight: position?.maxHeight, overflow: 'auto' }}>
+                        <Menu
+                            items={items}
+                            style={menuStyle}
+                            onSelect={(v, it) => {
+                                setOpen(false);
+                                onSelect && onSelect(v, it);
+                            }}
+                        />
+                    </div>
+                </Popover>
             ) : null}
         </span>
     );

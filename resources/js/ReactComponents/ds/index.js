@@ -23,3 +23,6 @@ export { Label, Counter, Tabs, ProgressBar, Avatar } from './Display';
 export { AttentionBox, Toast, Modal } from './Feedback';
 export { AlertBanner, EmptyState, Loader, Skeleton, Divider } from './States';
 export { DialogContentContainer, Menu, MenuButton } from './Menu';
+// Anchored, portalled panels. Dropdown and MenuButton use this; reach for it
+// rather than position:absolute, which gets clipped inside modals and the composer.
+export { Popover, useAnchoredPopover } from './Popover';

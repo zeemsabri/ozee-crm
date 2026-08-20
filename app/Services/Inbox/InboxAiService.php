@@ -28,6 +28,8 @@ class InboxAiService
 {
     private const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s';
 
+    public function __construct(private readonly EmailBodyRenderer $bodies) {}
+
     public function enabled(): bool
     {
         return (bool) config('inbox.ai.enabled') && ! empty(config('services.gemini.key'));
@@ -251,13 +253,20 @@ class InboxAiService
         }
     }
 
-    /** One email as plain text, trimmed to the configured budget. */
+    /**
+     * One email as plain text, trimmed to the configured budget.
+     *
+     * Through EmailBodyRenderer, not the raw column: a templated email stores body = null
+     * and keeps its text in the template. Reading the column directly handed the checker
+     * an empty message, and the prompt says to approve anything merely terse — so every
+     * templated email auto-approved without ever being read.
+     */
     private function emailText(Email $email): string
     {
         $limit = (int) config('inbox.ai.max_chars_per_message', 4000);
-        $body = $this->plain($email->body);
+        $body = $this->plain($this->bodies->body($email));
 
-        return trim("Subject: {$email->subject}\n\n".mb_substr($body, 0, $limit));
+        return trim('Subject: '.$this->bodies->subject($email)."\n\n".mb_substr($body, 0, $limit));
     }
 
     /**
@@ -290,7 +299,8 @@ class InboxAiService
             ->map(function (Email $e) use ($limit) {
                 $who = $e->sender?->name ?? ($e->type?->value === 'received' ? 'Client' : 'Agency');
                 $when = ($e->sent_at ?? $e->created_at)?->toDayDateTimeString() ?? '';
-                $body = mb_substr($this->plain($e->body), 0, $limit);
+                // Rendered, for the same reason as emailText() above.
+                $body = mb_substr($this->plain($this->bodies->body($e)), 0, $limit);
 
                 return "--- {$who} ({$when}) ---\n{$body}";
             })
@@ -307,10 +317,36 @@ class InboxAiService
         return $status === \App\Enums\EmailStatus::PendingApprovalReceived->value;
     }
 
+    /**
+     * HTML down to the text a model should actually read.
+     *
+     * Three deliberate steps, in order:
+     *
+     * 1. `<script>`, `<style>` and `<head>` are removed WITH their contents. strip_tags
+     *    only removes the tags, so a mail template with an embedded stylesheet would
+     *    otherwise hand the model several kilobytes of CSS as if it were prose — billed
+     *    per token, on every check, and actively misleading about what the email says.
+     *
+     * 2. `<img>` is removed explicitly. It has no text content, so strip_tags would drop
+     *    it anyway; this is here so that intent survives a future change. Images must
+     *    never reach the model — that is the entire reason the block builder embeds them
+     *    as CID parts rather than inlining them as data URIs. A single screenshot as
+     *    base64 costs more tokens than every email in a long thread put together.
+     *
+     * 3. Block separators, so the collapsed text still reads as separate paragraphs
+     *    rather than one run-on line.
+     */
     private function plain(?string $html): string
     {
-        $text = strip_tags((string) $html);
+        $html = (string) $html;
+
+        $html = preg_replace('#<(script|style|head)\b[^>]*>.*?</\1>#is', ' ', $html) ?? $html;
+        $html = preg_replace('#<img\b[^>]*>#i', ' ', $html) ?? $html;
+        $html = preg_replace('#<(br|/p|/div|/li|/tr|/h[1-6])\b[^>]*>#i', "\n", $html) ?? $html;
+
+        $text = strip_tags($html);
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
 
         return trim(preg_replace("/\n{3,}/", "\n\n", $text) ?? '');
     }

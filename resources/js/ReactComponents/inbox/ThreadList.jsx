@@ -308,6 +308,7 @@ export function ThreadList({
     onResendAi,
     onBulk,
     onCompose,
+    canCompose = true,
     onPage,
 }) {
     const view = VIEW_DEFS.find((v) => v.key === filters.view);
@@ -354,9 +355,13 @@ export function ThreadList({
                         >
                             Newest first
                         </Button>
-                        <Button size="small" leftIcon={<Icon name="Add" size={16} />} onClick={onCompose}>
-                            New email
-                        </Button>
+                        {/* Hidden outright rather than opening a dialog whose only
+                            content is a permission error. */}
+                        {canCompose ? (
+                            <Button size="small" leftIcon={<Icon name="Add" size={16} />} onClick={onCompose}>
+                                New email
+                            </Button>
+                        ) : null}
                     </div>
                 </div>
 

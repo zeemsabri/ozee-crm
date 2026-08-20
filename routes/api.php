@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\ExistingClientEnquiryController;
 use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\ImageUploadController;
+use App\Http\Controllers\Api\InboxBlockImageController;
 use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\InboxReplyController;
 use App\Http\Controllers\Api\InboxThreadController;
@@ -504,9 +505,15 @@ Route::middleware('auth:sanctum')->group(function () {
      * Composer pages are untouched.
      *
      * These paginate CONVERSATIONS, not emails, which is the substantive difference from
-     * inbox/all-emails above. Sending is deliberately not here: a reply is created by
-     * inbox/threads/{conversation}/reply and then sent through the existing
-     * emails/{email}/edit-and-approve, so there is only ever one send path.
+     * inbox/all-emails above.
+     *
+     * Sending is deliberately not here, and there is no endpoint below that sends. A reply
+     * is CREATED by inbox/threads/{conversation}/reply as `status = draft`, which is the
+     * trigger the existing automation workflow already watches for: the workflow runs the
+     * AI approval analysis and either sends the email itself or parks it at
+     * `pending_approval` for a human. A human approval then goes through the existing
+     * emails/{email}/edit-and-approve, exactly as it does from the classic inbox.
+     * One submission path, one review, one send path.
      */
     Route::prefix('inbox')->group(function () {
         Route::get('filters', [InboxThreadController::class, 'filterOptions']);
@@ -519,6 +526,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('bulk', [InboxThreadController::class, 'bulk']);
         Route::post('emails/{email}/resend-to-ai', [InboxThreadController::class, 'resendToAi']);
         Route::post('emails/{email}/draft', [InboxThreadController::class, 'requestDraft']);
+
+        // Block builder. Uploads are parented to the project until the email exists and
+        // carry an expires_at — the copy that matters is the CID part inside the sent
+        // message, so ours is only a working copy. See EmailImageStore.
+        Route::post('block-images', [InboxBlockImageController::class, 'store']);
+        Route::post('blocks/preview', [InboxBlockImageController::class, 'preview']);
     });
 
     // Google Auth Status Endpoint

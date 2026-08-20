@@ -22,6 +22,14 @@ class FileAttachment extends Model
         'path',
         'google_drive_file_id',
         'thumbnail',
+        // Null = keep forever, which is every pre-existing row. Set only by features that
+        // opt into expiry — currently the inbox's block-builder images, whose real copy
+        // travels inside the sent email. See files:prune-expired.
+        'expires_at',
+    ];
+
+    protected $casts = [
+        'expires_at' => 'datetime',
     ];
 
     protected $appends = [

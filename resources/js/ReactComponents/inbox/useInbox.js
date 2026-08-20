@@ -269,11 +269,15 @@ export function inboxActions({ onError, onToast }) {
                 'Could not complete that action.'
             ),
 
+        /**
+         * Submit a reply. Creates it as a draft, which is what starts the automation —
+         * this does not send. See InboxReplyController.
+         */
         reply: (id, payload) =>
             run(
                 () => axios.post(`/api/inbox/threads/${id}/reply`, payload).then((r) => r.data.data),
                 null,
-                'Could not save the reply.'
+                'Could not submit the reply.'
             ),
 
         recipients: (id) =>
@@ -284,21 +288,37 @@ export function inboxActions({ onError, onToast }) {
             ),
 
         /**
-         * Finish sending a reply that was created as pending_approval.
+         * Approve an email that is sitting at pending_approval, and send it.
          *
-         * This is the EXISTING endpoint the legacy inbox uses to approve and send — the
-         * redesign deliberately has no send path of its own. See InboxReplyController.
+         * This is the EXISTING endpoint the classic inbox approves through — the redesign
+         * deliberately has no send path of its own. It is the human end of the automation:
+         * the workflow's AI review refused the email (or never ran), so someone with
+         * approval rights is deciding.
+         *
+         * It is NOT how a new reply is sent. Those are created as drafts and the workflow
+         * takes them from there; see InboxReplyController.
+         *
+         * `composition_type` is passed through rather than hardcoded because
+         * edit-and-approve branches on it. Telling a templated email it is custom would
+         * make that endpoint overwrite the body with a null and send a blank message. A
+         * block email sends no body at all — the server rebuilds it from the stored
+         * blocks, and the body on screen is a preview containing signed image URLs that
+         * must never be mailed.
          */
-        sendCreated: (emailId, { subject, body }) =>
+        sendCreated: (emailId, { subject, body, compositionType = 'custom', templateId, templateData }) =>
             run(
                 () =>
                     axios.post(`/api/emails/${emailId}/edit-and-approve`, {
                         subject,
-                        body,
-                        composition_type: 'custom',
+                        composition_type: compositionType,
+                        ...(compositionType === 'template'
+                            ? { template_id: templateId, template_data: templateData }
+                            : compositionType === 'blocks'
+                              ? {}
+                              : { body }),
                     }),
                 null,
-                'The reply was saved but could not be sent. It is waiting in approvals.'
+                'That email could not be sent. It is still waiting in approvals.'
             ),
 
         reject: (emailId, reason) =>

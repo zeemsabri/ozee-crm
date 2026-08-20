@@ -38,6 +38,79 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Reply clock scope
+    |--------------------------------------------------------------------------
+    |
+    | Two knobs that decide which threads the reply clock is allowed to judge.
+    | Both exist because the clock asks a question the historical data cannot
+    | answer, and answering it wrongly is worse than declining to answer.
+    |
+    | `since` — the cutover. Threads whose newest CLIENT message predates this
+    | are excluded from "Needs reply", the overdue count and the breach sort.
+    |
+    |   Set this. Without it every thread the team ever answered from the Gmail
+    |   web UI reads as unanswered, because a reply typed into Gmail never became
+    |   a row here — the poller only ever asked Gmail for `is:inbox`. That is not
+    |   a bug in the clock; it is the clock correctly reporting that this system
+    |   has no record of a reply, which is a different claim from "nobody
+    |   replied". The cutover is how you say "do not judge what you cannot see".
+    |
+    |   Null means no cutover: judge everything, including mail from 2023.
+    |   Format: anything strtotime understands — '2026-08-01', or '-30 days'.
+    |
+    |   Nothing is written to the database by this. It is a filter, so widening
+    |   or removing it later brings the older threads straight back.
+    |
+    | `delivered_statuses` — which outbound statuses mean "the client got this".
+    |
+    |   `sent` is what both live send paths write. `approved` is legacy: it has
+    |   been in the enum since 2023, no current code writes it, and two API
+    |   endpoints plus a Vue filter still treat it as a synonym for delivered —
+    |   so real rows almost certainly carry it. Leaving it out silently reclassed
+    |   every one of those as an unanswered thread.
+    |
+    |   Run `php artisan inbox:audit-reply-clock` to see the real distribution
+    |   before adding anything else here.
+    |
+    */
+
+    'reply_clock' => [
+        'since' => env('INBOX_REPLY_CLOCK_SINCE'),
+
+        'delivered_statuses' => [
+            \App\Enums\EmailStatus::Sent->value,
+            \App\Enums\EmailStatus::Approved->value,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ingesting mail sent from Gmail
+    |--------------------------------------------------------------------------
+    |
+    | The poller has only ever asked Gmail for `is:inbox`, so a reply somebody
+    | typed into the Gmail web UI never became a row here and the thread reads as
+    | unanswered forever. `inbox:fetch-sent` closes that.
+    |
+    | `first_run_since` is where the very first pass starts, and the default of
+    | "now" is deliberate. Emails the CRM sent before this feature existed have no
+    | rfc_message_id — the column did not exist — so the ingester cannot recognise
+    | them as ours and would ingest every one a second time. Reaching further back
+    | needs a fuzzier matcher and a dry run you have actually read.
+    |
+    | `enabled` unregisters the scheduled pass without touching the command, so it
+    | can still be run by hand.
+    |
+    */
+
+    'sent_ingest' => [
+        'enabled' => (bool) env('INBOX_INGEST_SENT', true),
+        'first_run_since' => env('INBOX_SENT_INGEST_SINCE'),
+        'limit' => (int) env('INBOX_SENT_INGEST_LIMIT', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Business hours
     |--------------------------------------------------------------------------
     |
@@ -82,6 +155,38 @@ return [
         // otherwise dominate the prompt and cost.
         'max_chars_per_message' => (int) env('INBOX_AI_MAX_CHARS', 4000),
         'max_messages_per_thread' => (int) env('INBOX_AI_MAX_MESSAGES', 12),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Block builder
+    |--------------------------------------------------------------------------
+    |
+    | The "build it in blocks" composer. Images are EMBEDDED in the outgoing message as
+    | multipart/related CID parts, so the client's copy is permanent and works offline —
+    | which is what makes it safe for our own copy to expire.
+    |
+    | `image_ttl_days` therefore only governs OUR storage. Deleting an image after it
+    | lapses does not touch any email already sent; it only means the composer and our own
+    | thread view can no longer show it. Existing files (task attachments, inbound email
+    | attachments) have a null expires_at and are never pruned.
+    |
+    */
+
+    'blocks' => [
+        'image_ttl_days' => (int) env('INBOX_BLOCK_IMAGE_TTL_DAYS', 180),
+
+        // Per-image cap. Gmail rejects messages over 25MB total, and every embedded image
+        // is base64'd on the way out — roughly a third larger than the file on disk.
+        'max_image_mb' => (int) env('INBOX_BLOCK_MAX_IMAGE_MB', 5),
+
+        // Refused outright. GD cannot thumbnail webp/svg here (HandlesImageUploads throws),
+        // and SVG in an email is both unsupported and a script vector.
+        'image_mimes' => ['image/jpeg', 'image/png', 'image/gif'],
+
+        // Belt and braces against a runaway message: the total embedded payload we will
+        // put in one email, before base64 expansion.
+        'max_total_mb' => (int) env('INBOX_BLOCK_MAX_TOTAL_MB', 15),
     ],
 
     /*

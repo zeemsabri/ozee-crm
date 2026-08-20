@@ -12,11 +12,11 @@ import { parse } from '@babel/parser';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, resolve, extname, join } from 'node:path';
 
+// All React code, not just the inbox — the shared ds/ and app/ modules are imported by
+// the portal too, so a change there has to be checked against every consumer.
 const ROOTS = [
-  'resources/js/ReactPages/Inbox',
-  'resources/js/ReactComponents/inbox',
-  'resources/js/ReactComponents/app',
-  'resources/js/ReactComponents/ds',
+  'resources/js/ReactPages',
+  'resources/js/ReactComponents',
 ];
 
 const walk = (dir) =>
@@ -119,6 +119,109 @@ for (const [absPath, ast] of parsed) {
   }
 }
 
+/**
+ * Bare (package) imports must actually be installed.
+ *
+ * Vite cannot run here to tell us, and a missing dependency is the one class of failure a
+ * parse-and-resolve check would otherwise sail straight past.
+ */
+for (const [absPath, ast] of parsed) {
+  const rel = absPath.replace(process.cwd() + '/', '');
+
+  for (const node of ast.program.body) {
+    if (node.type !== 'ImportDeclaration') continue;
+    const spec = node.source.value;
+    if (spec.startsWith('.') || spec.startsWith('/')) continue;
+
+    // Strip any subpath: '@inertiajs/react' from '@inertiajs/react/whatever'.
+    const parts = spec.split('/');
+    const pkg = spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+
+    if (!existsSync(resolve('node_modules', pkg))) {
+      errors.push(`NOPKG   ${rel}  imports '${spec}' but node_modules/${pkg} is not installed`);
+    }
+  }
+}
+
+/**
+ * Hooks must not sit after an early return.
+ *
+ * A cheap structural stand-in for react-hooks/rules-of-hooks, which is not runnable here.
+ * Catches the specific mistake this codebase is prone to: adding a `if (!thread) return`
+ * guard above existing hooks while editing a component.
+ *
+ * Only returns in the component's OWN body count — a `return` inside a callback passed to
+ * useEffect is not an early return from the component, so the walk stops at every nested
+ * function boundary.
+ */
+const FN_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+]);
+
+for (const [absPath, ast] of parsed) {
+  const rel = absPath.replace(process.cwd() + '/', '');
+
+  /** Walk one component body, never descending into a nested function. */
+  const scan = (node, state) => {
+    if (!node || typeof node.type !== 'string') return;
+
+    if (node.type === 'ReturnStatement') {
+      state.returned = true;
+      return;
+    }
+
+    if (
+      node.type === 'CallExpression' &&
+      node.callee?.type === 'Identifier' &&
+      /^use[A-Z]/.test(node.callee.name) &&
+      state.returned
+    ) {
+      errors.push(`HOOK    ${rel}  ${node.callee.name}() is called after an early return in ${state.fn}`);
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
+      const child = node[key];
+      const kids = Array.isArray(child) ? child : [child];
+
+      for (const kid of kids) {
+        if (!kid || typeof kid.type !== 'string') continue;
+        // A hook cannot legally be inside a nested function anyway, and a return there
+        // belongs to that function, not the component.
+        if (FN_TYPES.has(kid.type)) continue;
+        scan(kid, state);
+      }
+    }
+  };
+
+  const visitFns = (node) => {
+    if (!node || typeof node.type !== 'string') return;
+
+    const named =
+      node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+        ? node.id?.name
+        : null;
+
+    if (named && /^[A-Z]/.test(named)) {
+      const state = { returned: false, fn: named };
+      (node.body?.body || []).forEach((stmt) => scan(stmt, state));
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'loc') continue;
+      const child = node[key];
+      if (Array.isArray(child)) child.forEach(visitFns);
+      else if (child && typeof child.type === 'string') visitFns(child);
+    }
+  };
+
+  visitFns(ast.program);
+}
+
 /** Unused imports: noise, and usually a sign something was left half-refactored. */
 for (const [absPath, ast] of parsed) {
   const rel = absPath.replace(process.cwd() + '/', '');
@@ -139,4 +242,4 @@ if (errors.length) {
   errors.forEach((e) => console.log('  ' + e));
   process.exit(1);
 }
-console.log('OK — parses clean, every relative import resolves, every named import exists');
+console.log('OK — parses clean, imports resolve (relative + packages), named imports exist, no hooks after an early return');

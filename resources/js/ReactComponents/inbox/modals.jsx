@@ -3,12 +3,9 @@
  *
  * Design source: Inbox.dc.html, the three <Modal> blocks at the end of the markup.
  *
- * The mock also has a full "New email" composer with a template picker, placeholder grid
- * and a drag-and-drop block builder (that last one is a separate design file,
- * EmailBlocks.dc.html, and is not in scope here). Rather than ship a half-built second
- * composer that could produce a differently-shaped email from the one the rest of the app
- * sends, ComposeRedirect below hands off to the existing, complete composer. Replies —
- * the thing people actually do all day in an inbox — are fully native here.
+ * The "New email" composer lives in its own file, ComposeModal.jsx. The mock's
+ * drag-and-drop block builder is a separate design file (EmailBlocks.dc.html) and is not
+ * implemented — template and custom composing are.
  */
 
 import { useEffect, useState } from 'react';
@@ -187,6 +184,7 @@ export function CategoriseModal({ open, onClose, onApply, busy, categories = [],
                                 key={category.id}
                                 label={category.name}
                                 size="small"
+                                selected={on}
                                 color={on ? categoryColour(category.name) : 'neutral'}
                                 onClick={() => toggle(category.id)}
                             />
@@ -200,44 +198,6 @@ export function CategoriseModal({ open, onClose, onApply, busy, categories = [],
                     <Button size="small" disabled={!selected.length} loading={busy} onClick={() => onApply(selected)}>
                         Apply
                     </Button>
-                </div>
-            </div>
-        </Modal>
-    );
-}
-
-/**
- * "New email" — hands off to the existing composer rather than rebuilding it.
- *
- * The legacy composer knows about email templates, placeholder definitions, source
- * models, client-vs-lead recipients, previews and scheduling. Reimplementing that here
- * would mean two composers that must produce identical emails; getting it subtly wrong
- * would send a client the wrong thing. Composing gets ported as its own piece of work.
- */
-export function ComposeRedirect({ open, onClose, classicUrl }) {
-    return (
-        <Modal
-            open={open}
-            onClose={onClose}
-            title="Start a new email"
-            description="Composing still happens on the classic page for now."
-            size="small"
-        >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <p style={{ margin: 0, font: '400 14px/20px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
-                    Replying to a thread works fully here. Starting a brand-new email still uses the classic
-                    composer, which knows about templates, placeholders and scheduling — so nothing goes out in a
-                    different shape while the redesign is in progress.
-                </p>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <Button kind="tertiary" size="small" onClick={onClose}>
-                        Stay here
-                    </Button>
-                    {/* Plain anchor, not an Inertia Link: crossing to a Vue page needs a
-                        full reload so app.js boots Vue instead of React. */}
-                    <a href={classicUrl} style={{ textDecoration: 'none' }}>
-                        <Button size="small">Open the classic composer</Button>
-                    </a>
                 </div>
             </div>
         </Modal>

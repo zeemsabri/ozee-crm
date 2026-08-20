@@ -90,41 +90,37 @@ function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onResendAi
 
                 {approval?.can_act && !checking ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <Button size="small" leftIcon={<Icon name="Send" size={16} />} onClick={onApprove}>
+                            {approval.kind === 'screening' ? 'Release to the team' : 'Approve & send'}
+                        </Button>
                         {/*
-                          A template-composed draft is approved on the classic page. Its
-                          real content is re-rendered from template_data at send time, so
-                          approving it here would send something other than what is shown —
-                          and this UI has no editor for those fields. See the `is_template`
-                          note in ThreadPresenter.
+                          "Edit & approve" opens a free-text editor, which is meaningless
+                          for a templated draft: the send path re-renders from the template
+                          and template_data, so anything typed here would be discarded.
+                          Approving it as-is is fine — the body shown above IS the rendered
+                          template. Editing the template FIELDS is still a classic-inbox job.
                         */}
-                        {approval.is_template ? (
+                        {approval.kind !== 'screening' && !approval.is_template ? (
+                            <Button
+                                kind="secondary"
+                                size="small"
+                                leftIcon={<Icon name="Edit" size={16} />}
+                                onClick={onEditApprove}
+                            >
+                                Edit &amp; approve
+                            </Button>
+                        ) : null}
+                        {approval.kind !== 'screening' && approval.is_template ? (
                             <span
                                 style={{
                                     font: '400 12px/16px Figtree, sans-serif',
                                     color: 'var(--secondary-text-color)',
-                                    maxWidth: '46ch',
+                                    maxWidth: '38ch',
                                 }}
                             >
-                                This one was built from a template — approve it on the classic inbox, where the
-                                template fields can be edited.
+                                Built from a template — change its fields on the classic inbox.
                             </span>
-                        ) : (
-                            <>
-                                <Button size="small" leftIcon={<Icon name="Send" size={16} />} onClick={onApprove}>
-                                    {approval.kind === 'screening' ? 'Release to the team' : 'Approve & send'}
-                                </Button>
-                                {approval.kind !== 'screening' ? (
-                                    <Button
-                                        kind="secondary"
-                                        size="small"
-                                        leftIcon={<Icon name="Edit" size={16} />}
-                                        onClick={onEditApprove}
-                                    >
-                                        Edit &amp; approve
-                                    </Button>
-                                ) : null}
-                            </>
-                        )}
+                        ) : null}
                         {approval.kind !== 'screening' ? (
                             <Button kind="secondary" size="small" color="negative" onClick={onReject}>
                                 Send back
@@ -318,7 +314,18 @@ function Withheld({ kind }) {
     );
 }
 
-function MessageCard({ message, open, onToggle, onTogglePrivacy, canTogglePrivacy, showSummary }) {
+function MessageCard({
+    message,
+    open,
+    onToggle,
+    onTogglePrivacy,
+    canTogglePrivacy,
+    canReply,
+    canForward,
+    showSummary,
+    onReply,
+    onOpenNote,
+}) {
     const inbound = message.direction === 'in';
 
     return (
@@ -470,11 +477,33 @@ function MessageCard({ message, open, onToggle, onTogglePrivacy, canTogglePrivac
                             {/* The body is server-rendered email HTML. It is only ever
                                 present here for a viewer allowed to read it — withheld
                                 messages arrive with body_html null, above. */}
-                            <div
-                                className="ozds-email-body"
-                                style={{ font: '400 14px/22px Figtree, sans-serif', maxWidth: '78ch', overflowWrap: 'anywhere' }}
-                                dangerouslySetInnerHTML={{ __html: message.body_html || '' }}
-                            />
+                            {message.render_failed ? (
+                                <div
+                                    style={{
+                                        padding: 12,
+                                        border: '1px dashed var(--ui-border-color)',
+                                        borderRadius: 4,
+                                        background: 'var(--allgrey-background-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        font: '400 13px/20px Figtree, sans-serif',
+                                        color: 'var(--secondary-text-color)',
+                                    }}
+                                >
+                                    <Icon name="Warning" size={16} color="currentColor" />
+                                    <span>
+                                        This template could not be rendered here — usually a missing client or
+                                        project. Open it on the classic inbox to read it.
+                                    </span>
+                                </div>
+                            ) : (
+                                <div
+                                    className="ozds-email-body"
+                                    style={{ font: '400 14px/22px Figtree, sans-serif', maxWidth: '78ch', overflowWrap: 'anywhere' }}
+                                    dangerouslySetInnerHTML={{ __html: message.body_html || '' }}
+                                />
+                            )}
 
                             {message.files?.length ? (
                                 <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -513,11 +542,73 @@ function MessageCard({ message, open, onToggle, onTogglePrivacy, canTogglePrivac
                                 </div>
                             ) : null}
 
-                            {canTogglePrivacy ? (
-                                <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    <Button kind="tertiary" size="small" onClick={onTogglePrivacy}>
-                                        {message.is_private ? 'Make visible to team' : 'Make private'}
-                                    </Button>
+                            {/*
+                              Per-message actions, as in the design. Replying from a
+                              specific message is not just a shortcut to the composer at
+                              the bottom: it sets THAT message as the reply's parent, so
+                              In-Reply-To/References point at what is actually being
+                              answered rather than always at the newest inbound one. On a
+                              thread where a client asked two separate questions, that is
+                              the difference between a correctly threaded answer and one
+                              that looks like a reply to something else.
+                            */}
+                            {canReply || canTogglePrivacy ? (
+                                <div
+                                    style={{
+                                        marginTop: 14,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        flexWrap: 'wrap',
+                                    }}
+                                >
+                                    {canReply ? (
+                                        <>
+                                            <Button
+                                                kind="secondary"
+                                                size="small"
+                                                leftIcon={<Icon name="Reply" size={16} />}
+                                                onClick={() => onReply(message, 'reply')}
+                                            >
+                                                Reply
+                                            </Button>
+                                            {/*
+                                              No "Reply all" button. Recipients are the
+                                              project's clients whichever mode you pick, so
+                                              it addressed exactly the same people as Reply
+                                              — two buttons, one behaviour, and an implied
+                                              distinction that does not exist.
+                                            */}
+                                            {/* Needs `email_custom_recipients`: forwarding
+                                                is the only way to send a client thread to
+                                                an address that is not on the project, and
+                                                the endpoint refuses it without that
+                                                permission. */}
+                                            {canForward ? (
+                                                <Button
+                                                    kind="secondary"
+                                                    size="small"
+                                                    leftIcon={<Icon name="Share" size={16} />}
+                                                    onClick={() => onReply(message, 'forward')}
+                                                >
+                                                    Forward
+                                                </Button>
+                                            ) : null}
+                                            <Button
+                                                kind="tertiary"
+                                                size="small"
+                                                leftIcon={<Icon name="Note" size={16} />}
+                                                onClick={onOpenNote}
+                                            >
+                                                Add team note
+                                            </Button>
+                                        </>
+                                    ) : null}
+                                    {canTogglePrivacy ? (
+                                        <Button kind="tertiary" size="small" onClick={onTogglePrivacy}>
+                                            {message.is_private ? 'Make visible to team' : 'Make private'}
+                                        </Button>
+                                    ) : null}
                                 </div>
                             ) : null}
                         </>
@@ -534,17 +625,25 @@ export function ThreadView({
     recipients,
     replyOpen,
     replyEditing,
+    replyTarget,
+    compose,
     replyBusy,
     noteOpen,
     noteText,
-    isManager,
+    // Whether this person may type an email address by hand. Drives the Forward button
+    // only — replying needs no permission, because it can only ever reach the project's
+    // clients. See InboxAccess::canAddressManually.
+    canAddressManually,
     backLabel,
     onBack,
     onOpenReply,
+    onReplyToMessage,
     onCloseReply,
     onSendReply,
-    onSaveDraft,
     onRegenerateDraft,
+    // Surfacing failures from the composer's own requests (image uploads, the block
+    // preview) — they happen inside ReplyBox, not through the page's action layer.
+    onError,
     onOpenNote,
     onNoteText,
     onSaveNote,
@@ -687,6 +786,21 @@ export function ThreadView({
                                 open={isOpen(item)}
                                 showSummary={thread.ai?.enabled}
                                 canTogglePrivacy={thread.can?.toggle_privacy}
+                                // Same gate as the composer at the bottom: no replying to
+                                // a locked thread, and never from a withheld message.
+                                // Replying "to" a draft or a rejected draft is meaningless:
+                                // the client never saw it, so it cannot anchor a reply and
+                                // it is excluded from the quote. Only a message the other
+                                // party has actually seen can be answered.
+                                canReply={
+                                    thread.can?.reply &&
+                                    !thread.reply_lock &&
+                                    !item.redacted &&
+                                    (item.direction === 'in' || item.status === 'sent')
+                                }
+                                canForward={canAddressManually}
+                                onReply={onReplyToMessage}
+                                onOpenNote={onOpenNote}
                                 onToggle={() =>
                                     setExpanded((current) => ({ ...current, [item.id]: !isOpen(item) }))
                                 }
@@ -746,14 +860,15 @@ export function ThreadView({
                             thread={thread}
                             recipients={recipients}
                             editing={replyEditing}
+                            replyTo={replyTarget}
+                            compose={compose}
                             aiDraft={thread.ai?.draft}
                             aiEnabled={thread.ai?.enabled}
-                            isManager={isManager}
                             busy={replyBusy}
                             onSend={onSendReply}
-                            onSaveDraft={onSaveDraft}
                             onDiscard={onCloseReply}
                             onRegenerateDraft={onRegenerateDraft}
+                            onError={onError}
                         />
                     ) : (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -785,7 +900,7 @@ export function ThreadView({
                             >
                                 <Icon name="Reply" size={16} color="currentColor" />
                                 <span>
-                                    Reply to {thread.who}
+                                    Reply to {thread.who}&apos;s latest message
                                     {thread.ai?.enabled && thread.ai?.draft ? ' — an AI draft is ready to edit' : ''}
                                 </span>
                             </button>

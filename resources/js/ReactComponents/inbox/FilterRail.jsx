@@ -145,6 +145,7 @@ export function FilterRail({
                                     key={category.id}
                                     label={category.name}
                                     size="small"
+                                    selected={on}
                                     color={on ? categoryColour(category.name) : 'neutral'}
                                     onClick={() => toggleCategory(Number(category.id))}
                                     title={on ? `Remove ${category.name}` : `Filter by ${category.name}`}

@@ -70,6 +70,9 @@ class InboxThreadController extends Controller
             'emails' => fn ($q) => $q->orderBy('created_at'),
             'emails.sender',
             'emails.conversation.project:id,name',
+            // Templated emails render their body from the template on read
+            // (EmailBodyRenderer); without this that is a query per email.
+            'emails.template.placeholders',
             'emails.categories:id,name',
             'emails.files',
         ]);
@@ -104,6 +107,9 @@ class InboxThreadController extends Controller
             'emails' => fn ($q) => $q->orderBy('created_at'),
             'emails.sender',
             'emails.conversation.project:id,name',
+            // Templated emails render their body from the template on read
+            // (EmailBodyRenderer); without this that is a query per email.
+            'emails.template.placeholders',
             'emails.approver:id,name',
             'emails.categories:id,name',
             'emails.files',
@@ -127,10 +133,22 @@ class InboxThreadController extends Controller
             SummariseConversation::dispatch($conversation->id);
         }
 
+        // Same relation list as above, including emails.conversation.project — refresh()
+        // drops nested eager loads, so omitting it here would silently reintroduce a lazy
+        // load per email inside every policy check.
         $conversation->refresh()->load([
-            'project:id,name', 'conversable', 'notes.user:id,name',
+            'project:id,name',
+            'conversable',
+            'notes.user:id,name',
             'emails' => fn ($q) => $q->orderBy('created_at'),
-            'emails.sender', 'emails.categories:id,name', 'emails.files',
+            'emails.sender',
+            'emails.conversation.project:id,name',
+            // Templated emails render their body from the template on read
+            // (EmailBodyRenderer); without this that is a query per email.
+            'emails.template.placeholders',
+            'emails.approver:id,name',
+            'emails.categories:id,name',
+            'emails.files',
         ]);
 
         return response()->json(['data' => $this->presenter->thread($conversation, $user)]);
@@ -154,8 +172,20 @@ class InboxThreadController extends Controller
             $projects[] = ['value' => 'leads', 'label' => 'Leads (no project)'];
         }
 
+        // Projects the composer may target — a strict subset of the filter list above,
+        // because starting an email requires project membership while merely reading its
+        // mail does not. See InboxAccess::composableProjectIds.
+        $composableIds = $this->access->composableProjectIds($user);
+        $composable = Project::query()
+            ->whereIn('id', $composableIds ?: [0])
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($p) => ['value' => $p->id, 'label' => $p->name])
+            ->values();
+
         return response()->json([
             'projects' => array_merge([['value' => 'all', 'label' => 'All my projects']], $projects),
+            'compose_projects' => $composable,
             'categories' => Category::query()
                 ->orderBy('name')
                 ->get(['id', 'name'])
@@ -163,6 +193,8 @@ class InboxThreadController extends Controller
                 ->values(),
             'sla_minutes' => (int) config('inbox.sla_minutes', 60),
             'is_manager' => $this->access->isManager($user),
+            'can_compose_template' => $this->access->canComposeTemplate($user),
+            'can_compose_custom' => $this->access->canComposeCustom($user),
             'ai' => [
                 'enabled' => (bool) config('inbox.ai.enabled'),
                 'check_outbound' => (bool) config('inbox.ai.check_outbound'),

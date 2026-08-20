@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EmailStatus;
 use App\Enums\EmailType;
 use App\Http\Controllers\Controller;
-use App\Jobs\Inbox\CheckEmailWithAi;
 use App\Models\Conversation;
 use App\Models\Email;
+use App\Services\Inbox\BlockComposition;
+use App\Services\Inbox\BlockRenderer;
+use App\Services\Inbox\Correspondent;
+use App\Services\Inbox\EmailImageStore;
 use App\Services\Inbox\InboxAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,36 +20,67 @@ use Illuminate\Validation\Rule;
 /**
  * Replying, replying-all and forwarding from inside a thread.
  *
- * This endpoint only ever CREATES the email — as a draft, or as pending_approval. It
- * never sends. Sending stays with the existing, proven path:
- * `POST /api/emails/{email}/edit-and-approve` on Api\EmailController, which renders the
- * template, resolves recipients and hands off to GmailService.
+ * ## This endpoint submits. It does not send, and it does not park.
  *
- * What is stored is ONLY what the person typed. The quoted conversation and the Gmail
- * threading headers are added at send time by App\Services\Inbox\ReplyThreading, keyed on
- * the in_reply_to_email_id recorded below. That split is the point: emails.body is what
- * the AI checker reads, so storing the quote would re-send the entire thread to the model
- * on every reply — cost that grows with the thread and buys nothing, since the checker is
- * judging the new text. The client still receives the full quoted chain.
+ * A reply is written as `status = draft`, `type = sent` and nothing else happens here.
+ * That row is the trigger for the automation the whole business already runs on:
  *
- * That split is on purpose. Duplicating the send logic here would mean two code paths
- * that must agree about templating, recipient resolution and Gmail threading forever, and
- * the redesign would own a way for client mail to go out wrong. So the client makes two
- * calls to send: create here, then approve there. Each is independently authorised, and a
- * failure between them leaves a recoverable draft rather than a half-sent email.
+ *   Email::created
+ *     → GlobalModelEventSubscriber (config/automation.php allow-lists Email)
+ *       → WorkflowTriggerEvent('email.created')
+ *         → WorkflowTriggerListener → RunWorkflowJob → WorkflowEngineService
+ *           → workflow 17, gated on status == 'draft' AND type == 'sent'
+ *             → AI_PROMPT "Email Approval Analysis"
+ *               → approved  → ACTION PROCESS_EMAIL → ProcessDraftEmailJob → Gmail
+ *               → refused   → UPDATE_RECORD status = 'pending_approval' (a human decides)
  *
- * The AI checker, if enabled, is attached at creation — see CheckEmailWithAi for the
- * state machine and why an approved check still does not send by itself.
+ * An earlier version of this controller created the reply at `pending_approval` and had
+ * the client immediately POST to `emails/{id}/edit-and-approve`. That worked, and it was
+ * wrong: it walked straight past the AI review that every email sent from the classic
+ * inbox goes through, so the redesign would have been the one way to get unreviewed mail
+ * to a client. Creating at `draft` is not a lesser version of that — it is the same thing
+ * the classic templated composer does (EmailController::storeTemplatedEmail defaults to
+ * `Email::STATUS_DRAFT`), which is precisely the point: one submission path, one review.
+ *
+ * ## There is no "save as draft"
+ *
+ * Worth saying plainly, because the word invites the opposite assumption. In this schema
+ * `draft` does not mean "parked, not finished" — it means "submitted, awaiting the
+ * automation". A parked draft would have to be a row that `Email::created` does not
+ * reach, and no such state exists. So the composer has no Save-draft button, and this
+ * endpoint has no `save_as_draft` parameter; adding either would hand someone a button
+ * labelled "save" that mails a client.
+ *
+ * ## What is stored, and what is added later
+ *
+ * Only what the person typed. The quoted conversation and the Gmail threading headers are
+ * added at send time by App\Services\Inbox\ReplyThreading, keyed on the
+ * in_reply_to_email_id recorded below. That split is the point: `emails.body` is what the
+ * AI reads, so storing the quote would re-send the entire thread to the model on every
+ * reply — cost that grows with the thread and buys nothing, since the model is judging
+ * the new text. The client still receives the full quoted chain.
+ *
+ * Block-built emails (composition_type = 'blocks') follow the same rule for the same
+ * reason: `body` holds the rendered HTML with `cid:` image references, which cost a
+ * handful of tokens and are stripped entirely by the workflow's remove_html transform.
+ * The image bytes only ever travel inside the outgoing MIME message. See BlockComposition.
  */
 class InboxReplyController extends Controller
 {
-    public function __construct(private readonly InboxAccess $access) {}
+    public function __construct(
+        private readonly InboxAccess $access,
+        private readonly BlockComposition $blocks,
+        private readonly BlockRenderer $renderer,
+        private readonly EmailImageStore $images,
+        private readonly Correspondent $correspondent,
+    ) {}
 
     /** POST /api/inbox/threads/{conversation}/reply */
     public function store(Request $request, Conversation $conversation): JsonResponse
     {
         $user = Auth::user();
-        $conversation->load(['emails', 'conversable']);
+        // emails.sender and project.clients: see the note in recipients().
+        $conversation->load(['emails.sender', 'conversable', 'project.clients']);
 
         abort_unless($this->canSeeThread($conversation, $user), 403, 'You cannot reply to this thread.');
 
@@ -60,42 +94,151 @@ class InboxReplyController extends Controller
 
         $data = $request->validate([
             'mode' => ['required', Rule::in(['reply', 'replyAll', 'forward'])],
+            // template | custom | blocks.
+            //   template — renders from an EmailTemplate plus template_data at send time
+            //   custom   — free-form prose, stored verbatim in `body`
+            //   blocks   — the "Project update" builder; block JSON is stored in
+            //              template_data['blocks'] and rendered into `body` here
+            'composition_type' => ['required', Rule::in(['template', 'custom', 'blocks'])],
             'subject' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
-            // Only honoured for `forward`. For reply/replyAll the server resolves the
-            // recipients itself — see resolveRecipients() below for why.
+            // A templated reply has no body of its own — the text comes from the template.
+            // A block reply has no typed body either — it is rendered from `blocks`.
+            'body' => ['required_if:composition_type,custom', 'nullable', 'string'],
+            'blocks' => ['required_if:composition_type,blocks', 'nullable', 'array', 'max:60'],
+            'blocks.*.type' => ['required', Rule::in(['text', 'bullets', 'link', 'image'])],
+            'blocks.*.text' => ['nullable', 'string', 'max:20000'],
+            'blocks.*.label' => ['nullable', 'string', 'max:200'],
+            'blocks.*.url' => ['nullable', 'string', 'max:2000'],
+            'blocks.*.alt' => ['nullable', 'string', 'max:200'],
+            'blocks.*.file_id' => ['nullable', 'integer'],
+            'template_id' => ['required_if:composition_type,template', 'nullable', 'integer', 'exists:email_templates,id'],
+            'template_data' => ['nullable', 'array'],
+            /*
+             * Only honoured for `forward`, and only from someone with
+             * `email_custom_recipients`. For reply and replyAll the server resolves the
+             * recipients from the project and ignores this entirely — see
+             * resolveRecipients().
+             *
+             * No `cc` or `bcc`. They were accepted before and quietly did nothing: the
+             * emails table has no column for either, so the endpoint wrote the addresses
+             * into a team note and sent to `to` only. A field that looks like it copies
+             * somebody and does not is worse than no field, and under a client-only rule
+             * there is nobody to copy anyway. Real Cc is a future change — a Cc column, a
+             * Cc header, and one send instead of a loop.
+             */
             'to' => ['nullable', 'array'],
             'to.*' => ['email'],
-            'cc' => ['nullable', 'array'],
-            'cc.*' => ['email'],
-            'bcc' => ['nullable', 'array'],
-            'bcc.*' => ['email'],
             // The message being answered. Drives both the Gmail threading headers and the
             // quoted chain at send time; validated against this conversation below so a
             // reply cannot be linked to a message on someone else's thread.
             'in_reply_to_email_id' => ['nullable', 'integer', 'exists:emails,id'],
-            // A draft is parked; otherwise it is submitted and picks up the normal
-            // approval rules for this user.
-            'save_as_draft' => ['sometimes', 'boolean'],
         ]);
 
-        // Forwarding to somewhere outside the conversation is a different, riskier action
-        // than replying to the person already on it, so it is gated separately.
-        if ($data['mode'] === 'forward' && ! $this->access->isManager($user)) {
-            abort(403, 'Only a manager can forward a client thread.');
+        /*
+         * Forwarding is the only way to send a client thread to an address that is not on
+         * the project, so it carries the permission that governs exactly that. Being a
+         * manager is no longer enough: managers reply to clients constantly, and that
+         * needs no permission at all, but choosing a new recipient is a different act.
+         * See InboxAccess::canAddressManually.
+         */
+        if ($data['mode'] === 'forward' && ! $this->access->canAddressManually($user)) {
+            abort(403, 'Forwarding needs the "Email Custom Recipients" permission — client mail otherwise only goes to the project\'s clients.');
         }
 
-        $status = ($data['save_as_draft'] ?? false)
-            ? EmailStatus::Draft
-            : EmailStatus::PendingApproval;
+        /*
+         * Composer gating, enforced here rather than only hidden in the UI.
+         *
+         * The legacy page hides its Custom Email button from everyone but super admins and
+         * then accepts a custom email from anyone who posts one — the endpoint never
+         * checks. Reproducing the hole alongside the button would be a poor trade, so the
+         * new reply endpoint enforces both gates. See InboxAccess::canComposeCustom for
+         * why "custom" resolves to super-admin-only today.
+         */
+        $isTemplate = $data['composition_type'] === 'template';
+        $isBlocks = $data['composition_type'] === 'blocks';
+
+        if ($isTemplate && ! $this->access->canComposeTemplate($user)) {
+            abort(403, 'You do not have permission to send template emails.');
+        }
+
+        // Blocks are free-form content wearing a nicer editor — the text, links and
+        // images are whatever the author typed, with no template to constrain them. So it
+        // is gated as custom, not as template. Letting the builder through on the template
+        // permission would be a quiet privilege escalation for every non-admin.
+        if (! $isTemplate && ! $this->access->canComposeCustom($user)) {
+            abort(403, 'Free-form emails are admin-only — build your reply from a template.');
+        }
+
+        /*
+         * Templates need a project, and a lead conversation has none.
+         *
+         * HandlesTemplatedEmails::populateAllPlaceholders types its $project parameter as
+         * non-nullable `Project`, so rendering a templated email on a project-less thread
+         * is a TypeError — an Error, not an Exception, so editAndApprove's catch block
+         * does not stop it and the send 500s. The read side survives only because
+         * EmailBodyRenderer catches Throwable, which means nothing warns you until you
+         * press Send. Refuse it up front instead.
+         */
+        if ($isTemplate && ! $conversation->project_id) {
+            abort(422, 'Template emails need a project. This thread is a lead, so reply with a custom message.');
+        }
+
+        // Which projects this person may pull a block image from. Passed into sanitise()
+        // so an image block naming a file id from a project they cannot compose on is
+        // dropped rather than embedded — the ids are sequential and would otherwise be
+        // trivially enumerable.
+        $composable = $this->access->composableProjectIds($user);
+
+        /*
+         * Block images are uploaded against a project (files.fileable_id is NOT NULL and
+         * there is no Email to hang them on while composing — see EmailImageStore). A
+         * lead thread has no project, so an image block on one has nowhere to have come
+         * from; text-only blocks are fine.
+         */
+        if ($isBlocks && ! $conversation->project_id
+            && $this->blocks->imageIds($this->blocks->sanitise($data['blocks'] ?? [], $composable)) !== []) {
+            abort(422, 'Images need a project. This thread is a lead, so send the update without them.');
+        }
+
+        /*
+         * Draft, always — see the class docblock.
+         *
+         * This is the status workflow 17 selects on, so creating the row IS the
+         * submission. There is no branch here for a parked draft because the schema has
+         * no state that Email::created does not reach.
+         */
+        $status = EmailStatus::Draft;
 
         // Default to the newest inbound message on this thread — that is what a reply
         // answers. Anything explicitly passed must belong to THIS conversation; accepting
         // an arbitrary email id would quote another thread's messages into this one.
         $parentId = $data['in_reply_to_email_id'] ?? null;
 
-        if ($parentId && ! $conversation->emails->contains('id', (int) $parentId)) {
-            abort(422, 'That message is not part of this thread.');
+        if ($parentId) {
+            $parent = $conversation->emails->firstWhere('id', (int) $parentId);
+
+            if (! $parent) {
+                abort(422, 'That message is not part of this thread.');
+            }
+
+            // A reply can only be anchored to something the other party has actually
+            // seen. An unsent or rejected draft has no Message-ID to thread onto and is
+            // excluded from the quote, so accepting one would produce a reply whose
+            // headers and quoted history both point somewhere other than the message the
+            // UI said was being answered.
+            $parentType = $parent->type instanceof EmailType
+                ? $parent->type->value
+                : (string) $parent->type;
+            $parentStatus = $parent->status instanceof EmailStatus
+                ? $parent->status->value
+                : (string) $parent->status;
+
+            $seenByThem = $parentType === EmailType::Received->value
+                || $parentStatus === EmailStatus::Sent->value;
+
+            if (! $seenByThem) {
+                abort(422, 'You can only reply to a message that has actually been sent or received.');
+            }
         }
 
         if (! $parentId) {
@@ -105,11 +248,36 @@ class InboxReplyController extends Controller
                     === EmailType::Received->value)?->id;
         }
 
-        $to = $this->resolveRecipients($conversation, $data['mode'], $data['to'] ?? []);
+        $to = $this->resolveRecipients($conversation, $data['mode'], $data['to'] ?? [], $user);
 
         if (empty($to)) {
-            abort(422, 'There is no address on file to send this to.');
+            abort(422, $data['mode'] === 'forward'
+                ? 'Enter at least one valid address to forward this to.'
+                : match ($this->correspondent->kindFor($conversation)) {
+                    'lead' => 'This lead has no email address on record.',
+                    'client' => 'No client with an email address is attached to this thread.',
+                    default => 'We could not work out who to send this to.',
+                });
         }
+
+        /*
+         * Blocks are normalised and rendered before the row is written.
+         *
+         * sanitise() drops anything the builder should not have sent — an unknown block
+         * type, an image whose file_id is not one of our own `email-blocks/` uploads — so
+         * a hand-rolled POST cannot embed an arbitrary attachment into a client email.
+         * The render is MODE_SEND, i.e. `cid:` references, because that string is both
+         * what Gmail receives and what the AI reads.
+         */
+        $blocks = $isBlocks ? $this->blocks->sanitise($data['blocks'] ?? [], $composable) : [];
+
+        if ($isBlocks && $blocks === []) {
+            abort(422, 'There is nothing in this update yet — add a block before sending it.');
+        }
+
+        $renderedBlocks = $isBlocks
+            ? $this->renderer->render($blocks, BlockRenderer::MODE_SEND)
+            : null;
 
         $email = new Email([
             'conversation_id' => $conversation->id,
@@ -117,55 +285,74 @@ class InboxReplyController extends Controller
             'sender_type' => \App\Models\User::class,
             'to' => $to,
             'subject' => $data['subject'],
-            'body' => $data['body'],
+            // Null for a templated reply: the text is rendered from the template on read
+            // and on send, and a stale copy here would be the one thing nobody updates.
+            // A block reply DOES store its rendered HTML, because the blocks are the
+            // source of truth and they live on the same row — nothing can drift.
+            'body' => match (true) {
+                $isTemplate => null,
+                $isBlocks => $renderedBlocks,
+                default => $data['body'],
+            },
             'status' => $status->value,
             'type' => EmailType::Sent->value,
             'in_reply_to_email_id' => $parentId,
-            // Deliberately no template_id / template_data. Replies composed here are
-            // plain-body ("custom") emails, and the send path branches on template_id:
-            // EmailController::editAndApprove would take the templated branch and call
-            // json_decode() on template_data, which is already cast to an array —
-            // a TypeError its catch block does not handle. Template composing stays on
-            // the classic page until it is ported properly.
+            // Written through TemplateData::encode, which reproduces the double-encoded
+            // shape every other writer in the codebase produces. Storing the "correct"
+            // single-encoded array instead would 500 the classic pending-approvals list
+            // for everyone — three legacy readers still call json_decode() on this value
+            // directly, and json_decode(array) is a TypeError their catch blocks miss.
+            // See App\Support\TemplateData.
+            'template_id' => $isTemplate ? $data['template_id'] : null,
+            'template_data' => match (true) {
+                $isTemplate => \App\Support\TemplateData::encode($data['template_data'] ?? []),
+                // A block email has no template, but it borrows the column: the builder's
+                // JSON goes under `blocks` so the send path can rebuild the CID map and
+                // the composer can be reopened. template_id stays null, so every existing
+                // reader that keys off template_id ignores this row exactly as before.
+                $isBlocks => \App\Support\TemplateData::encode([BlockComposition::KEY => $blocks]),
+                default => null,
+            },
         ]);
         $email->save();
 
+        // Re-point the images from the project to the email now that there is one. Only
+        // moves rows still owned by a project and under our own prefix, so a stale or
+        // hostile id cannot steal someone else's file. Anything left behind is swept by
+        // files:prune-expired when its TTL runs out.
+        if ($isBlocks) {
+            $this->images->attachTo($email, $this->blocks->imageIds($blocks));
+        }
+
         $conversation->forceFill(['last_activity_at' => now()])->save();
 
-        // Cc/Bcc have no column on `emails` — the schema only has `to`. Rather than
-        // silently drop them, they are recorded on the thread as an internal note so the
-        // team can see who was copied, and the send path is unchanged. Giving the emails
-        // table cc/bcc columns is the real fix and belongs in its own change.
-        $extra = array_merge($data['cc'] ?? [], $data['bcc'] ?? []);
-        if ($extra) {
-            $conversation->notes()->create([
-                'user_id' => $user->id,
-                'content' => 'Cc/Bcc requested on the reply "'.$data['subject'].'": '
-                    .implode(', ', $extra)
-                    .' — not yet supported by the send path, add them manually if needed.',
-            ]);
-        }
-
-        if ($status === EmailStatus::PendingApproval
-            && config('inbox.ai.enabled')
-            && config('inbox.ai.check_outbound')) {
-            $email->forceFill(['ai_status' => \App\Enums\EmailAiStatus::Queued])->save();
-            CheckEmailWithAi::dispatch($email->id);
-        }
+        /*
+         * No CheckEmailWithAi dispatch here, deliberately.
+         *
+         * The automation workflow already runs an AI approval analysis on every draft it
+         * picks up, and it is the one whose verdict actually decides whether the email
+         * goes out. Queueing our own checker alongside it would bill a second model call
+         * per reply to produce an advisory flag that changes nothing. The redesign's
+         * checker stays for the screening of INBOUND mail and for the manual "check this
+         * again" action; `inbox.ai.check_outbound` is left in config but is now the
+         * belt-and-braces option rather than the mechanism. See CheckEmailWithAi.
+         */
 
         return response()->json([
             'data' => [
                 'email_id' => $email->id,
                 'status' => $status->value,
                 'conversation_id' => $conversation->id,
-                // True when the caller may finish the send themselves by posting to
-                // /api/emails/{id}/edit-and-approve. Checked against the SAME policy that
-                // endpoint authorises against, not the looser can_approve accessor —
-                // otherwise a lead thread reports can_send and then 403s, leaving a reply
-                // that looks sent and is not.
-                'can_send' => $status === EmailStatus::PendingApproval
-                    && $user->can('editAndApprove', $email->fresh()),
-                'awaiting_ai' => $email->ai_status?->isPending() ?? false,
+                'composition_type' => $data['composition_type'],
+                // Always true now: the row has been created, so the automation owns it.
+                // The client shows "submitted for review", never "sent" — nobody here
+                // knows yet whether the AI will pass it or hand it to a human.
+                'submitted' => true,
+                // Deliberately false. The old two-step (create at pending_approval, then
+                // POST edit-and-approve) is gone; see the class docblock. Kept in the
+                // payload so a stale bundle that still checks it takes the safe branch
+                // rather than firing a request that would now 400.
+                'can_send' => false,
             ],
         ], 201);
     }
@@ -182,7 +369,9 @@ class InboxReplyController extends Controller
     public function recipients(Request $request, Conversation $conversation): JsonResponse
     {
         $user = Auth::user();
-        $conversation->load(['emails', 'conversable']);
+        // emails.sender and project.clients: Correspondent walks both when the
+        // conversable is missing, and without eager loading that is a query per email.
+        $conversation->load(['emails.sender', 'conversable', 'project.clients']);
 
         abort_unless($this->canSeeThread($conversation, $user), 403);
 
@@ -197,56 +386,107 @@ class InboxReplyController extends Controller
             $addresses
         );
 
+        $to = $this->resolveRecipients($conversation, 'reply', [], $user);
+
         return response()->json([
-            'reply' => $show($this->resolveRecipients($conversation, 'reply')),
-            'replyAll' => $show($this->resolveRecipients($conversation, 'replyAll')),
+            // reply and replyAll are the same list now — the recipients are the project's
+            // clients either way. Both keys are still returned so an older bundle asking
+            // for replyAll gets the right addresses rather than an empty box.
+            'reply' => $show($to),
+            'replyAll' => $show($to),
             'forward' => [],
             'subject' => $this->replySubject($conversation),
             'last_inbound_email_id' => $lastInbound?->id,
             'masked' => $mask,
+
+            // Whether this person may type an address at all. The composer hides the
+            // forward option and the address field unless this is true; the server refuses
+            // regardless, so this only decides what is worth drawing.
+            'can_address_manually' => $this->access->canAddressManually($user),
+
+            // Why the box is empty, when it is — so the composer can say "this thread has
+            // no client attached" instead of showing a blank field and a 422 on send.
+            // Why the box is empty, in the language of whatever kind of thread this is.
+            // A lead thread with no address is a different problem from a project with no
+            // clients, and telling someone their lead thread "is not attached to a
+            // project" sends them looking in the wrong place.
+            'reason' => $to === [] ? match ($this->correspondent->kindFor($conversation)) {
+                'lead' => 'This lead has no email address on record, so there is nobody to reply to.',
+                'client' => $conversation->project_id
+                    ? 'No client with an email address is attached to this project.'
+                    : 'This thread has no client with an email address on record.',
+                default => 'We could not work out who sent this, so there is no address to reply to. Forward it instead, or attach the sender to a project.',
+            } : null,
+
+            // Client or lead, so the composer can say the right thing.
+            'kind' => $this->correspondent->kindFor($conversation),
         ]);
     }
 
     /**
-     * Who a reply actually goes to.
+     * Who a reply actually goes to: the clients on the project. Nothing else.
      *
-     * For reply and replyAll this is derived from the conversation, and whatever the
-     * client posted is ignored. Two reasons, and both matter:
-     *  - The reply box may be showing masked addresses, so the posted value can be a
-     *    label rather than an address.
-     *  - Trusting a posted `to` on a thread-scoped reply would let anyone who can open a
-     *    thread redirect it to an address of their choosing. Forwarding is the deliberate
-     *    way to send a thread somewhere new, and it is manager-only.
+     * ## The rule
      *
-     * @param  array<string>  $requested  only consulted for `forward`
+     * Client mail travels one route — from our authorised mailbox, signed with our
+     * details, to the clients attached to the project. That is what the Gmail integration
+     * is FOR: a client can answer us without being able to reach an individual staff
+     * member directly, and only a handful of people have access to the mailbox itself. So
+     * the recipients are derived here, from the project, and whatever the client posted is
+     * discarded. There is no request shape that can redirect a client thread.
+     *
+     * ## Why the project, and not the conversation's conversable
+     *
+     * The old rule read `$conversation->conversable` and stopped. That is null on every
+     * thread `EmailReceiveController::handleUnknownEmail` creates — it keys those on
+     * subject alone with no conversable and no project — so pressing Reply on one of them
+     * produced an empty To box and a 422 on send. Reading the project's client list
+     * instead fixes that for every thread that has a project, however the conversation was
+     * created, and picks up clients added to the project after the thread started.
+     *
+     * The conversable still goes FIRST when it is a client, because that is the person who
+     * actually wrote in, and it is kept even if they are no longer on the project — losing
+     * the one person you are answering would be a worse failure than emailing one extra.
+     *
+     * ## Multiple clients
+     *
+     * All of them go in `to`. The send loop transmits one message per address, so each
+     * client receives their own copy and does not see the others — which is more private
+     * than a Cc, not less. A real Cc (one message, a Cc header, everyone visible to
+     * everyone) needs a Cc column on `emails` and a change to the send loop, and is
+     * deliberately left for later.
+     *
+     * @param  array<string>  $requested  only consulted for `forward`, and only with permission
      * @return array<string>
      */
-    private function resolveRecipients(Conversation $conversation, string $mode, array $requested = []): array
-    {
+    private function resolveRecipients(
+        Conversation $conversation,
+        string $mode,
+        array $requested = [],
+        mixed $user = null
+    ): array {
         if ($mode === 'forward') {
+            // Gated by the caller too; re-checked here so no future path can reach this
+            // method and get an arbitrary address honoured.
+            if (! $user || ! $this->access->canAddressManually($user)) {
+                return [];
+            }
+
             return array_values(array_unique(array_filter(
-                $requested,
+                array_map('trim', $requested),
                 fn ($a) => filter_var($a, FILTER_VALIDATE_EMAIL)
             )));
         }
 
-        // getRawOriginal, because Client hides `email` for users without edit_clients and
-        // we need the real address to actually deliver the reply.
-        $conversable = $conversation->conversable;
-        $primary = $conversable
-            ? ($conversable->getRawOriginal('email') ?? $conversable->email ?? null)
-            : null;
-
-        if ($mode === 'reply') {
-            return array_values(array_filter([$primary]));
-        }
-
-        $everyone = $conversation->emails
-            ->flatMap(fn (Email $e) => is_array($e->to) ? $e->to : array_filter([$e->to]))
-            ->filter(fn ($a) => filter_var($a, FILTER_VALIDATE_EMAIL))
-            ->all();
-
-        return array_values(array_unique(array_filter(array_merge([$primary], $everyone))));
+        // `reply` and `replyAll` resolve identically now. Under a client-only rule there is
+        // nobody for "all" to add, so the distinction stopped meaning anything; the mode is
+        // still accepted so older bundles keep working.
+        //
+        // Correspondent owns the chain — conversable, then project clients, then the From
+        // header of the newest inbound message, then whoever we last wrote to. That third
+        // step is what makes Reply work on a lead thread and on the project-less threads
+        // handleUnknownEmail creates, both of which used to produce an empty box.
+        return $this->correspondent->addressesFor($conversation);
     }
 
     /** "a****n@example.com" — enough to recognise, not enough to harvest. */

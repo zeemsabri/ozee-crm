@@ -27,9 +27,9 @@ import {
 } from '@heroicons/vue/24/outline';
 import Notification from "@/src/Components/Notification.vue";
 
-// Link across to the redesigned React inbox at /inbox/beta. Null when
-// config('inbox.beta') is off, so the link and its destination disappear together
-// and this can never point at a 404. Nothing else on this page reads it.
+// Link across to the redesigned React inbox at /inbox/beta. The route sets it from
+// Route::has('inbox.beta'), so it is null whenever that route is not registered and the
+// link and its destination disappear together. Nothing else on this page reads it.
 defineProps({
     betaUrl: { type: String, default: null },
 });

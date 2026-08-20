@@ -59,6 +59,10 @@ class GmailService
      *                                  send response returns its own API id, NOT the header
      *                                  it generated, so a value we set is the only value we
      *                                  can reliably record for later replies to thread onto.
+     * @param  array<string,array{filename:string,mime_type:string,bytes:string}>  $inlineImages
+     *                                  keyed by Content-ID. When present the message is
+     *                                  built as multipart/related and the HTML may
+     *                                  reference each part as `cid:<key>`.
      * @return array{id:string,threadId:?string,messageId:?string}
      */
     public function sendMessage(
@@ -66,7 +70,8 @@ class GmailService
         string $subject,
         string $body,
         array $headers = [],
-        ?string $messageId = null
+        ?string $messageId = null,
+        array $inlineImages = []
     ): array {
         // Construct the raw email message in RFC 2822 format.
         $rawMessage = "To: $to\r\n";
@@ -86,9 +91,11 @@ class GmailService
         }
 
         $rawMessage .= "MIME-Version: 1.0\r\n";
-        $rawMessage .= "Content-type: text/html; charset=utf-8\r\n";
-        $rawMessage .= "Content-Transfer-Encoding: base64\r\n";
-        $rawMessage .= "\r\n".chunk_split(base64_encode($body));
+        $rawMessage .= $inlineImages
+            ? $this->relatedBody($body, $inlineImages)
+            : "Content-type: text/html; charset=utf-8\r\n"
+                ."Content-Transfer-Encoding: base64\r\n"
+                ."\r\n".chunk_split(base64_encode($body));
 
         $message = new Message;
         $message->setRaw(strtr(base64_encode($rawMessage), ['+' => '-', '/' => '_']));
@@ -104,6 +111,50 @@ class GmailService
         } catch (Exception $e) {
             throw new Exception('Failed to send email: '.$e->getMessage());
         }
+    }
+
+    /**
+     * A `multipart/related` body: the HTML, then one part per inline image.
+     *
+     * `related` rather than `mixed` is the distinction that matters — it tells the client
+     * these parts are *referenced by* the HTML rather than being attachments to list at
+     * the bottom, so a CID image renders in place and does not also show up as a paperclip.
+     *
+     * Embedding rather than hot-linking is deliberate: the image then lives in the
+     * recipient's mailbox permanently, renders offline, and is not suppressed by the
+     * remote-image blocking that Outlook and Apple Mail apply by default. It is also what
+     * makes it safe for our own stored copy to expire (see config('inbox.blocks')).
+     *
+     * @param  array<string,array{filename:string,mime_type:string,bytes:string}>  $images
+     */
+    private function relatedBody(string $html, array $images): string
+    {
+        // Must not appear in any part's content. Random, so it cannot collide with body text.
+        $boundary = 'ozee_'.bin2hex(random_bytes(12));
+
+        $out = "Content-Type: multipart/related; boundary=\"{$boundary}\"\r\n\r\n";
+
+        $out .= "--{$boundary}\r\n";
+        $out .= "Content-Type: text/html; charset=utf-8\r\n";
+        $out .= "Content-Transfer-Encoding: base64\r\n\r\n";
+        $out .= chunk_split(base64_encode($html));
+
+        foreach ($images as $cid => $image) {
+            $safeCid = $this->sanitiseHeader((string) $cid);
+            $filename = $this->sanitiseHeader($image['filename'] ?? 'image');
+            $mime = $this->sanitiseHeader($image['mime_type'] ?? 'application/octet-stream');
+
+            $out .= "--{$boundary}\r\n";
+            $out .= "Content-Type: {$mime}\r\n";
+            $out .= "Content-Transfer-Encoding: base64\r\n";
+            // Angle brackets are required here and must NOT appear in the `cid:` URL that
+            // references it — <foo> in the header, cid:foo in the HTML.
+            $out .= "Content-ID: <{$safeCid}>\r\n";
+            $out .= "Content-Disposition: inline; filename=\"{$filename}\"\r\n\r\n";
+            $out .= chunk_split(base64_encode($image['bytes']));
+        }
+
+        return $out."--{$boundary}--\r\n";
     }
 
     /**

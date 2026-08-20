@@ -231,6 +231,18 @@ trait HandlesTemplatedEmails
      *
      * @throws Exception
      */
+    /**
+     * Read `template_data` whichever way it is stored.
+     *
+     * Delegates to App\Support\TemplateData so the trait, the plain readers in
+     * EmailController and the AI trait all share one implementation — a trait cannot be
+     * called statically from a class that does not compose it.
+     */
+    public static function decodeTemplateData($value): array
+    {
+        return \App\Support\TemplateData::decode($value);
+    }
+
     public function renderEmailContent(Email $email, bool $isFinalSend = false)
     {
         if ($email->template_id) {
@@ -251,7 +263,7 @@ trait HandlesTemplatedEmails
             }
 
             $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
-            $templateData = json_decode($email->template_data, true) ?? [];
+            $templateData = self::decodeTemplateData($email->template_data);
 
             $subject = $this->populateAllPlaceholders(
                 $template->subject,

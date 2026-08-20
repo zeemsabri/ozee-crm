@@ -54,15 +54,71 @@ trait HandlesEmailCreation
 
         $greeting = $validated['custom_greeting_name'] ?? ($validated['greeting_name'] ?? 'Hi there');
 
+        /*
+         * Block-built body, from the redesigned inbox's "Project update" composer.
+         *
+         * Additive and fully guarded: `blocks` is a key the classic composer has never
+         * sent and never will, so when it is absent every line below is skipped and this
+         * method behaves exactly as it did. When it is present the typed `body` is
+         * ignored — there isn't one; the content IS the blocks.
+         *
+         * sanitise() is scoped to the project this email is being sent on, so an image
+         * block naming a file id from somewhere else is dropped rather than embedded.
+         * MODE_SEND means the HTML carries `cid:` references: a few tokens each for the AI
+         * to read, and the actual bytes are attached as MIME parts at send time. See
+         * App\Services\Inbox\BlockComposition.
+         */
+        $composition = app(\App\Services\Inbox\BlockComposition::class);
+        $blocks = is_array($validated['blocks'] ?? null)
+            ? $composition->sanitise($validated['blocks'], [$project->id])
+            : [];
+
+        if (($validated['composition_type'] ?? null) === 'blocks' && $blocks === []) {
+            throw ValidationException::withMessages([
+                'blocks' => 'There is nothing in this update yet — add a block before sending it.',
+            ]);
+        }
+
+        if ($blocks !== []) {
+            /*
+             * The greeting becomes the first block, rather than a string prefixed onto the
+             * rendered HTML.
+             *
+             * It has to be inside the blocks because the send path re-renders from them —
+             * see BlockComposition::renderForSend and why it does not trust the stored
+             * body. A greeting glued on outside would survive being stored and then vanish
+             * on the way out, so the client would receive an update that opens mid-
+             * sentence. Inside the blocks it is rendered by the same code every time.
+             */
+            array_unshift($blocks, ['type' => 'text', 'text' => rtrim($greeting, ',').',']);
+
+            $body = app(\App\Services\Inbox\BlockRenderer::class)
+                ->render($blocks, \App\Services\Inbox\BlockRenderer::MODE_SEND);
+        } else {
+            $body = $greeting.'<br/>'.$validated['body'];
+        }
+
         $email = Email::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $user->id,
             'to' => $emails,
             'subject' => $validated['subject'],
-            'body' => $greeting.'<br/>'.$validated['body'],
+            'body' => $body,
+            // template_data carries the block JSON so the send path can rebuild the CID
+            // map. template_id stays null, so every reader that keys off template_id
+            // treats this as the custom email it is.
+            'template_data' => $blocks !== []
+                ? \App\Support\TemplateData::encode([\App\Services\Inbox\BlockComposition::KEY => $blocks])
+                : null,
             'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
         ]);
+
+        // Re-point the images from the project to the email now that one exists.
+        if ($blocks !== []) {
+            app(\App\Services\Inbox\EmailImageStore::class)
+                ->attachTo($email, $composition->imageIds($blocks));
+        }
 
         $conversation->update(['last_activity_at' => now()]);
 
@@ -75,7 +131,13 @@ trait HandlesEmailCreation
     protected function handleTemplatedEmail(Authenticatable $user, array $validated): Email
     {
         $project = Project::with('clients')->findOrFail($validated['project_id']);
-        if (! $user->projects->contains($project->id)) {
+        if (! $user->isSuperAdmin() &&
+            ! $user->hasPermission('view_all_projects') &&
+            ! $user->hasPermission('view_all_emails') &&
+            ! $user->projects->contains($project->id) &&
+            $project->admin?->id !== $user->id &&
+            $project->manager?->id !== $user->id
+        ) {
             abort(403, 'Unauthorized: You are not assigned to this project.');
         }
 

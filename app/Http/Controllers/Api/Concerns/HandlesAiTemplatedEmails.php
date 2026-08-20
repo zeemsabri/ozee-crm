@@ -19,7 +19,7 @@ trait HandlesAiTemplatedEmails
     public function renderAiEmailContent(Email $email, bool $isFinalSend = false): array
     {
         // The entire AI response is stored in template_data for logging/future use.
-        $fullAiResponse = json_decode($email->template_data, true) ?? [];
+        $fullAiResponse = \App\Support\TemplateData::decode($email->template_data);
 
         // The structured content for the body is stored in the 'body' column.
         $structuredBody = json_decode($email->body, true) ?? [];

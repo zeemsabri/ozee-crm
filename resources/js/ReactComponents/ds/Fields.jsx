@@ -6,8 +6,9 @@
  * so fields read the same as every other redesigned page.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Icon } from './Icon';
+import { Popover, useAnchoredPopover } from './Popover';
 
 const H = { small: 32, medium: 40, large: 48 };
 
@@ -240,18 +241,25 @@ export function Dropdown({
     searchable = false,
     style,
 }) {
-    const [open, setOpen] = useState(false);
     const [hover, setHover] = useState(false);
     const [query, setQuery] = useState('');
-    const ref = useRef(null);
 
-    useEffect(() => {
-        const close = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        return () => document.removeEventListener('mousedown', close);
-    }, []);
+    /*
+     * The option list is portalled to document.body rather than positioned inside this
+     * field. An absolutely-positioned menu is clipped by any `overflow: hidden|auto`
+     * ancestor, and this app has several exactly where dropdowns live — Modal's scrolling
+     * body, Modal's dialog, the reply composer. A template picker low in a dialog was
+     * cut off at the container edge with no way to reach the rest of the list.
+     *
+     * useAnchoredPopover also owns outside-click and Escape, because the panel is no
+     * longer inside `anchorRef` and a naive `ref.contains(e.target)` check would treat
+     * clicking an option as a click outside.
+     */
+    const { open, setOpen, anchorRef, panelRef, position } = useAnchoredPopover({
+        preferredHeight: 260,
+        matchWidth: true,
+        onClose: () => setQuery(''),
+    });
 
     const selected = multi
         ? options.filter((o) => (value || []).includes(o.value))
@@ -276,7 +284,7 @@ export function Dropdown({
     };
 
     return (
-        <div ref={ref} style={{ position: 'relative', width: '100%', ...style }}>
+        <div ref={anchorRef} style={{ position: 'relative', width: '100%', ...style }}>
             {label ? (
                 <label
                     style={{
@@ -386,93 +394,92 @@ export function Dropdown({
                 />
             </div>
             {open ? (
-                <DialogContentContainer
-                    style={{
-                        position: 'absolute',
-                        zIndex: 40,
-                        insetInlineStart: 0,
-                        insetInlineEnd: 0,
-                        marginTop: 4,
-                        maxHeight: 260,
-                        overflow: 'auto',
-                    }}
-                >
-                    {searchable ? (
-                        <input
-                            autoFocus
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search"
-                            style={{
-                                width: '100%',
-                                height: 32,
-                                marginBottom: 4,
-                                border: '1px solid var(--ui-border-color)',
-                                borderRadius: 'var(--border-radius-small)',
-                                padding: '0 var(--space-8)',
-                                font: 'var(--font-text2-normal)',
-                                background: 'var(--secondary-background-color)',
-                                color: 'var(--primary-text-color)',
-                                outline: 'none',
-                            }}
-                        />
-                    ) : null}
-                    {shown.map((o) => {
-                        const isSel = multi ? (value || []).includes(o.value) : o.value === value;
-                        return (
-                            <div
-                                key={o.value}
-                                onClick={() => pick(o)}
+                <Popover position={position} panelRef={panelRef}>
+                    <DialogContentContainer
+                        style={{
+                            // Height comes from the measured space below (or above, when
+                            // flipped), so the list always ends on screen.
+                            maxHeight: position?.maxHeight ?? 260,
+                            overflow: 'auto',
+                        }}
+                    >
+                        {searchable ? (
+                            <input
+                                autoFocus
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Search"
                                 style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--space-8)',
-                                    minHeight: 32,
-                                    padding: '0 var(--space-8)',
+                                    width: '100%',
+                                    height: 32,
+                                    marginBottom: 4,
+                                    border: '1px solid var(--ui-border-color)',
                                     borderRadius: 'var(--border-radius-small)',
+                                    padding: '0 var(--space-8)',
                                     font: 'var(--font-text2-normal)',
+                                    background: 'var(--secondary-background-color)',
                                     color: 'var(--primary-text-color)',
-                                    background: isSel ? 'var(--primary-selected-color)' : 'transparent',
-                                    cursor: 'pointer',
+                                    outline: 'none',
                                 }}
-                                onMouseEnter={(e) => {
-                                    if (!isSel)
-                                        e.currentTarget.style.background =
-                                            'var(--primary-background-hover-color)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!isSel) e.currentTarget.style.background = 'transparent';
+                            />
+                        ) : null}
+                        {shown.map((o) => {
+                            const isSel = multi ? (value || []).includes(o.value) : o.value === value;
+                            return (
+                                <div
+                                    key={o.value}
+                                    onClick={() => pick(o)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--space-8)',
+                                        minHeight: 32,
+                                        padding: '0 var(--space-8)',
+                                        borderRadius: 'var(--border-radius-small)',
+                                        font: 'var(--font-text2-normal)',
+                                        color: 'var(--primary-text-color)',
+                                        background: isSel ? 'var(--primary-selected-color)' : 'transparent',
+                                        cursor: 'pointer',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!isSel)
+                                            e.currentTarget.style.background =
+                                                'var(--primary-background-hover-color)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isSel) e.currentTarget.style.background = 'transparent';
+                                    }}
+                                >
+                                    {o.icon ? <Icon name={o.icon} size={16} color="var(--icon-color)" /> : null}
+                                    {o.color ? (
+                                        <span
+                                            style={{
+                                                width: 10,
+                                                height: 10,
+                                                flex: 'none',
+                                                borderRadius: '50%',
+                                                background: o.color,
+                                            }}
+                                        />
+                                    ) : null}
+                                    <span style={{ flex: 1 }}>{o.label}</span>
+                                    {isSel ? <Icon name="Check" size={14} color="var(--primary-color)" /> : null}
+                                </div>
+                            );
+                        })}
+                        {shown.length === 0 ? (
+                            <div
+                                style={{
+                                    padding: 'var(--space-8)',
+                                    font: 'var(--font-text2-normal)',
+                                    color: 'var(--secondary-text-color)',
                                 }}
                             >
-                                {o.icon ? <Icon name={o.icon} size={16} color="var(--icon-color)" /> : null}
-                                {o.color ? (
-                                    <span
-                                        style={{
-                                            width: 10,
-                                            height: 10,
-                                            flex: 'none',
-                                            borderRadius: '50%',
-                                            background: o.color,
-                                        }}
-                                    />
-                                ) : null}
-                                <span style={{ flex: 1 }}>{o.label}</span>
-                                {isSel ? <Icon name="Check" size={14} color="var(--primary-color)" /> : null}
+                                No results
                             </div>
-                        );
-                    })}
-                    {shown.length === 0 ? (
-                        <div
-                            style={{
-                                padding: 'var(--space-8)',
-                                font: 'var(--font-text2-normal)',
-                                color: 'var(--secondary-text-color)',
-                            }}
-                        >
-                            No results
-                        </div>
-                    ) : null}
-                </DialogContentContainer>
+                        ) : null}
+                    </DialogContentContainer>
+                </Popover>
             ) : null}
         </div>
     );

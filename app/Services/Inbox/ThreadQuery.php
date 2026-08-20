@@ -46,7 +46,10 @@ class ThreadQuery
         'all',
     ];
 
-    public function __construct(private readonly InboxAccess $access) {}
+    public function __construct(
+        private readonly InboxAccess $access,
+        private readonly ReplyClock $clock,
+    ) {}
 
     /**
      * @param  array{view?:string,project_id?:mixed,category_ids?:array,search?:string,
@@ -153,7 +156,11 @@ class ThreadQuery
                     ->selectRaw('MAX(COALESCE(emails.sent_at, emails.created_at))')
                     ->tap($visible)
                     ->where('emails.type', EmailType::Sent->value)
-                    ->where('emails.status', EmailStatus::Sent->value),
+                    // Not a bare `= 'sent'`. `approved` is a legacy terminal status that
+                    // real rows still carry, and treating it as undelivered reclassified
+                    // every one of those threads as unanswered. ReplyClock owns the list
+                    // so this and ThreadPresenter cannot drift. See config/inbox.php.
+                    ->whereIn('emails.status', $this->clock->deliveredStatuses()),
                 'last_outbound_at'
             )
             ->selectSub(
@@ -206,7 +213,14 @@ class ThreadQuery
 
             case 'new':
                 $hasEmail($query, fn ($q) => $q
-                    ->where('emails.status', '!=', EmailStatus::Draft->value)
+                    // Exclude UNSENT OUTBOUND drafts only. `status = draft` on an inbound
+                    // row means "arrived, not yet processed" — that is how
+                    // EmailReceiveController stores ordinary client mail — so excluding
+                    // every draft would have hidden all unread client email from the one
+                    // view whose entire job is showing it.
+                    ->whereNot(fn ($d) => $d
+                        ->where('emails.type', EmailType::Sent->value)
+                        ->where('emails.status', EmailStatus::Draft->value))
                     ->whereNotExists(function ($r) use ($user) {
                         $r->select(DB::raw(1))
                             ->from('user_interactions')
@@ -236,13 +250,20 @@ class ThreadQuery
                 break;
 
             case 'sent':
+                // Same delivered-status list the reply clock uses, so a legacy `approved`
+                // email cannot count as answering a thread while being absent from the
+                // view that claims to list everything we have sent.
                 $hasEmail($query, fn ($q) => $q
                     ->where('emails.type', EmailType::Sent->value)
-                    ->where('emails.status', EmailStatus::Sent->value));
+                    ->whereIn('emails.status', $this->clock->deliveredStatuses()));
                 break;
 
             case 'drafts':
-                $hasEmail($query, fn ($q) => $q->where('emails.status', EmailStatus::Draft->value));
+                // Outbound only, for the same reason as above — without the type check
+                // this listed every thread containing a client email.
+                $hasEmail($query, fn ($q) => $q
+                    ->where('emails.type', EmailType::Sent->value)
+                    ->where('emails.status', EmailStatus::Draft->value));
                 break;
 
             case 'all':
@@ -259,24 +280,30 @@ class ThreadQuery
      */
     private function whereNeedsReply(Builder $query): void
     {
-        $inbound = $this->latestSql(EmailType::Received->value, false);
-        $outbound = $this->latestSql(EmailType::Sent->value, true);
+        $inbound = $this->clock->inboundSql();
+        $outbound = $this->clock->outboundSql();
 
         $query->whereRaw("($inbound) IS NOT NULL")
             ->whereRaw("(($outbound) IS NULL OR ($outbound) < ($inbound))");
-    }
 
-    /** SQL for "newest inbound/outbound timestamp in this conversation". */
-    private function latestSql(string $type, bool $sentOnly): string
-    {
-        $statusClause = $sentOnly
-            ? " AND e.status = '".EmailStatus::Sent->value."'"
-            : '';
-
-        return "SELECT MAX(COALESCE(e.sent_at, e.created_at)) FROM emails e"
-            ." WHERE e.conversation_id = conversations.id"
-            ." AND e.deleted_at IS NULL"
-            ." AND e.type = '{$type}'{$statusClause}";
+        /*
+         * The cutover.
+         *
+         * Everything above is a correct reading of the emails table; this line is about
+         * what the table does not contain. Replies sent from the Gmail web UI were never
+         * ingested — the poller has only ever asked for `is:inbox` — so an old thread
+         * reads as unanswered whether or not anyone answered it. Rather than present a
+         * guess as a fact, the clock declines to judge anything whose newest client
+         * message predates the cutover.
+         *
+         * Filter only: nothing is written, nothing is marked handled, and clearing
+         * INBOX_REPLY_CLOCK_SINCE brings every one of those threads straight back. They
+         * remain fully visible in Received and All mail throughout — this narrows one
+         * view, it does not hide mail. See ReplyClock and config/inbox.php.
+         */
+        if ($since = $this->clock->since()) {
+            $query->whereRaw("($inbound) >= ?", [$since->toDateTimeString()]);
+        }
     }
 
     private function applyFilters(Builder $query, User $user, array $filters): void
@@ -318,7 +345,21 @@ class ThreadQuery
                             ->whereNull('emails.deleted_at')
                             ->where(function ($p) use ($term) {
                                 $p->where('emails.subject', 'like', $term)
-                                    ->orWhere('emails.body', 'like', $term);
+                                    ->orWhere('emails.body', 'like', $term)
+                                    // A templated email has body = null — its text lives in
+                                    // the template. Without this, searching for words the
+                                    // client can plainly read in the thread finds nothing.
+                                    // Matches the template's own text, not the filled-in
+                                    // placeholder values, which are only in template_data.
+                                    ->orWhereExists(function ($tpl) use ($term) {
+                                        $tpl->select(DB::raw(1))
+                                            ->from('email_templates')
+                                            ->whereColumn('email_templates.id', 'emails.template_id')
+                                            ->where(function ($t) use ($term) {
+                                                $t->where('email_templates.subject', 'like', $term)
+                                                    ->orWhere('email_templates.body_html', 'like', $term);
+                                            });
+                                    });
                             });
                     });
             });
@@ -365,7 +406,7 @@ class ThreadQuery
                 ->subMinutes((int) config('inbox.sla_minutes', 60))
                 ->toDateTimeString();
 
-            $inbound = $this->latestSql(EmailType::Received->value, false);
+            $inbound = $this->clock->inboundSql();
             $query->whereRaw("($inbound) <= ?", [$cutoff]);
         }
     }
@@ -377,8 +418,8 @@ class ThreadQuery
      */
     private function applySort(Builder $query, string $sort): void
     {
-        $inbound = $this->latestSql(EmailType::Received->value, false);
-        $outbound = $this->latestSql(EmailType::Sent->value, true);
+        $inbound = $this->clock->inboundSql();
+        $outbound = $this->clock->outboundSql();
 
         if ($sort === 'breach') {
             $query
