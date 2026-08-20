@@ -13,7 +13,7 @@
  * ReactComponents/inbox. Data comes from /api/inbox/* — see useInbox.js.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 
 import { AppShell } from '../../ReactComponents/app/AppShell';
@@ -46,6 +46,17 @@ const shortWhen = (iso) => longTime(iso);
  */
 const POLL_MS = 60_000;
 
+/**
+ * The faster tick, used only while an AI draft is being written.
+ *
+ * A minute is right for the approval workflow — queued job, scheduler on a minute tick,
+ * nobody staring at it. It is wrong for "Draft for me", where somebody pressed a button
+ * and is watching the box: a model call finishes in a few seconds and then they wait up to
+ * another 55 for the page to notice. This window is short and self-closing, so the extra
+ * requests are bounded by how long the draft takes.
+ */
+const DRAFT_POLL_MS = 5_000;
+
 const BACK_LABELS = {
     needsReply: 'Back to needs reply',
     new: 'Back to new mail',
@@ -70,6 +81,7 @@ export default function InboxIndex({ settings, initialThreadId }) {
     const [selectedIds, setSelectedIds] = useState([]);
     const [recipients, setRecipients] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [summarising, setSummarising] = useState(false);
     const [replyOpen, setReplyOpen] = useState(false);
     // Set when the reply box is editing an EXISTING pending draft rather than composing a
     // new reply. Carries the email id so the send goes to that email, not a new one.
@@ -162,6 +174,10 @@ export default function InboxIndex({ settings, initialThreadId }) {
      */
     const inFlight = !!thread.thread?.in_flight;
     const openThreadId = thread.thread?.id;
+    // Someone is watching this one, so check more often. Falls back to the slow tick the
+    // moment the draft lands or fails.
+    const drafting = !!thread.thread?.ai?.drafting || !!thread.thread?.ai?.summarising;
+    const pollMs = drafting ? DRAFT_POLL_MS : POLL_MS;
 
     useEffect(() => {
         if (!inFlight || !openThreadId) return undefined;
@@ -175,7 +191,7 @@ export default function InboxIndex({ settings, initialThreadId }) {
 
         const start = () => {
             if (timer) return;
-            timer = setInterval(() => thread.reload({ silent: true }), POLL_MS);
+            timer = setInterval(() => thread.reload({ silent: true }), pollMs);
         };
 
         const onVisibility = () => {
@@ -197,7 +213,61 @@ export default function InboxIndex({ settings, initialThreadId }) {
             document.removeEventListener('visibilitychange', onVisibility);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [inFlight, openThreadId]);
+    }, [inFlight, openThreadId, pollMs]);
+
+    /*
+     * Tell the person when a requested draft arrives, or when it is not coming.
+     *
+     * The poll updates the thread silently, which is right — the content must not blank
+     * out under someone reading it — but silent means a draft can appear in a collapsed
+     * composer with nothing to mark the moment. This watches the transition rather than
+     * the value, so it fires once per request and not on every reload.
+     */
+    const wasDrafting = useRef(false);
+
+    useEffect(() => {
+        const ai = thread.thread?.ai;
+
+        if (!ai) return;
+
+        if (ai.drafting) {
+            wasDrafting.current = true;
+            return;
+        }
+
+        if (!wasDrafting.current) return;
+        wasDrafting.current = false;
+
+        if (ai.draft) {
+            notify('Draft ready — edit it before it goes out');
+            setReplyOpen(true);
+        } else if (ai.draft_failed) {
+            warn('The AI could not write a draft for this one. Write it yourself, or try again.');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [thread.thread?.ai?.drafting, thread.thread?.ai?.draft, thread.thread?.ai?.draft_failed]);
+
+    /**
+     * Ask for a thread summary.
+     *
+     * Opening a thread no longer does this on its own. The reload immediately after picks
+     * up the queued state so the panel switches to "Reading the thread…" now, and from
+     * there `ai.summarising` keeps the fast poll running until it lands.
+     */
+    const summariseThread = async () => {
+        const id = thread.thread?.id;
+        if (!id) return;
+
+        setSummarising(true);
+        try {
+            const result = await actions.summarise(id);
+
+            if (result?.message) notify(result.message);
+            if (result) await thread.reload({ silent: true });
+        } finally {
+            setSummarising(false);
+        }
+    };
 
     /** The header's refresh button. Same reload, but visible. */
     const refreshThread = useCallback(async () => {
@@ -529,6 +599,20 @@ export default function InboxIndex({ settings, initialThreadId }) {
         }
     };
 
+    /**
+     * Ask the AI for a draft reply to the newest inbound message.
+     *
+     * This used to fire the request and then `setTimeout(reload, 4000)` — one reload, once.
+     * A queued job plus a model round trip almost never finishes inside four seconds, so
+     * the reload landed early, found nothing, and never tried again. The draft was usually
+     * written moments later and simply never displayed, which is indistinguishable from
+     * the feature not working.
+     *
+     * Now the request marks the email `queued` server-side, and this reload picks that up.
+     * From there `ai.drafting` keeps `in_flight` true, the poll runs on the fast tick, and
+     * the transition watcher above announces the result — however long it takes, and
+     * whether it succeeds or fails.
+     */
     const regenerateDraft = async () => {
         const inbound = [...(thread.thread?.timeline || [])]
             .reverse()
@@ -537,9 +621,12 @@ export default function InboxIndex({ settings, initialThreadId }) {
         if (!inbound) return;
 
         const done = await actions.requestDraft(inbound.id);
-        // The draft is written by a queued job, so give it a moment then re-read rather
-        // than holding the request open for a model round trip.
-        if (done) setTimeout(() => thread.reload(), 4000);
+
+        if (done) {
+            // Immediately, so the composer switches to "writing…" now rather than on the
+            // next tick — the button having visibly done something is most of the point.
+            await thread.reload({ silent: true });
+        }
     };
 
     const onMore = async (value) => {
@@ -661,6 +748,8 @@ export default function InboxIndex({ settings, initialThreadId }) {
                             onBack={closeThread}
                             onRefresh={refreshThread}
                             refreshing={refreshing}
+                            onSummarise={summariseThread}
+                            summarising={summarising}
                             onOpenReply={() => {
                                 setReplyTarget(null); // falls back to the newest inbound message
                                 setReplyOpen(true);

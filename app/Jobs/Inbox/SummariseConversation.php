@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Inbox;
 
+use App\Enums\EmailDraftStatus;
 use App\Models\Conversation;
 use App\Services\Inbox\InboxAiService;
 use Illuminate\Bus\Queueable;
@@ -38,14 +39,23 @@ class SummariseConversation implements ShouldQueue
 
     public function handle(InboxAiService $ai): void
     {
-        if (! $ai->enabled() || ! config('inbox.ai.summarise')) {
-            return;
-        }
-
         $conversation = Conversation::with(['emails' => fn ($q) => $q->orderBy('created_at')])
             ->find($this->conversationId);
 
-        if (! $conversation || $conversation->emails->isEmpty()) {
+        if (! $conversation) {
+            return;
+        }
+
+        /*
+         * Every exit lands on a terminal state.
+         *
+         * These guards used to return quietly, leaving the conversation at whatever the
+         * request set. The page then showed "summarising…" forever for a job that had
+         * already decided to do nothing — no summary, and no way to tell none was coming.
+         */
+        if (! $ai->enabled() || ! config('inbox.ai.summarise') || $conversation->emails->isEmpty()) {
+            $this->finish($conversation, EmailDraftStatus::Failed);
+
             return;
         }
 
@@ -54,12 +64,21 @@ class SummariseConversation implements ShouldQueue
         // Nothing new since the last summary — skip the call rather than pay for an
         // identical answer. Several people opening the same thread is the common case.
         if ($conversation->hasCurrentAiSummary($count)) {
+            $this->finish($conversation, EmailDraftStatus::Ready);
+
             return;
         }
+
+        $conversation->forceFill(['ai_summary_status' => EmailDraftStatus::Writing])->save();
 
         $result = $ai->summariseThread($conversation);
 
         if ($result === null) {
+            // The previous summary, if any, is left alone — it still describes the thread
+            // accurately as of its own message count, and replacing it with nothing would
+            // lose a good answer because a later call failed.
+            $this->finish($conversation, EmailDraftStatus::Failed);
+
             return;
         }
 
@@ -68,6 +87,25 @@ class SummariseConversation implements ShouldQueue
             'ai_summary_at' => now(),
             'ai_summary_email_count' => $count,
             'ai_task_suggestion' => $result['task'],
+            'ai_summary_status' => EmailDraftStatus::Ready,
         ])->save();
+    }
+
+    /**
+     * The job died for good. Laravel calls this after the final retry, so it is the last
+     * chance to stop the page promising a summary that is not coming.
+     */
+    public function failed(?\Throwable $e = null): void
+    {
+        $conversation = Conversation::find($this->conversationId);
+
+        if ($conversation) {
+            $this->finish($conversation, EmailDraftStatus::Failed);
+        }
+    }
+
+    private function finish(Conversation $conversation, EmailDraftStatus $status): void
+    {
+        $conversation->forceFill(['ai_summary_status' => $status])->save();
     }
 }

@@ -364,6 +364,18 @@ export function inboxActions({ onError, onToast }) {
                 'Could not resubmit it to the checker.'
             ),
 
+        /**
+         * Ask for a thread summary. Explicit, because opening a thread no longer does it
+         * — that spent tokens on every thread anyone glanced at, and once the thread
+         * started polling itself, repeatedly on the same one.
+         */
+        summarise: (conversationId) =>
+            run(
+                () => axios.post(`/api/inbox/threads/${conversationId}/summarise`).then((r) => r.data),
+                null,
+                'Could not start the summary.'
+            ),
+
         requestDraft: (emailId) =>
             run(
                 () => axios.post(`/api/inbox/emails/${emailId}/draft`),

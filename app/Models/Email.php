@@ -126,6 +126,8 @@ class Email extends Model
         'ai_summary',
         'ai_draft',
         'ai_draft_at',
+        'ai_draft_status',
+        'ai_draft_requested_at',
         // Threading (2026_08_19_100300). rfc_message_id is the RFC 5322 Message-ID
         // header — NOT message_id above, which is Gmail's API id.
         'rfc_message_id',
@@ -146,6 +148,8 @@ class Email extends Model
         'ai_status' => \App\Enums\EmailAiStatus::class,
         'ai_checked_at' => 'datetime',
         'ai_draft_at' => 'datetime',
+        'ai_draft_status' => \App\Enums\EmailDraftStatus::class,
+        'ai_draft_requested_at' => 'datetime',
     ];
 
     public function conversation()

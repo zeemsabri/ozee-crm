@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\EmailAiStatus;
+use App\Enums\EmailDraftStatus;
 use App\Enums\EmailStatus;
 use App\Enums\EmailType;
 use App\Http\Controllers\Controller;
@@ -127,19 +128,19 @@ class InboxThreadController extends Controller
         // writes, so read state is shared between the two inboxes.
         $this->markRead($conversation, $user);
 
-        // Only generate for a viewer who would actually be shown the result. The job
-        // already excludes private and screened messages from the prompt, so a summary is
-        // safe for everyone; this just avoids paying for one nobody will see.
-        $canSeeWholeThread = ! $conversation->emails->contains(
-            fn (Email $e) => ($e->is_private && ! $this->access->canSeePrivate($user))
-                || ($this->statusOf($e) === EmailStatus::PendingApprovalReceived->value
-                    && ! $user->hasPermission(Email::APPROVE_RECEIVED_EMAILS_PERMISSION))
-        );
-
-        if (config('inbox.ai.enabled') && config('inbox.ai.summarise') && $canSeeWholeThread
-            && ! $conversation->hasCurrentAiSummary($conversation->emails->count())) {
-            SummariseConversation::dispatch($conversation->id);
-        }
+        /*
+         * No summary is generated here any more.
+         *
+         * This used to dispatch SummariseConversation whenever the thread had no current
+         * summary, so merely OPENING a thread called a model. That was already
+         * questionable; once the thread started polling itself every minute it became
+         * indefensible, because each poll re-enters this method and the summary is not
+         * current until the job lands — so a thread left open on a second monitor billed a
+         * summary a minute, forever, for something nobody asked for.
+         *
+         * Summarising is now an explicit action: POST inbox/threads/{id}/summarise. See
+         * summarise() below.
+         */
 
         // Same relation list as above, including emails.conversation.project — refresh()
         // drops nested eager loads, so omitting it here would silently reintroduce a lazy
@@ -411,17 +412,121 @@ class InboxThreadController extends Controller
             abort(403);
         }
 
-        if (! config('inbox.ai.enabled') || ! config('inbox.ai.draft_replies')) {
-            return response()->json(['success' => false, 'message' => 'AI drafts are switched off.'], 422);
+        /*
+         * Name the switch that is off, rather than saying "AI drafts are switched off".
+         *
+         * These are two separate env vars and the failure looks identical from the UI, so
+         * a single message sent people to check the wrong one.
+         */
+        if (! config('inbox.ai.enabled')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'AI is switched off for the inbox (INBOX_AI_ENABLED).',
+            ], 422);
         }
 
-        // Clearing it first is what makes "Try another" produce a different draft rather
-        // than short-circuiting on the one already stored.
-        $email->forceFill(['ai_draft' => null])->save();
+        if (! config('inbox.ai.draft_replies')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Draft suggestions are switched off (INBOX_AI_DRAFT_REPLIES).',
+            ], 422);
+        }
+
+        /*
+         * Mark it queued BEFORE dispatching.
+         *
+         * This is the state the thread polls on and the composer shows progress from —
+         * without it the request vanished into the queue and the only way to discover the
+         * result was to close and reopen the thread. Writing it first, not after, means a
+         * worker that picks the job up instantly still finds a consistent row.
+         *
+         * ai_draft is cleared at the same time: that is what makes "Try another" produce a
+         * different draft rather than the job short-circuiting on the one already stored.
+         */
+        $email->forceFill([
+            'ai_draft' => null,
+            'ai_draft_status' => EmailDraftStatus::Queued,
+            'ai_draft_requested_at' => now(),
+        ])->save();
 
         DraftReplyForEmail::dispatch($email->id, $user->name);
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            // The client flips straight into its "writing…" state on this rather than
+            // waiting for the next poll to tell it something it already knows.
+            'drafting' => true,
+        ]);
+    }
+
+    /**
+     * POST inbox/threads/{conversation}/summarise — summarise this thread, on request.
+     *
+     * Explicitly a person pressing a button. The previous behaviour generated one on every
+     * thread open, which spent tokens on threads nobody needed summarised and, combined
+     * with the one-minute poll, spent them repeatedly on the same thread.
+     *
+     * Re-summarising an already-current thread is refused rather than silently re-run: the
+     * answer would be identical and the cost would not.
+     */
+    public function summarise(Conversation $conversation): JsonResponse
+    {
+        $user = Auth::user();
+        $this->authorizeThread($conversation->load('emails'), $user);
+
+        if (! config('inbox.ai.enabled')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'AI is switched off for the inbox (INBOX_AI).',
+            ], 422);
+        }
+
+        if (! config('inbox.ai.summarise')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Thread summaries are switched off (INBOX_AI_SUMMARISE).',
+            ], 422);
+        }
+
+        /*
+         * Refuse when the caller cannot see the whole thread.
+         *
+         * The job excludes private and screened messages from the prompt, so the summary
+         * itself is safe to show anyone — but a summary built from a subset, requested by
+         * someone who cannot see the rest, is a summary of a thread they are not reading.
+         * Let someone who can see all of it ask for one.
+         */
+        $partial = $conversation->emails->contains(
+            fn (Email $e) => ($e->is_private && ! $this->access->canSeePrivate($user))
+                || ($this->statusOf($e) === EmailStatus::PendingApprovalReceived->value
+                    && ! $user->hasPermission(Email::APPROVE_RECEIVED_EMAILS_PERMISSION))
+        );
+
+        if ($partial) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Part of this thread is withheld from you, so it cannot be summarised here.',
+            ], 422);
+        }
+
+        if ($conversation->hasCurrentAiSummary($conversation->emails->count())) {
+            return response()->json([
+                'success' => true,
+                'summarising' => false,
+                'message' => 'This summary is already up to date.',
+            ]);
+        }
+
+        // Queued before dispatch, for the same reason as the draft request: this is what
+        // the page polls on and shows progress from.
+        $conversation->forceFill([
+            'ai_summary_status' => EmailDraftStatus::Queued,
+            'ai_summary_requested_at' => now(),
+        ])->save();
+
+        SummariseConversation::dispatch($conversation->id);
+
+        return response()->json(['success' => true, 'summarising' => true]);
     }
 
     // ---------------------------------------------------------------- internals

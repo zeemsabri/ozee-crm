@@ -21,12 +21,16 @@ class Conversation extends Model
         'ai_summary',
         'ai_summary_at',
         'ai_summary_email_count',
+        'ai_summary_status',
+        'ai_summary_requested_at',
         'ai_task_suggestion',
     ];
 
     protected $casts = [
         'last_activity_at' => 'datetime',
         'ai_summary_at' => 'datetime',
+        'ai_summary_status' => \App\Enums\EmailDraftStatus::class,
+        'ai_summary_requested_at' => 'datetime',
         'ai_task_suggestion' => 'array',
     ];
 

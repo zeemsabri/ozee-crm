@@ -281,6 +281,27 @@ class ThreadPresenter
                     ? $conversation->ai_summary
                     : null,
                 'summary_at' => $this->iso($conversation->ai_summary_at),
+
+                /*
+                 * Summarising is a request now, not a side effect of opening the thread,
+                 * so it needs the same three states the draft has: working, failed, and
+                 * "asked for but never came back".
+                 */
+                'summarising' => $conversation->ai_summary_status?->isWorking() ?? false,
+                'summary_failed' => $conversation->ai_summary_status === \App\Enums\EmailDraftStatus::Failed,
+                'summary_stalled' => ($conversation->ai_summary_status?->isWorking() ?? false)
+                    && $conversation->ai_summary_requested_at
+                    && $conversation->ai_summary_requested_at->lt(
+                        Carbon::now()->subMinutes((int) config('inbox.ai.stall_minutes', 5))
+                    ),
+
+                // Whether asking would do anything. False when a current summary already
+                // exists, so the button can say so instead of firing a request the server
+                // will decline.
+                'can_summarise' => (bool) config('inbox.ai.enabled')
+                    && (bool) config('inbox.ai.summarise')
+                    && ! $blocked
+                    && ! $conversation->hasCurrentAiSummary($emails->count()),
                 'generated_from' => $conversation->ai_summary_email_count,
                 'task_suggestion' => $conversation->ai_task_suggestion,
                 'checking' => $withAi ? [
@@ -290,6 +311,34 @@ class ThreadPresenter
                     'stalled' => $this->aiStalled($withAi),
                 ] : null,
                 'draft' => $latestInbound && ! $blocked ? $latestInbound->ai_draft : null,
+
+                /*
+                 * Where a "Draft for me" request has got to.
+                 *
+                 * Sent so the composer can show progress and, more importantly, so the
+                 * thread knows to keep polling. Before this the request disappeared into
+                 * the queue: the job wrote `ai_draft` and nothing told the page, so the
+                 * suggestion only surfaced if someone happened to reopen the thread.
+                 */
+                'drafting' => $latestInbound?->ai_draft_status?->isWorking() ?? false,
+
+                // Distinguishes "we tried and got nothing" from "nobody has asked" — the
+                // first deserves an offer to try again, the second deserves silence.
+                'draft_failed' => $latestInbound?->ai_draft_status === \App\Enums\EmailDraftStatus::Failed,
+
+                /*
+                 * A request that never reached a terminal state.
+                 *
+                 * A queue outage between dispatch and the first attempt leaves the row at
+                 * `queued` with nothing coming, and `failed()` never fires because the job
+                 * was never picked up. Age is the only signal available, so past this
+                 * point the composer stops promising a draft and offers the button again.
+                 */
+                'draft_stalled' => ($latestInbound?->ai_draft_status?->isWorking() ?? false)
+                    && $latestInbound->ai_draft_requested_at
+                    && $latestInbound->ai_draft_requested_at->lt(
+                        Carbon::now()->subMinutes((int) config('inbox.ai.stall_minutes', 5))
+                    ),
             ],
 
             'can' => [
@@ -314,7 +363,11 @@ class ThreadPresenter
              * human, or with our own checker. Once everything is sent, rejected or
              * received, it goes false and the polling stops.
              */
-            'in_flight' => $emails->contains(fn (Email $e) => $this->isInFlight($e)),
+            'in_flight' => $emails->contains(fn (Email $e) => $this->isInFlight($e))
+                // A draft or a summary being written is also something the page is waiting
+                // on, even though no email is moving through the workflow.
+                || ($latestInbound?->ai_draft_status?->isWorking() ?? false)
+                || ($conversation->ai_summary_status?->isWorking() ?? false),
 
             // Why the reply box is locked, in the words the design uses. Null when it is
             // not locked — the client does not compose this sentence itself.

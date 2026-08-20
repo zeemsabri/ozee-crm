@@ -53,6 +53,12 @@ export function ReplyBox({
     recipients,
     aiDraft,
     aiEnabled,
+    // Where a "Draft for me" request has got to, straight from the server. The composer
+    // does not track this itself: the job outlives any local state, and a page refresh
+    // mid-request has to pick the truth back up.
+    aiDrafting,
+    aiDraftFailed,
+    aiDraftStalled,
     busy,
     editing,
     replyTo,
@@ -143,6 +149,21 @@ export function ReplyBox({
     // that same newest message, or when there is no explicit target at all.
     const draftMatchesTarget =
         !replyTo?.emailId || replyTo.emailId === recipients?.last_inbound_email_id;
+
+    /**
+     * Why "Draft for me" is unavailable right now, or null when it is available.
+     *
+     * Each of these used to hide the control outright. Naming the reason costs one line of
+     * text and saves someone concluding the feature is broken — which is exactly what
+     * happened.
+     */
+    const draftBlockedReason = (() => {
+        if (isTemplateKind) return 'Drafts are for free-form replies, not templates';
+        if (isBlocksKind) return 'Drafts are for free-form replies, not block updates';
+        if (!recipients?.last_inbound_email_id) return 'Nothing from the client to answer yet';
+        if (!draftMatchesTarget) return 'Drafts answer the client\u2019s latest message';
+        return null;
+    })();
 
     // Load the AI draft once, and only into an untouched box — refetching must never
     // overwrite something the person has started typing. Never when editing an existing
@@ -486,7 +507,19 @@ export function ReplyBox({
                     />
                 ) : null}
 
-                {aiEnabled && !isEditing && !isTemplateKind && !isBlocksKind && draftMatchesTarget ? (
+                {/*
+                  Shown whenever AI is on and this is a new reply.
+
+                  It used to also require !isTemplateKind, !isBlocksKind and
+                  draftMatchesTarget — three conditions that each removed the whole strip
+                  without saying anything, so "Draft for me" simply vanished depending on
+                  which composer tab you were on and which message you pressed Reply from.
+                  Reported, reasonably, as the feature disappearing.
+
+                  The conditions were right; hiding the control was not. Each one now
+                  disables the button and says why.
+                */}
+                {aiEnabled && !isEditing ? (
                     <div
                         style={{
                             display: 'flex',
@@ -498,13 +531,50 @@ export function ReplyBox({
                             flexWrap: 'wrap',
                         }}
                     >
-                        <Icon name="Wand" size={14} color="var(--primary-color)" />
+                        {/*
+                          Three states, because the request is asynchronous and pretending
+                          otherwise is what made this look broken. The button used to stay
+                          "Draft for me" the entire time the job ran, so pressing it
+                          appeared to do nothing at all.
+                        */}
+                        <Icon
+                            name={aiDrafting ? 'Update' : 'Wand'}
+                            size={14}
+                            color="var(--primary-color)"
+                            style={aiDrafting ? { animation: 'ozeeSpin 900ms linear infinite' } : undefined}
+                        />
                         <span style={{ font: '600 12px/16px Figtree, sans-serif', color: 'var(--primary-color)' }}>
-                            {usedAi ? 'AI draft — edit before it goes out' : 'Your own words'}
+                            {draftBlockedReason
+                                ? draftBlockedReason
+                                : aiDrafting
+                                  ? 'Writing a draft…'
+                                  : aiDraftStalled
+                                    ? 'That draft never came back'
+                                    : aiDraftFailed
+                                      ? 'The AI could not write one'
+                                      : usedAi
+                                        ? 'AI draft — edit before it goes out'
+                                        : 'Your own words'}
                         </span>
                         <span style={{ marginInlineStart: 'auto', display: 'flex', gap: 4 }}>
-                            <Button kind="tertiary" size="small" onClick={onRegenerateDraft}>
-                                {usedAi ? 'Try another' : 'Draft for me'}
+                            <Button
+                                kind="tertiary"
+                                size="small"
+                                // Disabled while genuinely working, or when a draft would
+                                // not apply here. A stalled request re-enables it, because
+                                // the whole point of noticing a stall is to let someone
+                                // try again.
+                                disabled={(aiDrafting && !aiDraftStalled) || !!draftBlockedReason}
+                                title={draftBlockedReason || undefined}
+                                onClick={onRegenerateDraft}
+                            >
+                                {aiDrafting && !aiDraftStalled
+                                    ? 'Working…'
+                                    : aiDraftFailed || aiDraftStalled
+                                      ? 'Try again'
+                                      : usedAi
+                                        ? 'Try another'
+                                        : 'Draft for me'}
                             </Button>
                             {usedAi ? (
                                 <Button

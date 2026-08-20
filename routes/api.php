@@ -527,6 +527,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('emails/{email}/resend-to-ai', [InboxThreadController::class, 'resendToAi']);
         Route::post('emails/{email}/draft', [InboxThreadController::class, 'requestDraft']);
 
+        // Summarising is an explicit request, not something opening a thread triggers.
+        // See InboxThreadController::summarise for why that changed.
+        Route::post('threads/{conversation}/summarise', [InboxThreadController::class, 'summarise']);
+
         // Block builder. Uploads are parented to the project until the email exists and
         // carry an expires_at — the copy that matters is the CID part inside the sent
         // message, so ours is only a working copy. See EmailImageStore.

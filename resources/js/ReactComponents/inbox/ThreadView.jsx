@@ -181,8 +181,21 @@ function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onResendAi
     );
 }
 
-function AiSummary({ ai, messageCount, onCreateTask }) {
-    if (!ai?.enabled || !ai.summary) return null;
+/**
+ * The thread summary, and the button that asks for one.
+ *
+ * Summarising used to happen on its own the moment a thread was opened. That is now an
+ * explicit request — see InboxThreadController::summarise for why — so this panel has to
+ * render before a summary exists, which it previously did not: `if (!ai.summary) return
+ * null` meant there was nowhere to put the button.
+ */
+function AiSummary({ ai, messageCount, onCreateTask, onSummarise, summarising }) {
+    if (!ai?.enabled) return null;
+
+    const working = summarising || ai.summarising;
+
+    // Nothing to show and nothing to offer.
+    if (!ai.summary && !working && !ai.can_summarise && !ai.summary_failed) return null;
 
     return (
         <div
@@ -209,18 +222,72 @@ function AiSummary({ ai, messageCount, onCreateTask }) {
                 <span
                     style={{
                         marginInlineStart: 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
                         font: '400 12px/16px Figtree, sans-serif',
                         color: 'var(--secondary-text-color)',
                     }}
                 >
-                    Generated from {ai.generated_from || messageCount} message
-                    {(ai.generated_from || messageCount) === 1 ? '' : 's'}
+                    {ai.summary ? (
+                        <span>
+                            Generated from {ai.generated_from || messageCount} message
+                            {(ai.generated_from || messageCount) === 1 ? '' : 's'}
+                        </span>
+                    ) : null}
+                    {/*
+                      "Summarise" for the first one, "Update" when the thread has moved on
+                      since the existing summary was written. Hidden entirely when the
+                      summary is current, because asking again would spend tokens to
+                      produce the same paragraph — the endpoint refuses it too.
+                    */}
+                    {ai.can_summarise || ai.summary_stalled ? (
+                        <Button
+                            kind="tertiary"
+                            size="small"
+                            disabled={working && !ai.summary_stalled}
+                            onClick={onSummarise}
+                        >
+                            {working && !ai.summary_stalled
+                                ? 'Summarising…'
+                                : ai.summary_failed || ai.summary_stalled
+                                  ? 'Try again'
+                                  : ai.summary
+                                    ? 'Update summary'
+                                    : 'Summarise thread'}
+                        </Button>
+                    ) : null}
                 </span>
             </div>
 
-            <p style={{ margin: '8px 0 0', font: '400 14px/20px Figtree, sans-serif', maxWidth: '80ch', textWrap: 'pretty' }}>
-                {ai.summary}
-            </p>
+            {ai.summary ? (
+                <p
+                    style={{
+                        margin: '8px 0 0',
+                        font: '400 14px/20px Figtree, sans-serif',
+                        maxWidth: '80ch',
+                        textWrap: 'pretty',
+                    }}
+                >
+                    {ai.summary}
+                </p>
+            ) : (
+                <p
+                    style={{
+                        margin: '8px 0 0',
+                        font: '400 14px/20px Figtree, sans-serif',
+                        color: 'var(--secondary-text-color)',
+                    }}
+                >
+                    {working
+                        ? 'Reading the thread…'
+                        : ai.summary_stalled
+                          ? 'That summary never came back. Try again.'
+                          : ai.summary_failed
+                            ? 'The AI could not summarise this thread.'
+                            : 'No summary yet — summaries are only generated when you ask, so nothing is spent on threads nobody needs one for.'}
+                </p>
+            )}
 
             {ai.task_suggestion?.title ? (
                 <div
@@ -717,6 +784,9 @@ export function ThreadView({
     // Manual refresh, plus whether one is in flight so the icon can spin.
     onRefresh,
     refreshing,
+    // Summarising is an explicit request now — see InboxThreadController::summarise.
+    onSummarise,
+    summarising,
     onOpenReply,
     onReplyToMessage,
     onCloseReply,
@@ -873,7 +943,13 @@ export function ThreadView({
                         onResendAi={onResendAi}
                     />
 
-                    <AiSummary ai={thread.ai} messageCount={thread.message_count} onCreateTask={onCreateTask} />
+                    <AiSummary
+                        ai={thread.ai}
+                        messageCount={thread.message_count}
+                        onCreateTask={onCreateTask}
+                        onSummarise={onSummarise}
+                        summarising={summarising}
+                    />
 
                     {messages.map((item) =>
                         item.kind === 'note' ? (
@@ -963,6 +1039,9 @@ export function ThreadView({
                             compose={compose}
                             aiDraft={thread.ai?.draft}
                             aiEnabled={thread.ai?.enabled}
+                            aiDrafting={thread.ai?.drafting}
+                            aiDraftFailed={thread.ai?.draft_failed}
+                            aiDraftStalled={thread.ai?.draft_stalled}
                             busy={replyBusy}
                             onSend={onSendReply}
                             onDiscard={onCloseReply}
