@@ -35,23 +35,23 @@ if (config('inbox.sent_ingest.enabled')) {
  * GCS objects one at a time.
  */
 Schedule::command('files:prune-expired')->dailyAt('03:15')->withoutOverlapping();
+
+Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
+Schedule::job(new \App\Jobs\XeroPaymentSyncJob)->daily();
+
+Schedule::command('xero:refresh-payment-services')->everySixHours();
+Schedule::command('xero:sync-invoices')->hourly();
+
+Schedule::command('queue:work --stop-when-empty')->everyMinute();
+
+Schedule::command('queue:work --queue=emails --stop-when-empty')->everyMinute();
+
+Schedule::command('points:calculate-streak')->weeklyOn(7);
 //
-//Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
-//Schedule::job(new \App\Jobs\XeroPaymentSyncJob)->daily();
+// Schedule::command('leads:process-new')->everyFourHours();
 //
-//Schedule::command('xero:refresh-payment-services')->everySixHours();
-//Schedule::command('xero:sync-invoices')->hourly();
+// Schedule::command('leads:process-follow-ups')->daily();
 //
-//Schedule::command('queue:work --stop-when-empty')->everyMinute();
-//
-//Schedule::command('queue:work --queue=emails --stop-when-empty')->everyMinute();
-//
-//Schedule::command('points:calculate-streak')->weeklyOn(7);
-////
-//// Schedule::command('leads:process-new')->everyFourHours();
-////
-//// Schedule::command('leads:process-follow-ups')->daily();
-////
-//Schedule::command('auth:cleanup-client-data')->hourly();
-//
-//Schedule::command('app:run-scheduler')->everyMinute();
+Schedule::command('auth:cleanup-client-data')->hourly();
+
+Schedule::command('app:run-scheduler')->everyMinute();
