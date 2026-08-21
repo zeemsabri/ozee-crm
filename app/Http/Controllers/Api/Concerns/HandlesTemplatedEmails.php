@@ -243,7 +243,18 @@ trait HandlesTemplatedEmails
         return \App\Support\TemplateData::decode($value);
     }
 
-    public function renderEmailContent(Email $email, bool $isFinalSend = false)
+    /**
+     * @param  bool  $nl2br  Convert newlines to <br>. Default true, which is what every
+     *                       send path has always done and must keep doing — a custom email
+     *                       is composed in a textarea and its line breaks only survive
+     *                       because of this. Display code passes false and decides for
+     *                       itself: running nl2br over a TEMPLATE's own HTML inserts a
+     *                       <br> after every newline in its source, which is where the
+     *                       stray double-spacing in templated emails comes from. Fixing
+     *                       that here would change what clients receive, so it is opt-in
+     *                       and the inbox opts in on its own. See EmailHtml.
+     */
+    public function renderEmailContent(Email $email, bool $isFinalSend = false, bool $nl2br = true)
     {
         if ($email->template_id) {
             $recipientClient = $email->conversation->client ?? $email->conversation->conversable;
@@ -287,12 +298,9 @@ trait HandlesTemplatedEmails
             $body = $email->body;
         }
 
-        // Only convert newlines to <br> for plain-text bodies.
-        //        $decodedJson = json_decode($body);
-        //        $looksLikeHtml = is_string($body) && str_contains($body, '<');
-        //        if ($decodedJson === null && !$looksLikeHtml) {
-        $body = nl2br($body);
-        //        }
+        if ($nl2br) {
+            $body = nl2br($body);
+        }
 
         return ['subject' => $subject, 'body' => $body];
     }

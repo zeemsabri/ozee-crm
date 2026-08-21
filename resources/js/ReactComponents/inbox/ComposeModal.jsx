@@ -30,7 +30,7 @@ import { TemplateFields } from './TemplateFields';
 import { useBlocks } from './useBlocks';
 import { emptyValueFor, inputPlaceholders, useTemplatePreview } from './useTemplates';
 
-export function ComposeModal({ open, onClose, onCreated, compose, projects, onError, classicUrl }) {
+export function ComposeModal({ open, onClose, onCreated, compose, projects, onError, classicUrl, style, dense }) {
     const canTemplate = compose?.canTemplate ?? false;
     const canCustom = compose?.canCustom ?? false;
 
@@ -217,6 +217,8 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
             title="New email"
             description="Templates keep the wording consistent, custom is for one-offs, and Project update builds a structured summary."
             size="large"
+            style={style}
+            dense={dense}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {KIND_OPTIONS.length === 0 ? (
@@ -256,7 +258,7 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                     </span>
                 ) : null}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                     {/*
                       `compose_projects` from /api/inbox/filters, NOT the full project
                       list: storeTemplatedEmail refuses a project the user is not a member

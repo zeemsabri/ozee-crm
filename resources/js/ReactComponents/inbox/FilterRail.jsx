@@ -59,7 +59,7 @@ export function FilterRail({
                 gap: 20,
             }}
         >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
                 {VIEW_DEFS.map((view) => {
                     const active = filters.view === view.key;
                     const count = counts[view.key] || 0;
@@ -123,7 +123,7 @@ export function FilterRail({
                 })}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
                 <SectionLabel>Project</SectionLabel>
                 <Dropdown
                     options={options.projects || []}
@@ -135,7 +135,7 @@ export function FilterRail({
             </div>
 
             {options.categories?.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
                     <SectionLabel>Categories</SectionLabel>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {options.categories.map((category) => {
@@ -171,6 +171,9 @@ export function FilterRail({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 10,
+                    // The rail scrolls AND is a flex column, so its sections would
+                    // otherwise compress instead of overflowing on a short window.
+                    flexShrink: 0,
                     paddingTop: 16,
                     borderTop: '1px solid var(--om-hairline)',
                 }}

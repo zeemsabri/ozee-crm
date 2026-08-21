@@ -31,4 +31,189 @@
 :root {
   --om-hairline: #e6e9ef;
   --om-hairline-soft: #eef0f5;
+
+  /* Internal-note yellow. Copied from the mobile mock's :root, which is the first
+     design file to name them; ThreadView had been carrying the same three values as
+     inline fallbacks, so a dark-mode note was a bright yellow card. */
+  --om-note-bg: #fff8db;
+  --om-note-border: #f0d78a;
+  --om-note-text: #6b5a12;
+}
+
+/* ---------------------------------------------------------------------------
+ * Email bodies.
+ *
+ * What lands in `.ozds-email-body` is one of four things, normalised server-side by
+ * App\Services\Inbox\EmailHtml: paragraphs built from a plain-text email, a rich-editor
+ * fragment, a rendered template, or our own block-builder output. It has already been
+ * sanitised — no <style>, no <script>, no event handlers — so the job here is purely
+ * typographic, plus containing the parts a sender controls.
+ *
+ * The rules are deliberately low-specificity single selectors so an email's own inline
+ * styles still win. A template that sets its brand colour on a heading should keep it;
+ * what it must not do is escape its column or go invisible in dark mode.
+ * ------------------------------------------------------------------------- */
+
+.ozds-email-body {
+  font: var(--font-text1-normal);
+  line-height: 1.55;
+  color: var(--primary-text-color);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+/* Blocks. Margins collapse to nothing at the ends so a body sits flush in its card. */
+.ozds-email-body p,
+.ozds-email-body ul,
+.ozds-email-body ol,
+.ozds-email-body pre,
+.ozds-email-body table,
+.ozds-email-body blockquote {
+  margin: 0 0 12px;
+}
+
+.ozds-email-body > :first-child {
+  margin-top: 0;
+}
+
+.ozds-email-body > :last-child {
+  margin-bottom: 0;
+}
+
+.ozds-email-body h1,
+.ozds-email-body h2,
+.ozds-email-body h3,
+.ozds-email-body h4,
+.ozds-email-body h5,
+.ozds-email-body h6 {
+  margin: 18px 0 8px;
+  font-family: Poppins, Figtree, sans-serif;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--primary-text-color);
+}
+
+.ozds-email-body h1 { font-size: 20px; }
+.ozds-email-body h2 { font-size: 18px; }
+.ozds-email-body h3 { font-size: 16px; }
+.ozds-email-body h4,
+.ozds-email-body h5,
+.ozds-email-body h6 { font-size: 14px; }
+
+.ozds-email-body ul,
+.ozds-email-body ol {
+  padding-inline-start: 22px;
+}
+
+.ozds-email-body li {
+  margin-bottom: 4px;
+}
+
+.ozds-email-body a {
+  color: var(--link-color, var(--primary-color));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ozds-email-body hr {
+  border: none;
+  border-top: 1px solid var(--layout-border-color);
+  margin: 16px 0;
+}
+
+/* A quote the sender left INSIDE the message — the folded reply chain is a sibling
+   element, not this. */
+.ozds-email-body blockquote {
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--layout-border-color);
+  color: var(--secondary-text-color);
+}
+
+.ozds-email-body code,
+.ozds-email-body pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.ozds-email-body code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--allgrey-background-color);
+}
+
+/* Sender-controlled boxes. This is the containment half.
+ *
+ * Mail templates are full of fixed-width tables and 900px hero images, and without these
+ * a single one pushed the whole thread pane sideways — on a phone it took the page with
+ * it. The table rule is `display: block` on purpose: a <table> cannot be told to scroll,
+ * so the element has to stop being a table to become a scroll container. It costs a
+ * little of the layout's fidelity and saves the rest of the page; "see it as the client
+ * does" renders the real thing in a frame when the exact layout is what matters. */
+.ozds-email-body img,
+.ozds-email-body video {
+  max-width: 100%;
+  height: auto;
+}
+
+.ozds-email-body table {
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.ozds-email-body td,
+.ozds-email-body th {
+  padding: 4px 8px;
+  vertical-align: top;
+}
+
+.ozds-email-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+/* The folded reply chain, once revealed. Set back visually so it reads as history
+   rather than as more of the message. */
+.ozds-email-quote {
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--layout-border-color);
+  color: var(--secondary-text-color);
+  font-size: 13px;
+}
+
+/* Dark mode.
+ *
+ * Email HTML hard-codes colours for a white page — `color: #333` is in every template
+ * ever written — and on a dark card that is near-black text on near-black background.
+ * The container's own colour cannot fix it, because the inline colour wins.
+ *
+ * So in dark mode only, and only for elements that actually carry a colour, the
+ * declaration is overridden. `!important` is the point rather than a shortcut: an inline
+ * style is being beaten deliberately, and this is the one place where doing so is
+ * correct. Links keep a distinct colour so they stay recognisable as links.
+ *
+ * Backgrounds are left alone: a template's coloured header band on a dark card looks
+ * intentional, whereas a forced-transparent one loses the design entirely — and an
+ * element that sets BOTH is skipped entirely, because a brand band with `color: #fff`
+ * on it has already chosen a pairing that works and forcing the text grey breaks it. */
+:root[data-theme='dark'] .ozds-email-body [style*='color']:not([style*='background']),
+:root[data-theme='dark'] .ozds-email-body font[color]:not([bgcolor]) {
+  color: var(--primary-text-color) !important;
+}
+
+:root[data-theme='dark'] .ozds-email-body a[style*='color'] {
+  color: var(--link-color) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] .ozds-email-body [style*='color']:not([style*='background']),
+  :root[data-theme='system'] .ozds-email-body font[color]:not([bgcolor]) {
+    color: var(--primary-text-color) !important;
+  }
+
+  :root[data-theme='system'] .ozds-email-body a[style*='color'] {
+    color: var(--link-color) !important;
+  }
 }

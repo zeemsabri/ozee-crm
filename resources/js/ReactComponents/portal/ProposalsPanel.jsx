@@ -148,6 +148,9 @@ export function ProposalsPanel({
                                         type="button"
                                         onClick={() => onProposePhase(m.id)}
                                         style={{
+                                            // A capped flex column shrinks its children
+                                            // instead of scrolling them.
+                                            flexShrink: 0,
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: 8,

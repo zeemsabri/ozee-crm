@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { Button, Chips, Dropdown, Modal, TextArea, TextField } from '../ds';
 import { categoryColour } from './format';
 
-export function RejectModal({ open, onClose, onConfirm, busy }) {
+export function RejectModal({ open, onClose, onConfirm, busy, style, dense }) {
     const [reason, setReason] = useState('');
 
     useEffect(() => {
@@ -26,6 +26,8 @@ export function RejectModal({ open, onClose, onConfirm, busy }) {
             title="Send this back to the author"
             description="They see your reason and can fix it without starting again."
             size="small"
+            style={style}
+            dense={dense}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <TextArea
@@ -77,7 +79,7 @@ function normalisePriority(value) {
  * Posts to the existing POST /api/emails/{id}/tasks/bulk that the legacy inbox uses, so
  * tasks made here are indistinguishable from tasks made there.
  */
-export function TaskModal({ open, onClose, onCreate, busy, suggestion, users = [] }) {
+export function TaskModal({ open, onClose, onCreate, busy, suggestion, users = [], style, dense }) {
     const [title, setTitle] = useState('');
     const [due, setDue] = useState('');
     const [priority, setPriority] = useState('Medium');
@@ -96,10 +98,10 @@ export function TaskModal({ open, onClose, onCreate, busy, suggestion, users = [
     }, [open, suggestion]);
 
     return (
-        <Modal open={open} onClose={onClose} title="Create task from this thread" size="medium">
+        <Modal open={open} onClose={onClose} title="Create task from this thread" size="medium" style={style} dense={dense}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <TextField label="Task title" value={title} onChange={(e) => setTitle(e.target.value)} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                     <TextField
                         label="Due date"
                         type="date"
@@ -155,7 +157,7 @@ export function TaskModal({ open, onClose, onCreate, busy, suggestion, users = [
     );
 }
 
-export function CategoriseModal({ open, onClose, onApply, busy, categories = [], count }) {
+export function CategoriseModal({ open, onClose, onApply, busy, categories = [], count, style, dense }) {
     const [selected, setSelected] = useState([]);
 
     useEffect(() => {
@@ -174,6 +176,8 @@ export function CategoriseModal({ open, onClose, onApply, busy, categories = [],
             title={`Categorise ${count} thread${count === 1 ? '' : 's'}`}
             description="Categories are added to every message in the selected threads. Nothing is removed."
             size="small"
+            style={style}
+            dense={dense}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

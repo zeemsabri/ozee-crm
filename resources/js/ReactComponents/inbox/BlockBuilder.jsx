@@ -437,22 +437,29 @@ function BlockRow({
                     />
                 ) : null}
 
+                {/* Flex rather than a grid so the desktop keeps its 1 : 1.4 ratio — a URL
+                    needs the room — while a phone wraps to two rows instead of squeezing
+                    both into 160px. */}
                 {block.type === 'link' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 8 }}>
-                        <TextField
-                            size="small"
-                            placeholder="Label, e.g. Review on staging"
-                            value={block.label || ''}
-                            disabled={disabled}
-                            onChange={(e) => blocks.patch(block.key, { label: e.target.value })}
-                        />
-                        <TextField
-                            size="small"
-                            placeholder="https://"
-                            value={block.url || ''}
-                            disabled={disabled}
-                            onChange={(e) => blocks.patch(block.key, { url: e.target.value })}
-                        />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+                            <TextField
+                                size="small"
+                                placeholder="Label, e.g. Review on staging"
+                                value={block.label || ''}
+                                disabled={disabled}
+                                onChange={(e) => blocks.patch(block.key, { label: e.target.value })}
+                            />
+                        </div>
+                        <div style={{ flex: '1.4 1 160px', minWidth: 0 }}>
+                            <TextField
+                                size="small"
+                                placeholder="https://"
+                                value={block.url || ''}
+                                disabled={disabled}
+                                onChange={(e) => blocks.patch(block.key, { url: e.target.value })}
+                            />
+                        </div>
                     </div>
                 ) : null}
 

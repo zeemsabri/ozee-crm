@@ -23,8 +23,9 @@ import {
     MenuButton,
     TextArea,
 } from '../ds';
+import { EmailBody } from './EmailBody';
 import { ReplyBox } from './ReplyBox';
-import { categoryColour, exactTime, fileSize, initials, longTime, replyStatus } from './format';
+import { categoryColour, exactTime, initials, longTime, replyStatus } from './format';
 
 const MORE_ITEMS = [
     { value: 'unread', label: 'Mark as unread', icon: 'Email' },
@@ -48,7 +49,7 @@ function Panel({ children, tone, style }) {
     );
 }
 
-function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onResendAi }) {
+export function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onResendAi }) {
     const approval = thread.approval;
     const checking = thread.ai?.checking;
 
@@ -189,7 +190,7 @@ function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onResendAi
  * render before a summary exists, which it previously did not: `if (!ai.summary) return
  * null` meant there was nowhere to put the button.
  */
-function AiSummary({ ai, messageCount, onCreateTask, onSummarise, summarising }) {
+export function AiSummary({ ai, messageCount, onCreateTask, onSummarise, summarising }) {
     if (!ai?.enabled) return null;
 
     const working = summarising || ai.summarising;
@@ -318,7 +319,7 @@ function AiSummary({ ai, messageCount, onCreateTask, onSummarise, summarising })
     );
 }
 
-function NoteCard({ note }) {
+export function NoteCard({ note }) {
     return (
         <div
             style={{
@@ -381,7 +382,7 @@ function Withheld({ kind }) {
     );
 }
 
-function MessageCard({
+export function MessageCard({
     message,
     open,
     onToggle,
@@ -392,6 +393,13 @@ function MessageCard({
     showSummary,
     onReply,
     onOpenNote,
+    // Opens the full branded document — what the client actually receives — in a
+    // sandboxed frame. Offered on outbound messages only; see EmailBody.
+    onOpenClientView,
+    // Phone layout. The card is the same card and every gate above it is the same gate —
+    // this only drops the avatar-width indent on the body, which on a 390px screen left
+    // the message itself about 300px wide, and shrinks the avatar to match the mock.
+    compact = false,
 }) {
     const inbound = message.direction === 'in';
 
@@ -399,17 +407,30 @@ function MessageCard({
         <Panel>
             <div
                 onClick={onToggle}
-                style={{ padding: '12px 14px', display: 'flex', gap: 12, cursor: 'pointer', alignItems: 'flex-start' }}
+                style={{
+                    padding: compact ? '11px 12px' : '12px 14px',
+                    display: 'flex',
+                    gap: compact ? 10 : 12,
+                    cursor: 'pointer',
+                    alignItems: 'flex-start',
+                }}
             >
                 <Avatar
                     text={initials(message.author)}
-                    size="medium"
+                    size={compact ? 'small' : 'medium'}
                     backgroundColor={inbound ? 'var(--primary-color)' : 'var(--color-explosive)'}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ font: '600 14px/20px Figtree, sans-serif' }}>{message.author}</span>
-                        <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
+                        <span
+                            style={{
+                                font: '400 12px/16px Figtree, sans-serif',
+                                color: 'var(--secondary-text-color)',
+                                minWidth: 0,
+                                overflowWrap: 'anywhere',
+                            }}
+                        >
                             {message.to}
                         </span>
                         <Label
@@ -485,7 +506,7 @@ function MessageCard({
             </div>
 
             {open ? (
-                <div style={{ padding: '0 14px 14px 58px' }}>
+                <div style={{ padding: compact ? '0 12px 12px' : '0 14px 14px 58px' }}>
                     {message.redacted ? (
                         <Withheld kind={message.redaction} />
                     ) : (
@@ -619,73 +640,23 @@ function MessageCard({
                                 </div>
                             ) : null}
 
-                            {/* The body is server-rendered email HTML. It is only ever
-                                present here for a viewer allowed to read it — withheld
-                                messages arrive with body_html null, above. */}
-                            {message.render_failed ? (
-                                <div
-                                    style={{
-                                        padding: 12,
-                                        border: '1px dashed var(--ui-border-color)',
-                                        borderRadius: 4,
-                                        background: 'var(--allgrey-background-color)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 10,
-                                        font: '400 13px/20px Figtree, sans-serif',
-                                        color: 'var(--secondary-text-color)',
-                                    }}
-                                >
-                                    <Icon name="Warning" size={16} color="currentColor" />
-                                    <span>
-                                        This template could not be rendered here — usually a missing client or
-                                        project. Open it on the classic inbox to read it.
-                                    </span>
-                                </div>
-                            ) : (
-                                <div
-                                    className="ozds-email-body"
-                                    style={{ font: '400 14px/22px Figtree, sans-serif', maxWidth: '78ch', overflowWrap: 'anywhere' }}
-                                    dangerouslySetInnerHTML={{ __html: message.body_html || '' }}
-                                />
-                            )}
+                            {/*
+                              Body, quoted chain and attachments.
 
-                            {message.files?.length ? (
-                                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    {message.files.map((file) => (
-                                        <div
-                                            key={file.id}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 8,
-                                                padding: '8px 10px',
-                                                border: '1px solid var(--layout-border-color)',
-                                                borderRadius: 4,
-                                                background: 'var(--allgrey-background-color)',
-                                            }}
-                                        >
-                                            <Icon name="File" size={16} color="var(--secondary-text-color)" />
-                                            <div>
-                                                <div style={{ font: '600 12px/16px Figtree, sans-serif' }}>{file.name}</div>
-                                                <div
-                                                    style={{
-                                                        font: '400 12px/16px Figtree, sans-serif',
-                                                        color: 'var(--secondary-text-color)',
-                                                    }}
-                                                >
-                                                    {fileSize(file.size)}
-                                                </div>
-                                            </div>
-                                            {file.url ? (
-                                                <a href={file.url} download aria-label={`Download ${file.name}`}>
-                                                    <Icon name="Download" size={16} />
-                                                </a>
-                                            ) : null}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : null}
+                              One component, because `emails.body` holds four different
+                              things — plain text from the ingest, plain text from the
+                              redesigned composer's textarea, rich-editor HTML from the
+                              legacy one, and our own block fragment — and this card used
+                              to inject all four as HTML. EmailHtml decides server-side
+                              which is which; EmailBody presents the result. Withheld
+                              messages never get here: they arrive with body_html null and
+                              are handled above.
+                            */}
+                            <EmailBody
+                                message={message}
+                                compact={compact}
+                                onOpenClientView={onOpenClientView}
+                            />
 
                             {/*
                               Per-message actions, as in the design. Replying from a
@@ -807,6 +778,8 @@ export function ThreadView({
     onMore,
     onTogglePrivacy,
     onCreateTask,
+    // Opens the full branded document for one outbound message.
+    onOpenClientView,
 }) {
     const [expanded, setExpanded] = useState({});
 
@@ -976,6 +949,7 @@ export function ThreadView({
                                 canForward={canAddressManually}
                                 onReply={onReplyToMessage}
                                 onOpenNote={onOpenNote}
+                                onOpenClientView={onOpenClientView}
                                 onToggle={() =>
                                     setExpanded((current) => ({ ...current, [item.id]: !isOpen(item) }))
                                 }

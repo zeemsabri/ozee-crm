@@ -6,6 +6,7 @@ use App\Enums\EmailAiStatus;
 use App\Enums\EmailDraftStatus;
 use App\Enums\EmailStatus;
 use App\Enums\EmailType;
+use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
 use App\Http\Controllers\Controller;
 use App\Jobs\Inbox\CheckEmailWithAi;
 use App\Jobs\Inbox\DraftReplyForEmail;
@@ -23,6 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 /**
@@ -38,6 +40,13 @@ use Illuminate\Validation\Rule;
  */
 class InboxThreadController extends Controller
 {
+    /*
+     * For preview() only, and only its rendering half — the trait's send-side helpers
+     * (magic links in particular) are never reached because every call here passes
+     * $isFinalSend = false.
+     */
+    use HandlesTemplatedEmails;
+
     public function __construct(
         private readonly ThreadQuery $threads,
         private readonly ThreadPresenter $presenter,
@@ -348,6 +357,78 @@ class InboxThreadController extends Controller
      * The design offers this when a check has been running longer than it should. Only
      * meaningful while the outbound checker is switched on.
      */
+    /**
+     * GET /api/inbox/emails/{email}/preview — the email exactly as the client receives it.
+     *
+     * The thread shows a cleaned-up FRAGMENT: quoted history folded away, plain text given
+     * paragraphs, sender markup sanitised. That is the right thing to read a conversation
+     * in, and the wrong thing to approve a draft from — what actually leaves the building
+     * is this fragment inside `emails/{template}.blade.php`, with the brand header, the
+     * signature block and the footer around it. Approving without ever seeing that means
+     * approving something you have not read.
+     *
+     * So this returns the full rendered document, from the same Blade view and the same
+     * render path the legacy /inbox uses (`renderFullEmailPreviewResponse`), and the client
+     * displays it in a sandboxed iframe rather than injecting it into the page.
+     *
+     * `$isFinalSend = false` throughout: rendering a preview must never mint and persist a
+     * magic link, which is exactly what the final-send path does.
+     *
+     * Authorisation is the thread's, not the email's. Being a manager on one project is
+     * not permission to read an email on another, and a message this viewer is redacted
+     * out of must not become readable by asking for its preview instead.
+     */
+    public function preview(Email $email): JsonResponse
+    {
+        $user = Auth::user();
+
+        $conversation = $email->conversation;
+        abort_unless(
+            $conversation && $this->canSeeThread($conversation, $user),
+            403,
+            'You cannot open that email.'
+        );
+
+        if ($email->is_private && ! $this->access->canSeePrivate($user)) {
+            abort(403, 'You cannot open that email.');
+        }
+
+        // The same screening rule ThreadPresenter applies before it will send a body.
+        // Without it, "view as the client sees it" is a way around the hold.
+        if ($this->statusOf($email) === EmailStatus::PendingApprovalReceived->value
+            && ! $user->hasPermission(Email::APPROVE_RECEIVED_EMAILS_PERMISSION)) {
+            abort(403, 'That message is held for screening.');
+        }
+
+        try {
+            $rendered = $this->renderEmailContent($email, false);
+            $data = $this->getData(
+                $rendered['subject'],
+                $rendered['body'],
+                $this->getSenderDetails($email),
+                $email,
+                false
+            );
+
+            return response()->json([
+                'subject' => $rendered['subject'],
+                'html' => $this->renderHtmlTemplate($data, $email->email_template ?: Email::TEMPLATE_DEFAULT),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('inbox: could not build the client preview.', [
+                'email_id' => $email->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            // 422, not 500: this is a knowable condition — a templated email whose client
+            // was deleted cannot be rendered, and the UI says so rather than showing a
+            // failure it cannot explain.
+            return response()->json([
+                'message' => 'This email cannot be previewed here — open it on the classic inbox.',
+            ], 422);
+        }
+    }
+
     public function resendToAi(Email $email): JsonResponse
     {
         $user = Auth::user();

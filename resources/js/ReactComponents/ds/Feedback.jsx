@@ -184,6 +184,11 @@ export function Modal({
     footer,
     size = 'medium',
     showCloseButton = true,
+    /**
+     * Narrow padding. A phone runs this dialog full-bleed, where the default 32px gutters
+     * take a sixth of the screen off a form that is already cramped.
+     */
+    dense = false,
     style,
 }) {
     const dialogRef = useRef(null);
@@ -247,7 +252,9 @@ export function Modal({
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: 'var(--space-8)',
-                        padding: 'var(--space-24) var(--space-32) var(--space-8)',
+                        padding: dense
+                            ? 'var(--space-16) var(--space-16) var(--space-8)'
+                            : 'var(--space-24) var(--space-32) var(--space-8)',
                     }}
                 >
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -300,7 +307,7 @@ export function Modal({
                 </div>
                 <div
                     style={{
-                        padding: 'var(--space-8) var(--space-32)',
+                        padding: dense ? 'var(--space-8) var(--space-16)' : 'var(--space-8) var(--space-32)',
                         overflow: 'auto',
                         flex: 1,
                         font: 'var(--font-text2-normal)',
@@ -315,7 +322,9 @@ export function Modal({
                             display: 'flex',
                             justifyContent: 'flex-end',
                             gap: 'var(--space-8)',
-                            padding: 'var(--space-16) var(--space-32) var(--space-24)',
+                            padding: dense
+                                ? 'var(--space-12) var(--space-16) var(--space-16)'
+                                : 'var(--space-16) var(--space-32) var(--space-24)',
                             borderTop: '1px solid var(--om-hairline)',
                         }}
                     >

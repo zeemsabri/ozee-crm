@@ -398,8 +398,24 @@ class ThreadPresenter
             'redaction' => $privateHidden ? 'private' : ($redacted ? 'screening' : null),
             // Rendered, not raw. A templated email stores body = null and keeps its text
             // in the template plus template_data — reading the column directly showed
-            // every templated email as blank.
+            // every templated email as blank. What comes back is display-ready: received
+            // mail is stored as PLAIN TEXT (EmailReceiveController strips every tag), so
+            // EmailHtml decides per body whether to escape-and-break it or sanitise it as
+            // markup. See EmailBodyRenderer.
             'body_html' => $redacted ? null : $this->bodies->body($email),
+
+            /*
+             * The quoted chain, folded off the end of the body.
+             *
+             * Inbound mail repeats the entire exchange under every reply, and this thread
+             * already lists those messages — so the history is sent separately and the UI
+             * puts it behind a disclosure. That is the "···" control the mobile design
+             * draws (`m.hasQuote` / `m.quoteOpen`) and nothing implemented.
+             *
+             * Sent, not dropped: "what exactly did they quote back at us" is occasionally
+             * the whole question, and the thread is the only place to answer it.
+             */
+            'quoted_html' => $redacted ? null : $this->bodies->quote($email),
             'is_templated' => $this->bodies->isTemplated($email),
             // Distinguishes "nothing to show" from "we could not build it" — the client
             // shows a link to the classic page for the latter rather than an empty card.
@@ -821,7 +837,17 @@ class ThreadPresenter
             return '';
         }
 
-        $text = trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        /*
+         * Block boundaries become spaces BEFORE the tags are stripped.
+         *
+         * The body used to be raw plain text with newlines, so collapsing whitespace was
+         * enough. It is now real paragraphs (EmailHtml builds them), and strip_tags on
+         * "<p>Thanks</p><p>Alan</p>" gives "ThanksAlan" — every preview in the list ran
+         * its last word into the next paragraph's first.
+         */
+        $spaced = preg_replace('#</(p|div|li|tr|h[1-6]|blockquote)>|<br\s*/?>#i', ' ', $html) ?? $html;
+
+        $text = trim(html_entity_decode(strip_tags($spaced), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
         return mb_strlen($text) > $chars ? mb_substr($text, 0, $chars).'…' : $text;

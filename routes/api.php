@@ -524,6 +524,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('threads/{conversation}/recipients', [InboxReplyController::class, 'recipients']);
         Route::post('threads/{conversation}/reply', [InboxReplyController::class, 'store']);
         Route::post('bulk', [InboxThreadController::class, 'bulk']);
+        // The email as the client receives it — the full branded document, shown in a
+        // sandboxed iframe. The timeline shows a cleaned fragment; this is the truth.
+        Route::get('emails/{email}/preview', [InboxThreadController::class, 'preview']);
         Route::post('emails/{email}/resend-to-ai', [InboxThreadController::class, 'resendToAi']);
         Route::post('emails/{email}/draft', [InboxThreadController::class, 'requestDraft']);
 
