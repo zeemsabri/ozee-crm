@@ -9,6 +9,7 @@
  */
 
 import { Avatar, Button, Checkbox, Chips, EmptyState, Icon, Label, Loader } from '../ds';
+import { EmailNumber } from './EmailNumber';
 import {
     categoryColour,
     initials,
@@ -221,6 +222,12 @@ function ThreadCard({ thread, checked, onCheck, onOpen, onReply, onRelease, onRe
                         }}
                     >
                         <Label text={thread.project?.short || 'Lead'} kind="line" color="dark" size="small" />
+
+                        {/*
+                          The newest message's number, not the thread's — a conversation
+                          has none. Muted so it reads as a reference, not a status.
+                        */}
+                        <EmailNumber number={thread.number} muted />
 
                         {(thread.categories || []).map((c) => (
                             <Chips

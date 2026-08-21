@@ -121,6 +121,10 @@ class ThreadPresenter
                 ?: ($latest?->subject ?: '(no subject)'),
             'preview' => $preview,
             'who' => $counterpart,
+            // Email::getEmailNumberAttribute — the "OZE123" people quote in tickets and
+            // paste into global search. A conversation has no number of its own, so the
+            // row shows the NEWEST message's; the thread view numbers each message.
+            'number' => $latest?->email_number,
             'direction' => $latest && $this->isInbound($latest) ? 'in' : 'out',
             'project' => $this->project($conversation),
             'categories' => $this->categories($emails),
@@ -241,6 +245,7 @@ class ThreadPresenter
 
             'approval' => $awaiting ? [
                 'email_id' => $awaiting->id,
+                'number' => $awaiting->email_number,
                 'kind' => $this->statusValue($awaiting) === EmailStatus::PendingApprovalReceived->value
                     ? 'screening'
                     : 'draft',
@@ -306,6 +311,7 @@ class ThreadPresenter
                 'task_suggestion' => $conversation->ai_task_suggestion,
                 'checking' => $withAi ? [
                     'email_id' => $withAi->id,
+                    'number' => $withAi->email_number,
                     'author' => $withAi->sender?->name ?? 'the team',
                     'since' => $this->iso($withAi->created_at),
                     'stalled' => $this->aiStalled($withAi),
@@ -382,6 +388,9 @@ class ThreadPresenter
 
         return [
             'id' => $email->id,
+            // Not redaction-gated: the number is derived from the id, which the row
+            // already carries, and quoting one is how a screened message gets chased up.
+            'number' => $email->email_number,
             'kind' => 'message',
             'direction' => $this->isInbound($email) ? 'in' : 'out',
             'author' => $this->authorName($email),

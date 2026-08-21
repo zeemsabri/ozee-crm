@@ -24,6 +24,7 @@ import {
     TextArea,
 } from '../ds';
 import { EmailBody } from './EmailBody';
+import { EmailNumber } from './EmailNumber';
 import { ReplyBox } from './ReplyBox';
 import { categoryColour, exactTime, initials, longTime, replyStatus } from './format';
 
@@ -83,7 +84,11 @@ export function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onR
             <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <Icon name={checking ? 'Robot' : 'Alert'} size={20} color={tone} />
                 <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ font: '600 14px/20px Figtree, sans-serif' }}>{title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ font: '600 14px/20px Figtree, sans-serif' }}>{title}</span>
+                        {/* The banner names one specific email — so it can carry its number. */}
+                        <EmailNumber number={checking ? checking.number : approval?.number} muted />
+                    </div>
                     <div style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
                         {meta}
                     </div>
@@ -439,6 +444,11 @@ export function MessageCard({
                             color={inbound ? 'primary' : 'positive'}
                             size="small"
                         />
+                        {/*
+                          Per MESSAGE, not per thread. The header row is clickable (it
+                          collapses the message), so the chip stops its own click.
+                        */}
+                        <EmailNumber number={message.number} muted />
                         {message.is_private ? (
                             <span
                                 style={{

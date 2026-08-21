@@ -335,9 +335,26 @@ class ThreadQuery
         }
 
         if (! empty($filters['search'])) {
-            $term = '%'.str_replace(['%', '_'], ['\%', '\_'], trim($filters['search'])).'%';
-            $query->where(function ($q) use ($term) {
+            $raw = trim($filters['search']);
+            $term = '%'.str_replace(['%', '_'], ['\%', '\_'], $raw).'%';
+
+            // "OZE123" is the number shown on every message and in global search results,
+            // and Email::getEmailNumberAttribute builds it as 'OZE'.id — so the lookup is
+            // an id equality, not a LIKE. Only fires when the WHOLE term is that shape:
+            // a bare number inside a longer query ("invoice 500") is a text search.
+            $emailId = preg_match('/^oze[\s-]*(\d+)$/i', $raw, $m) || preg_match('/^(\d+)$/', $raw, $m)
+                ? (int) $m[1]
+                : null;
+
+            $query->where(function ($q) use ($term, $emailId) {
                 $q->where('conversations.subject', 'like', $term)
+                    ->when($emailId, fn ($w) => $w->orWhereExists(function ($sub) use ($emailId) {
+                        $sub->select(DB::raw(1))
+                            ->from('emails')
+                            ->whereColumn('emails.conversation_id', 'conversations.id')
+                            ->whereNull('emails.deleted_at')
+                            ->where('emails.id', $emailId);
+                    }))
                     ->orWhereExists(function ($sub) use ($term) {
                         $sub->select(DB::raw(1))
                             ->from('emails')

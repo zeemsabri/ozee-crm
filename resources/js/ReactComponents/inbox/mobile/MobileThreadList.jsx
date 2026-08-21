@@ -20,6 +20,7 @@
 import { useRef, useState } from 'react';
 
 import { Avatar, Button, Chips, EmptyState, Icon, Loader } from '../../ds';
+import { EmailNumber } from '../EmailNumber';
 import {
     categoryColour,
     exactTime,
@@ -396,6 +397,9 @@ function ThreadRow({ thread, selecting, checked, onOpen, onSelect, onSwipeRead, 
                           thread differently.
                         */}
                         <Pill text={status.text} bg={status.bg} fg={status.fg} dot={status.dot} />
+
+                        {/* Same reference as the desktop row: the newest message's number. */}
+                        <EmailNumber number={thread.number} muted />
 
                         {(thread.categories || []).slice(0, 2).map((c) => (
                             <Chips
