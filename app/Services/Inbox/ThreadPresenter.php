@@ -218,10 +218,25 @@ class ThreadPresenter
 
         $withAi = $emails->first(fn (Email $e) => $e->ai_status?->isPending());
         $held = $emails->first(fn (Email $e) => $e->ai_status === EmailAiStatus::Held);
+        /*
+         * What is waiting on a person — and, now, what is waiting on the automation.
+         *
+         * An outbound DRAFT counts. It is not "unfinished": InboxReplyController writes a
+         * submitted reply as `status = draft`, and that row is what the automation selects
+         * on. Surfacing it here is what lets the banner say "the automation has this" and
+         * show Approve & send disabled, instead of the thread going silent between
+         * submission and the machine's verdict.
+         *
+         * `! isInbound` is load-bearing: inbound mail sits at `status = draft` in the
+         * normal case too (see the note in message()), and matching those would put an
+         * approval banner on every client email that arrived.
+         */
         $awaiting = $emails->first(fn (Email $e) => in_array($this->statusValue($e), [
             EmailStatus::PendingApproval->value,
             EmailStatus::PendingApprovalReceived->value,
-        ], true));
+        ], true))
+            ?? $emails->first(fn (Email $e) => ! $this->isInbound($e)
+                && $this->statusValue($e) === EmailStatus::Draft->value);
 
         $latestInbound = $emails->last(fn (Email $e) => $this->isInbound($e));
         $blocked = $emails->contains(fn (Email $e) => $this->isRedacted($e, $user));
@@ -246,15 +261,38 @@ class ThreadPresenter
             'approval' => $awaiting ? [
                 'email_id' => $awaiting->id,
                 'number' => $awaiting->email_number,
-                'kind' => $this->statusValue($awaiting) === EmailStatus::PendingApprovalReceived->value
-                    ? 'screening'
-                    : 'draft',
+                'kind' => match ($this->statusValue($awaiting)) {
+                    EmailStatus::PendingApprovalReceived->value => 'screening',
+                    // Still with the automation. Distinct from 'draft', which here means
+                    // "the machine has finished and handed it to a person".
+                    EmailStatus::Draft->value => 'automation',
+                    default => 'draft',
+                },
                 'author' => $awaiting->sender?->name ?? 'the team',
                 'since' => $this->iso($awaiting->created_at),
-                // EmailPolicy::editAndApprove, because that is what the send endpoint
-                // authorises. can_approve is a looser accessor and would show an Approve
-                // button that 403s — notably on lead threads.
-                'can_act' => $this->allows($user, 'editAndApprove', $awaiting),
+                /*
+                 * May THIS person act, and may ANYONE act yet — two separate questions,
+                 * both of which have to be true.
+                 *
+                 * Permission is EmailPolicy::editAndApprove, because that is what the send
+                 * endpoint authorises; Email::$can_approve is a looser accessor and would
+                 * show a button that 403s, notably on lead threads.
+                 *
+                 * Timing is manualApprovalLock(): while the automation still owns a draft,
+                 * nobody may send it by hand — a manual send in that window races the
+                 * machine and the client gets two copies.
+                 */
+                'can_act' => $this->allows($user, 'editAndApprove', $awaiting)
+                    && $this->manualApprovalLock($awaiting) === null,
+                // Permission ALONE, with the timing question set aside. It is what tells
+                // the UI whether to render the locked button greyed out ("yours at 3:42")
+                // or leave it out entirely — a disabled control is only informative to
+                // someone who would eventually get to press it.
+                'may_approve' => $this->allows($user, 'editAndApprove', $awaiting),
+                // Why the button is disabled, and when it stops being. Null once the
+                // email is approvable. InboxThreadController::approveEmail re-checks the
+                // same rule, so the button and the endpoint cannot disagree.
+                'locked' => $this->manualApprovalLock($awaiting),
                 'ai_reason' => $held?->ai_reason,
                 // The draft as it stands, so "Edit & approve" can seed the editor and
                 // send THIS email rather than creating a second one.
@@ -625,6 +663,74 @@ class ThreadPresenter
         return $emails->contains(
             fn (Email $e) => $this->allows($user, 'editAndApprove', $e) && $this->isReleasable($e)
         );
+    }
+
+    /**
+     * May this email be approved and sent BY HAND yet — and if not, why, and from when?
+     *
+     * Returns null when it may. Otherwise an array the UI renders verbatim:
+     * `['reason' => 'automation', 'message' => …, 'unlocks_at' => ISO-8601]`.
+     *
+     * The rule, and the reasoning behind each clause:
+     *
+     *  - `pending_approval` / `pending_approval_received` — approvable, immediately. The
+     *    automation has finished and handed the email to a person; that IS the hand-back.
+     *
+     *  - an outbound `draft` — NOT approvable while the automation still owns it. The row
+     *    was created as the submission (see Api\InboxReplyController) and the workflow is
+     *    deciding whether to send it. A person approving inside that window races the
+     *    machine: both send, and the client gets the same email twice.
+     *
+     *    …until it has sat here longer than `inbox.manual_approval_after_minutes`, which
+     *    means the automation never ran at all — a stalled queue, a workflow that no
+     *    longer matches, an AI call that failed without writing a verdict. Past that point
+     *    a stuck draft would otherwise be unsendable forever with nothing on screen saying
+     *    why, so the window ends and a person may send it.
+     *
+     *  - `ai_status` queued or checking — never, whatever the age. Our own checker has the
+     *    email in hand and is about to write a verdict to the same row.
+     *
+     * Anything else (sent, rejected, received) is not awaiting approval at all and never
+     * reaches here — `$awaiting` in thread() does not select it.
+     *
+     * This is the ONE authority for the timing question. ThreadPresenter renders the
+     * button from it and InboxThreadController::approveEmail refuses from it, so a button
+     * that is offered cannot 409 and a button that is hidden cannot be curl'd past.
+     */
+    public function manualApprovalLock(Email $email): ?array
+    {
+        if ($email->ai_status?->isPending()) {
+            return [
+                'reason' => 'ai_check',
+                'message' => 'The AI checker has this one. It unlocks as soon as the check comes back.',
+                'unlocks_at' => null,
+            ];
+        }
+
+        if ($this->statusValue($email) !== EmailStatus::Draft->value) {
+            return null;
+        }
+
+        $minutes = max(0, (int) config('inbox.manual_approval_after_minutes', 30));
+        $submitted = $email->created_at ? Carbon::parse($email->created_at) : null;
+
+        // No created_at is not a state the schema produces, but reading it as "0 minutes
+        // old" would lock the email forever. Treat it as unlockable.
+        if (! $submitted) {
+            return null;
+        }
+
+        $unlocksAt = $submitted->copy()->addMinutes($minutes);
+
+        if ($unlocksAt->isPast()) {
+            return null;
+        }
+
+        return [
+            'reason' => 'automation',
+            'message' => 'The automation is still reviewing this. If it has not sent or handed it back by then, you can approve it yourself.',
+            'unlocks_at' => $this->iso($unlocksAt),
+        ];
     }
 
     /**

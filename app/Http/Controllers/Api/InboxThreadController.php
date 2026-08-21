@@ -429,6 +429,117 @@ class InboxThreadController extends Controller
         }
     }
 
+    /**
+     * Approve an outbound email and send it — the beta inbox's single approve path.
+     *
+     * ## Why this exists rather than posting straight to edit-and-approve
+     *
+     * The classic inbox's `emails/{email}/edit-and-approve` accepts exactly two statuses:
+     * `pending_approval` and `pending_approval_received`. Everything else gets a 400. That
+     * is the right rule for the classic inbox and it stays exactly as it is — this method
+     * does not change a single rule over there.
+     *
+     * What the beta needs on top of it is a TIMING rule, which the shared endpoint has no
+     * concept of:
+     *
+     *  - A submitted reply is written as `status = draft` and the automation owns it (see
+     *    Api\InboxReplyController). Approving by hand in that window races the machine, and
+     *    both of them send — the client gets the same email twice. So while the automation
+     *    has it, this refuses, and the thread view shows the button disabled with the
+     *    reason on it.
+     *
+     *  - A draft that has sat there past `inbox.manual_approval_after_minutes` means the
+     *    automation never ran: a stalled queue, a workflow that no longer matches, an AI
+     *    call that failed without writing a verdict. That draft would otherwise be
+     *    unsendable forever, so this promotes it to `pending_approval` and lets a person
+     *    send it.
+     *
+     * ## It still is not a second send path
+     *
+     * Once the gate passes, the work is handed to Api\EmailController::editAndApprove
+     * verbatim — the same rendering, the same recipient resolution, the same threading and
+     * Gmail call the classic inbox uses. Duplicating any of that here would mean two ways
+     * for client mail to go out wrong. All this method adds is the gate and, for a stuck
+     * draft, the one-line promotion that gets it into a state the shared endpoint accepts.
+     */
+    public function approveEmail(Request $request, Email $email): JsonResponse
+    {
+        $user = Auth::user();
+
+        // Visibility first, exactly as resendToAi does it: being an approver on ONE
+        // project is not permission to send an email that belongs to another.
+        $conversation = $email->conversation;
+        abort_unless(
+            $conversation && $this->canSeeThread($conversation->load('emails'), $user),
+            403,
+            'You cannot act on that email.'
+        );
+
+        if ($email->is_private && ! $this->access->canSeePrivate($user)) {
+            abort(403, 'You cannot act on that email.');
+        }
+
+        // The same ability the shared endpoint authorises, checked here so the refusal
+        // arrives as a 403 with a sentence rather than as a policy exception mid-send.
+        if (! $user->can('editAndApprove', $email)) {
+            abort(403, 'You cannot approve that email.');
+        }
+
+        $status = $email->status instanceof EmailStatus
+            ? $email->status
+            : EmailStatus::tryFrom((string) $email->status);
+
+        // Inbound screening is released by the bulk action, which only changes who may
+        // READ an already-delivered message. Sending is for outbound mail.
+        if ($status === EmailStatus::PendingApprovalReceived) {
+            return response()->json([
+                'success' => false,
+                'message' => 'That is inbound mail — release it instead of sending it.',
+            ], 422);
+        }
+
+        if (! in_array($status, [EmailStatus::PendingApproval, EmailStatus::Draft], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'That email is not waiting for approval.',
+            ], 422);
+        }
+
+        // THE gate. Same method the presenter renders the button from, so a button that is
+        // offered cannot 409 here and a hidden one cannot be curl'd past.
+        $lock = $this->presenter->manualApprovalLock($email);
+
+        if ($lock !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => $lock['message'],
+                'locked' => $lock,
+            ], 409);
+        }
+
+        /*
+         * A stuck draft, promoted so the shared endpoint will accept it.
+         *
+         * forceFill()->save() rather than update(): this is a state correction, and going
+         * through the fillable path here would be indistinguishable in the logs from the
+         * automation writing the same value after its own review — which is precisely the
+         * thing this promotion is standing in for.
+         */
+        if ($status === EmailStatus::Draft) {
+            $email->forceFill(['status' => EmailStatus::PendingApproval->value])->save();
+
+            Log::info('inbox: draft promoted for manual approval — the automation never came back.', [
+                'email_id' => $email->id,
+                'submitted_at' => optional($email->created_at)->toIso8601String(),
+                'waited_minutes' => $email->created_at ? $email->created_at->diffInMinutes(now()) : null,
+                'approver_id' => $user->id,
+            ]);
+        }
+
+        // One send path. See the class docblock on this method.
+        return app(EmailController::class)->editAndApprove($request, $email->refresh());
+    }
+
     public function resendToAi(Email $email): JsonResponse
     {
         $user = Auth::user();

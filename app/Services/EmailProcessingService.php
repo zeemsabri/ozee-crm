@@ -54,10 +54,44 @@ class EmailProcessingService
             $this->sendApprovedEmail($email, $subject, $bodyHtml);
 
         } catch (Throwable $e) {
-            // If any part of the process fails, ensure it goes to manual approval.
-            $email->update(['status' => EmailStatus::PendingApproval]);
+            /*
+             * Fall back to manual approval — but ONLY if the email has not already gone
+             * out.
+             *
+             * The send happens in the middle of this try block, and plenty runs after it:
+             * `$email->update(['status' => Sent])` fires the model's `updated` event, which
+             * the automation subscriber listens to (config/automation.php allow-lists Email
+             * for `updated`), and anything that throws downstream of the Gmail call landed
+             * here. The old unconditional write then rewrote a DELIVERED email back to
+             * pending_approval: the client had the message, the CRM said it was still
+             * waiting, and the approver who then pressed "Approve & send" mailed them a
+             * second copy.
+             *
+             * refresh() first, because the in-memory model can be stale — sendApprovedEmail
+             * writes the status through a separate save().
+             */
+            $sent = false;
+
+            try {
+                $email->refresh();
+                $status = $email->status instanceof EmailStatus
+                    ? $email->status
+                    : EmailStatus::tryFrom((string) $email->status);
+
+                $sent = $status === EmailStatus::Sent || $email->sent_at !== null;
+            } catch (Throwable $refreshFailed) {
+                // Deleted mid-flight, or the DB is gone. Either way, do not write.
+                $sent = true;
+            }
+
+            if (! $sent) {
+                $email->update(['status' => EmailStatus::PendingApproval]);
+            }
+
             Log::error('Error in EmailProcessingService.', [
                 'email_id' => $email->id,
+                'already_sent' => $sent,
+                'demoted_to_pending_approval' => ! $sent,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);

@@ -348,7 +348,21 @@ export function inboxActions({ onError, onToast }) {
         sendCreated: (emailId, { subject, body, compositionType = 'custom', templateId, templateData }) =>
             run(
                 () =>
-                    axios.post(`/api/emails/${emailId}/edit-and-approve`, {
+                    /*
+                     * The beta's own approve route, not emails/{id}/edit-and-approve
+                     * directly.
+                     *
+                     * It adds the timing rule the shared endpoint has no concept of — the
+                     * automation owns a submitted draft for its first half hour, and a
+                     * person may only send inside that window once the machine has handed
+                     * the email back — and then forwards this exact payload to
+                     * edit-and-approve. Same rendering, same recipients, same Gmail call;
+                     * the classic inbox keeps posting to that endpoint directly.
+                     *
+                     * A refusal comes back as 409 with the reason in `message`, which
+                     * run() surfaces as the error toast.
+                     */
+                    axios.post(`/api/inbox/emails/${emailId}/approve`, {
                         subject,
                         composition_type: compositionType,
                         ...(compositionType === 'template'

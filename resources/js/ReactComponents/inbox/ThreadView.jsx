@@ -57,11 +57,25 @@ export function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onR
     if (!approval && !checking) return null;
 
     const stalled = checking?.stalled;
+
+    /*
+     * Locked means the automation still owns this draft — approving by hand inside that
+     * window races the machine and the client gets two copies. The lock lifts by itself:
+     * either the automation hands the email back (kind stops being 'automation') or the
+     * grace period elapses. An outbound draft counts as in-flight, so the open thread is
+     * already polling and the button enables on its own — no client-side timer, and no
+     * countdown that can disagree with what the server will allow.
+     */
+    const locked = approval?.locked || null;
+    const withAutomation = approval?.kind === 'automation';
+
     const tone = checking
         ? stalled
             ? '#d83a52'
             : 'var(--primary-color)'
-        : 'var(--color-working-orange)';
+        : locked
+          ? 'var(--primary-color)'
+          : 'var(--color-working-orange)';
 
     const title = checking
         ? stalled
@@ -69,15 +83,23 @@ export function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onR
             : 'With the AI checker'
         : approval.kind === 'screening'
           ? 'Inbound mail held for screening'
-          : approval.ai_reason
-            ? 'The AI checker sent this back — it needs your approval'
-            : `Draft from ${approval.author} waiting on approval`;
+          : locked
+            ? 'With the automation'
+            : withAutomation
+              ? 'The automation never came back'
+              : approval.ai_reason
+                ? 'The AI checker sent this back — it needs your approval'
+                : `Draft from ${approval.author} waiting on approval`;
 
     const meta = checking
         ? `Submitted by ${checking.author} · nothing to do while the checker has it`
         : approval.kind === 'screening'
           ? 'The team cannot read this until it is released'
-          : 'The client never sees it until approved';
+          : locked
+            ? `Submitted by ${approval.author} · nothing to do while it is being reviewed`
+            : withAutomation
+              ? `Submitted by ${approval.author} ${longTime(approval.since)} and never picked up — send it yourself if it looks right`
+              : 'The client never sees it until approved';
 
     return (
         <Panel tone={tone} style={{ animation: 'dcFade 150ms cubic-bezier(0,0,.35,1) both' }}>
@@ -93,6 +115,32 @@ export function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onR
                         {meta}
                     </div>
                 </div>
+
+                {/*
+                  Locked: the button is SHOWN and disabled, not hidden. Hiding it made the
+                  thread look like nothing was happening and invited a second reply; the
+                  disabled control plus the unlock time says who has the email and when it
+                  becomes yours. `can_act` is already false here — the server refuses this
+                  same case with a 409 from the same rule — so there is nothing to click.
+                */}
+                {locked && approval?.may_approve && !checking ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <Button size="small" disabled leftIcon={<Icon name="Send" size={16} />}>
+                            Approve &amp; send
+                        </Button>
+                        <span
+                            style={{
+                                font: '400 12px/16px Figtree, sans-serif',
+                                color: 'var(--secondary-text-color)',
+                                maxWidth: '34ch',
+                            }}
+                        >
+                            {locked.unlocks_at
+                                ? `Yours to send from ${longTime(locked.unlocks_at)} if the automation has not acted by then`
+                                : locked.message}
+                        </span>
+                    </span>
+                ) : null}
 
                 {approval?.can_act && !checking ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -146,11 +194,19 @@ export function ApprovalBanner({ thread, onApprove, onEditApprove, onReject, onR
                     </Button>
                 ) : null}
 
-                {!approval?.can_act && !thread.can?.resend_to_ai ? (
+                {/*
+                  `locked` is excluded: can_act is false in that state too, but the email
+                  is not waiting on a manager — it is waiting on the automation, and the
+                  disabled button above already says so with the time it unlocks. Showing
+                  both put two different explanations side by side.
+                */}
+                {!approval?.can_act && !(locked && approval?.may_approve) && !thread.can?.resend_to_ai ? (
                     <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
                         {checking
                             ? 'The checker has it — nothing to do yet.'
-                            : "Waiting on a manager — you'll get a notification either way."}
+                            : locked
+                              ? 'The automation has it — nothing to do yet.'
+                              : "Waiting on a manager — you'll get a notification either way."}
                     </span>
                 ) : null}
             </div>

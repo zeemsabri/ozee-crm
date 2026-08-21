@@ -53,6 +53,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | When a person may approve a draft by hand
+    |--------------------------------------------------------------------------
+    |
+    | A reply submitted from /inbox/beta is written as `status = draft`, and that
+    | row IS the submission: the automation picks it up and either sends it or
+    | hands it back as `pending_approval` for a person. See the docblock on
+    | Api\InboxReplyController.
+    |
+    | While it is still a draft the automation owns it, so the thread view shows
+    | "Approve & send" DISABLED — approving by hand inside that window races the
+    | machine, and both of them send.
+    |
+    | Two things unlock the button:
+    |
+    |  - the automation hands the email back (`pending_approval`), which is the
+    |    normal path and is immediate; or
+    |  - the draft has sat here longer than the window below, which means the
+    |    automation never ran — a stuck queue, a workflow that no longer matches,
+    |    an AI call that failed without writing a verdict. Without this, a stuck
+    |    draft is unsendable forever with nothing on screen explaining why.
+    |
+    | Measured from the email's created_at. This is a BETA-INBOX rule: it gates
+    | inbox/emails/{email}/approve, and the classic inbox's own
+    | emails/{email}/edit-and-approve keeps the rules it has today.
+    |
+    */
+
+    'manual_approval_after_minutes' => (int) env('INBOX_MANUAL_APPROVAL_AFTER_MINUTES', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Reply clock scope
     |--------------------------------------------------------------------------
     |

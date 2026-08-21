@@ -59,6 +59,64 @@ class Email extends Model
 
     protected static function booted()
     {
+        /*
+         * Once an email has gone out, its status may not travel backwards.
+         *
+         * `sent` is a statement about the world: Gmail accepted the message and a client
+         * has it. Nothing that happens here afterwards makes that untrue, so a write moving
+         * it back to draft / pending_approval / auto_send is always a bug in the writer —
+         * and an expensive one, because the thread then offers "Approve & send" on a
+         * message the client already received, and pressing it sends a second copy.
+         *
+         * The known culprit was EmailProcessingService::processDraftEmail's catch block,
+         * fixed at source. It is not the only writer: the automation engine's UPDATE_RECORD
+         * action writes this column too, from a queued job whose view of the row is as old
+         * as the moment it was queued. This guard is what makes the invariant hold
+         * regardless of who writes.
+         *
+         * It DROPS the offending change rather than throwing — the caller is usually
+         * mid-recovery from some other failure, and an exception here would mask it — and
+         * logs enough of the call stack to name the writer.
+         */
+        static::updating(function (Email $email) {
+            if (! $email->isDirty('status')) {
+                return;
+            }
+
+            $original = self::statusValueOf($email->getOriginal('status'));
+
+            if ($original !== \App\Enums\EmailStatus::Sent) {
+                return;
+            }
+
+            $incoming = self::statusValueOf($email->status);
+
+            $regressions = [
+                \App\Enums\EmailStatus::Draft,
+                \App\Enums\EmailStatus::PendingApproval,
+                \App\Enums\EmailStatus::AutoSend,
+            ];
+
+            if (! in_array($incoming, $regressions, true)) {
+                return;
+            }
+
+            Log::warning('Refused to move a sent email back to an unsent status.', [
+                'email_id' => $email->id,
+                'attempted_status' => $incoming?->value,
+                // Nothing else identifies the caller: the processing service and the
+                // automation engine both arrive as a plain save() inside a queued job.
+                'caller' => collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 25))
+                    ->map(fn ($frame) => ($frame['class'] ?? '').($frame['type'] ?? '').($frame['function'] ?? ''))
+                    ->filter(fn ($f) => str_starts_with($f, 'App\\'))
+                    ->take(5)
+                    ->values()
+                    ->all(),
+            ]);
+
+            $email->status = $original;
+        });
+
         static::updated(function (Email $email) {
             // Only trigger when moving into sent state
             $typeIsSent = ($email->type instanceof \App\Enums\EmailType)
@@ -77,6 +135,22 @@ class Email extends Model
                 }
             }
         });
+    }
+
+    /**
+     * The status as an enum, whatever shape it is in.
+     *
+     * getOriginal('status') returns the RAW column value (a string) even though the
+     * attribute is cast, so the two sides of a comparison have to be normalised before
+     * they mean anything.
+     */
+    private static function statusValueOf(mixed $status): ?\App\Enums\EmailStatus
+    {
+        if ($status instanceof \App\Enums\EmailStatus) {
+            return $status;
+        }
+
+        return $status === null ? null : \App\Enums\EmailStatus::tryFrom((string) $status);
     }
 
     /**

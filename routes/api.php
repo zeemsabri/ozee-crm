@@ -527,6 +527,17 @@ Route::middleware('auth:sanctum')->group(function () {
         // The email as the client receives it — the full branded document, shown in a
         // sandboxed iframe. The timeline shows a cleaned fragment; this is the truth.
         Route::get('emails/{email}/preview', [InboxThreadController::class, 'preview']);
+        /*
+         * Approve and send — beta only, and not a second send path.
+         *
+         * It adds the one rule the shared endpoint has no concept of: the automation owns
+         * a submitted draft for its first `inbox.manual_approval_after_minutes`, and a
+         * person may send inside that window only once the machine has handed the email
+         * back. Then it hands the send itself to emails/{email}/edit-and-approve,
+         * unchanged. The classic inbox keeps posting to that endpoint directly, with the
+         * rules it has today.
+         */
+        Route::post('emails/{email}/approve', [InboxThreadController::class, 'approveEmail']);
         Route::post('emails/{email}/resend-to-ai', [InboxThreadController::class, 'resendToAi']);
         Route::post('emails/{email}/draft', [InboxThreadController::class, 'requestDraft']);
 

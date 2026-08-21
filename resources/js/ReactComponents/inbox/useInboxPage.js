@@ -392,6 +392,19 @@ export function useInboxPage({ settings, initialThreadId }) {
             return;
         }
 
+        /*
+         * The automation still owns this draft.
+         *
+         * The banner already renders the button disabled in this state, so reaching here
+         * means the payload went stale between render and click. Checked again because the
+         * server refuses the same case with a 409, and an unexplained error toast reads as
+         * a bug rather than as the rule it is.
+         */
+        if (approval.locked) {
+            warn(approval.locked.message);
+            return;
+        }
+
         if (approval.is_template) {
             warn('That draft was built from a template — approve it on the classic inbox.');
             return;
@@ -447,6 +460,13 @@ export function useInboxPage({ settings, initialThreadId }) {
     const openEditApprove = () => {
         const approval = thread.thread?.approval;
         if (!approval || approval.kind === 'screening') return;
+
+        // The editor's own submit button says "Approve & send", so opening it while the
+        // automation still owns the draft would offer the send this rule exists to refuse.
+        if (approval.locked) {
+            warn(approval.locked.message);
+            return;
+        }
 
         if (approval.is_template) {
             warn('That draft was built from a template — edit it on the classic inbox.');
