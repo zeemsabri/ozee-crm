@@ -1,0 +1,13 @@
+/* Minimal resets so a bare HTML page picks up the system look. */
+body {
+  margin: 0;
+  font: var(--font-text1-normal);
+  color: var(--text-body);
+  background: var(--surface-app);
+  -webkit-font-smoothing: var(--font-smoothing-webkit);
+  -moz-osx-font-smoothing: var(--font-smoothing-moz);
+}
+* { box-sizing: border-box; }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { color: var(--primary-hover-color); text-decoration: underline; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--border-radius-small); }

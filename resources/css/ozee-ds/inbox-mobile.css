@@ -1,0 +1,100 @@
+/* Phone chrome for the redesigned inbox.
+ *
+ * Source: Redesign/inbox-mobile/Inbox Mobile.dc.html — the <style> block in its <helmet>.
+ * Imported by ReactComponents/inbox/mobile/MobileInbox.jsx, so it only loads for a page
+ * that actually renders the phone layout.
+ *
+ * Everything else on these pages is inline styles against design tokens (see the design
+ * system note). Three things cannot be: keyframes, scrollbar pseudo-elements, and the
+ * `env()` insets — so they live here and nothing else does.
+ */
+
+/* The mock's four transitions, names kept so markup can be compared against it. */
+@keyframes mSheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes mFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mPush {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes mSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Scrolling regions.
+ *
+ * `overscroll-behavior: contain` is the one that matters: without it, flicking past the
+ * end of the thread list scrolls the page behind it, and on iOS triggers the browser's
+ * own pull-to-refresh — which competes with ours and wins. */
+.om-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.om-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Tapping anything should not paint a grey box over it — every control here has its own
+   pressed state. */
+.om-app * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Home-indicator and notch clearance. Kept as custom properties rather than applied
+   directly so a component can add them to whatever padding it already has, instead of
+   nesting another wrapper per screen. */
+.om-app {
+  --om-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --om-safe-top: env(safe-area-inset-top, 0px);
+}
+
+/* A row mid-swipe. Transform is set from JS; this only decides how it settles back. */
+.om-row-settle {
+  transition: transform 150ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Long-press to multi-select would otherwise also start a text selection, which leaves
+   a highlighted subject behind and shows the OS copy bar. */
+.om-row {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: pan-y;
+}
+
+/* Respect the OS setting. The push and sheet animations are the only motion here big
+   enough to matter, and both are decorative. */
+@media (prefers-reduced-motion: reduce) {
+  .om-app *,
+  .om-app *::before,
+  .om-app *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

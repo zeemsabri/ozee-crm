@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/colors.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/brand.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/typography.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/radius.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/shadows.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/motion.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/semantic.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/base.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/styles.css">
+<script>window.OZEE_ICON_BASE = "assets/icons";</script>
+<script src="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#dfe3ee;-webkit-font-smoothing:antialiased}
+#root{height:100%}
+a{color:var(--primary-color);text-decoration:none}
+a:hover{color:var(--primary-hover-color);text-decoration:underline}
+*{-webkit-tap-highlight-color:transparent}
+:root{--om-hairline:#e6e9ef;--om-hairline-soft:#eef0f5;--om-note-bg:#fff8db;--om-note-border:#f0d78a;--om-note-text:#6b5a12}
+:root[data-theme="dark"]{color-scheme:dark;--primary-color:#4a90f0;--primary-hover-color:#6aa4f5;--primary-selected-color:#2b3f6e;--primary-highlighted-color:#23335c;--primary-surface-color:#2a2c46;--primary-text-color:#e6e9ef;--secondary-text-color:#c5c7d0;--primary-background-color:#30324e;--secondary-background-color:#30324e;--allgrey-background-color:#292b45;--grey-background-color:#181b34;--backdrop-color:rgba(12,14,28,0.72);--ui-border-color:#5c6081;--ui-background-color:#3f4260;--layout-border-color:#454962;--disabled-background-color:#3f4260;--placeholder-color:#9699a6;--icon-color:#c5c7d0;--link-color:#7fb0f5;--label-background-color:#2b3f6e;--modal-background-color:#30324e;--dialog-background-color:#30324e;--om-hairline:#3c3f5c;--om-hairline-soft:#363954;--om-note-bg:#3b3a2e;--om-note-border:#6b6238;--om-note-text:#f0dda6}
+@media (prefers-color-scheme:dark){:root[data-theme="system"]{color-scheme:dark;--primary-color:#4a90f0;--primary-hover-color:#6aa4f5;--primary-selected-color:#2b3f6e;--primary-highlighted-color:#23335c;--primary-surface-color:#2a2c46;--primary-text-color:#e6e9ef;--secondary-text-color:#c5c7d0;--primary-background-color:#30324e;--secondary-background-color:#30324e;--allgrey-background-color:#292b45;--grey-background-color:#181b34;--backdrop-color:rgba(12,14,28,0.72);--ui-border-color:#5c6081;--ui-background-color:#3f4260;--layout-border-color:#454962;--disabled-background-color:#3f4260;--placeholder-color:#9699a6;--icon-color:#c5c7d0;--link-color:#7fb0f5;--label-background-color:#2b3f6e;--modal-background-color:#30324e;--dialog-background-color:#30324e;--om-hairline:#3c3f5c;--om-hairline-soft:#363954;--om-note-bg:#3b3a2e;--om-note-border:#6b6238;--om-note-text:#f0dda6}}
+@keyframes mSheet{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes mFade{from{opacity:0}to{opacity:1}}
+@keyframes mPush{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes mSpin{to{transform:rotate(360deg)}}
+.mscroll{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.mscroll::-webkit-scrollbar{width:0}
+</style>
+</helmet>
+
+<div style="height:100%;display:flex;justify-content:center;background:#dfe3ee">
+<div style="width:100%;max-width:430px;height:100%;background:var(--grey-background-color);position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 0 0 1px rgba(41,47,76,.12)">
+
+  <header style="flex:none;background:var(--primary-background-color);border-bottom:1px solid var(--layout-border-color);padding:10px 12px 0">
+    <div style="height:44px;display:flex;align-items:center;gap:10px">
+      <img src="assets/ozee-logo-sm.png" alt="OZee" style="height:22px;width:auto;display:block">
+      <span style="font:700 18px/24px Poppins,sans-serif;color:var(--primary-text-color);letter-spacing:-.1px">{{ screenTitle }}</span>
+      <span style="margin-inline-start:auto;display:flex;align-items:center;gap:6px">
+        <button onClick="{{ onOpenProfile }}" style="display:flex;align-items:center;gap:6px;height:32px;padding:0 8px 0 10px;border:1px solid var(--ui-border-color);border-radius:16px;background:var(--primary-background-color);cursor:pointer">
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--primary-selected-color);color:var(--primary-color);display:flex;align-items:center;justify-content:center;font:700 9px/1 Figtree,sans-serif">{{ roleInitials }}</span>
+          <span style="font:600 12px/16px Figtree,sans-serif;color:var(--primary-text-color)">{{ roleLabel }}</span>
+          <span style="color:var(--icon-color);display:flex">{{ icChevDown }}</span>
+        </button>
+      </span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 0 10px">
+      <div style="flex:1;min-width:0">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Search" size="small" placeholder="Search mail, clients, projects" value="{{ search }}" onChange="{{ onSearch }}" hint-size="100%,32px"></x-import>
+      </div>
+      <button onClick="{{ onOpenFilters }}" style="position:relative;flex:none;width:36px;height:36px;border-radius:4px;border:1px solid var(--ui-border-color);background:var(--primary-background-color);color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">
+        {{ icFilter }}
+        <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+          <span style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--primary-color);color:#fff;font:700 10px/16px Figtree,sans-serif;text-align:center">{{ filterCount }}</span>
+        </sc-if>
+      </button>
+    </div>
+    <sc-if value="{{ showFilterSummary }}" hint-placeholder-val="{{ false }}">
+      <div class="mscroll" style="display:flex;gap:6px;overflow-x:auto;padding:0 0 10px">
+        <sc-for list="{{ activeFilters }}" as="f" hint-placeholder-count="2">
+          <button onClick="{{ f.onRemove }}" style="flex:none;display:flex;align-items:center;gap:4px;height:26px;padding:0 8px;border:none;border-radius:13px;background:var(--primary-selected-color);color:var(--primary-color);font:600 12px/16px Figtree,sans-serif;cursor:pointer">{{ f.label }} ✕</button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </header>
+
+  <sc-if value="{{ showBreach }}" hint-placeholder-val="{{ true }}">
+    <button onClick="{{ onGoAlerts }}" style="flex:none;display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:none;border-bottom:1px solid #f3c9d0;background:#fdecef;color:#a32338;font:600 13px/18px Figtree,sans-serif;text-align:start;cursor:pointer">
+      {{ icWarning }}<span style="flex:1;min-width:0">{{ breachText }}</span>{{ icChevRight }}
+    </button>
+  </sc-if>
+
+  <sc-if value="{{ onListScreen }}" hint-placeholder-val="{{ true }}">
+    <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto;padding-bottom:12px" ref="{{ listRef }}" onPointerDown="{{ onPullStart }}" onPointerMove="{{ onPullMove }}" onPointerUp="{{ onPullEnd }}" onPointerCancel="{{ onPullEnd }}">
+      <div style="height:0;display:flex;align-items:center;justify-content:center;overflow:hidden" ref="{{ pullRef }}">
+        <span style="display:flex;align-items:center;gap:8px;font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">
+          <span style="width:14px;height:14px;border-radius:50%;border:2px solid var(--primary-selected-color);border-top-color:var(--primary-color);animation:mSpin 700ms linear infinite"></span>{{ pullText }}
+        </span>
+      </div>
+      <div style="padding:10px 14px 6px;display:flex;align-items:baseline;gap:8px">
+        <span style="font:600 13px/18px Figtree,sans-serif;color:var(--primary-text-color)">{{ listHeading }}</span>
+        <span style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ listSubheading }}</span>
+      </div>
+
+      <sc-for list="{{ listItems }}" as="e" hint-placeholder-count="4">
+        <div style="position:relative;margin:0 12px 10px;border-radius:8px;overflow:hidden;background:#e8f5ee">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#eef1f6">
+            <span style="display:flex;align-items:center;gap:6px;font:600 12px/16px Figtree,sans-serif;color:#00854d">{{ icShow }}{{ e.rightHint }}</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Archive{{ icArchive }}</span>
+          </div>
+          <div ref="{{ e.ref }}" onPointerDown="{{ e.onDown }}" onPointerMove="{{ e.onMove }}" onPointerUp="{{ e.onUp }}" onPointerCancel="{{ e.onUp }}" onClick="{{ e.onOpen }}" style="position:relative;background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:12px 14px;display:flex;gap:10px;cursor:pointer;touch-action:pan-y">
+            <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:2px">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Avatar" text="{{ e.initials }}" size="medium" backgroundColor="{{ e.avatarTone }}" hint-size="32px,32px"></x-import>
+              <sc-if value="{{ e.showSla }}" hint-placeholder-val="{{ true }}">
+                <span style="width:8px;height:8px;border-radius:50%;background:{{ e.slaColor }}"></span>
+              </sc-if>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <span style="flex:1;min-width:0;font:{{ e.nameWeight }} 14px/20px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.who }}</span>
+                <span style="flex:none;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ e.timeText }}</span>
+                <sc-if value="{{ e.unread }}" hint-placeholder-val="{{ true }}">
+                  <span style="flex:none;width:8px;height:8px;border-radius:50%;background:var(--primary-color)"></span>
+                </sc-if>
+              </div>
+              <div style="font:{{ e.subjectWeight }} 14px/20px Figtree,sans-serif;color:var(--primary-text-color);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.subject }}</div>
+              <div style="font:400 13px/18px Figtree,sans-serif;color:var(--secondary-text-color);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ e.previewText }}</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px">
+                <span style="display:flex;align-items:center;gap:4px;height:20px;padding:0 6px;border:1px solid var(--layout-border-color);border-radius:4px;font:600 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ e.projectShort }}</span>
+                <sc-if value="{{ e.showSla }}" hint-placeholder-val="{{ true }}">
+                  <span style="display:flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:4px;font:700 11px/16px Figtree,sans-serif;background:{{ e.slaBg }};color:{{ e.slaColor }}">{{ e.slaText }}</span>
+                </sc-if>
+                <sc-if value="{{ e.showBadge }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:4px;font:600 11px/16px Figtree,sans-serif;background:{{ e.badgeBg }};color:{{ e.badgeFg }}">{{ e.badgeText }}</span>
+                </sc-if>
+                <sc-if value="{{ e.hasFiles }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex;align-items:center;gap:3px;font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ icAttach }}{{ e.filesText }}</span>
+                </sc-if>
+              </div>
+              <sc-if value="{{ e.showRead }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font:600 11px/16px Figtree,sans-serif;color:{{ e.readColor }}">{{ icShow }}{{ e.readText }}</div>
+              </sc-if>
+              <sc-if value="{{ e.showWarn }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:8px;padding:6px 8px;border-radius:4px;background:var(--om-note-bg);border:1px solid var(--om-note-border);font:400 11px/16px Figtree,sans-serif;color:var(--om-note-text)">{{ e.warnText }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ listEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="margin:32px 24px;text-align:center">
+          <div style="width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:var(--allgrey-background-color);color:var(--icon-color);display:flex;align-items:center;justify-content:center">{{ icInbox }}</div>
+          <div style="font:600 14px/20px Figtree,sans-serif;color:var(--primary-text-color)">{{ emptyTitle }}</div>
+          <div style="font:400 13px/18px Figtree,sans-serif;color:var(--secondary-text-color);margin-top:4px">{{ emptyBody }}</div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ onThreadScreen }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:var(--grey-background-color);animation:mPush 150ms cubic-bezier(0,0,.35,1) both">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--primary-background-color);border-bottom:1px solid var(--layout-border-color)">
+        <button onClick="{{ onBack }}" style="width:36px;height:36px;border:none;border-radius:4px;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icBack }}</button>
+        <div style="flex:1;min-width:0">
+          <div style="font:600 14px/18px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ threadSubject }}</div>
+          <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ threadProject }}</div>
+        </div>
+        <button onClick="{{ onPrevThread }}" style="width:32px;height:36px;border:none;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icChevUp }}</button>
+        <button onClick="{{ onNextThread }}" style="width:32px;height:36px;border:none;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icChevDown }}</button>
+      </div>
+
+      <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto;padding:12px;touch-action:pan-y" onPointerDown="{{ onThreadSwipeStart }}" onPointerUp="{{ onThreadSwipeEnd }}">
+        <sc-if value="{{ threadLocked }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 14px;border-radius:8px;background:var(--om-note-bg);border:1px solid var(--om-note-border);font:400 13px/18px Figtree,sans-serif;color:var(--om-note-text);margin-bottom:12px">{{ lockedText }}</div>
+        </sc-if>
+
+        <sc-if value="{{ showAi }}" hint-placeholder-val="{{ true }}">
+          <div style="border:1px solid var(--primary-selected-color);border-radius:8px;background:var(--primary-surface-color);padding:12px 14px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px;color:var(--primary-color);font:700 11px/16px Figtree,sans-serif;text-transform:uppercase;letter-spacing:.4px">{{ icRobot }}What this thread is about</div>
+            <div style="font:400 13px/19px Figtree,sans-serif;color:var(--primary-text-color);margin-top:6px;text-wrap:pretty">{{ aiSummary }}</div>
+            <sc-if value="{{ hasAiTask }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--primary-selected-color)">
+                <div style="font:600 13px/18px Figtree,sans-serif;color:var(--primary-text-color)">{{ aiTaskTitle }}</div>
+                <div style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);margin-top:2px">{{ aiTaskMeta }}</div>
+                <div style="margin-top:8px">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" onClick="{{ onCreateTask }}" hint-size="140px,32px">Create this task</x-import>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-for list="{{ threadMsgs }}" as="m" hint-placeholder-count="3">
+          <div style="border:1px solid var(--layout-border-color);border-radius:8px;background:{{ m.cardBg }};overflow:hidden;margin-bottom:10px">
+            <div onClick="{{ m.onToggle }}" style="padding:11px 12px;display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Avatar" text="{{ m.initials }}" size="small" backgroundColor="{{ m.avatarTone }}" hint-size="24px,24px"></x-import>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px">
+                  <span style="flex:1;min-width:0;font:600 13px/18px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.author }}</span>
+                  <span style="flex:none;font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ m.when }}</span>
+                </div>
+                <sc-if value="{{ m.closed }}" hint-placeholder-val="{{ true }}">
+                  <div style="font:400 12px/17px Figtree,sans-serif;color:var(--secondary-text-color);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.snippet }}</div>
+                </sc-if>
+                <sc-if value="{{ m.showReceipt }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:4px;margin-top:4px;font:400 11px/16px Figtree,sans-serif;color:{{ m.receiptColor }}">{{ icShow }}{{ m.receipt }}</div>
+                </sc-if>
+              </div>
+            </div>
+            <sc-if value="{{ m.open }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:0 12px 12px">
+                <sc-if value="{{ m.showSummary }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:8px 10px;border-radius:4px;background:var(--primary-surface-color);font:400 12px/17px Figtree,sans-serif;color:var(--primary-color);margin-bottom:10px">{{ m.summary }}</div>
+                </sc-if>
+                <sc-for list="{{ m.paras }}" as="p" hint-placeholder-count="2">
+                  <p style="margin:0 0 8px;font:400 14px/21px Figtree,sans-serif;color:var(--primary-text-color);text-wrap:pretty">{{ p.text }}</p>
+                </sc-for>
+                <sc-if value="{{ m.hasFiles }}" hint-placeholder-val="{{ false }}">
+                  <sc-for list="{{ m.files }}" as="f" hint-placeholder-count="1">
+                    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--layout-border-color);border-radius:4px;margin-top:8px">
+                      <span style="color:var(--icon-color)">{{ icFile }}</span>
+                      <span style="flex:1;min-width:0;font:600 12px/16px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</span>
+                      <span style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ f.size }}</span>
+                    </div>
+                  </sc-for>
+                </sc-if>
+                <sc-if value="{{ m.hasQuote }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ m.onQuote }}" style="margin-top:8px;width:28px;height:20px;border:1px solid var(--layout-border-color);border-radius:4px;background:var(--allgrey-background-color);color:var(--secondary-text-color);font:700 11px/1 Figtree,sans-serif;cursor:pointer">···</button>
+                  <sc-if value="{{ m.quoteOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top:8px;padding-inline-start:10px;border-inline-start:2px solid var(--layout-border-color);font:400 12px/18px Figtree,sans-serif;color:var(--secondary-text-color);white-space:pre-line">{{ m.quote }}</div>
+                  </sc-if>
+                </sc-if>
+                <sc-if value="{{ m.canPrivate }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:10px">
+                    <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ m.onPrivate }}" hint-size="120px,32px">{{ m.privateLabel }}</x-import>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <div style="height:8px"></div>
+      </div>
+
+      <sc-if value="{{ canReply }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--primary-background-color);border-top:1px solid var(--layout-border-color)">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" size="medium" leftIcon="{{ icReply }}" onClick="{{ onOpenReply }}" hint-size="140px,40px">{{ replyCta }}</x-import>
+          <sc-if value="{{ canApprove }}" hint-placeholder-val="{{ false }}">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="medium" onClick="{{ onApprove }}" hint-size="130px,40px">Approve &amp; send</x-import>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ onBuilderScreen }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:var(--grey-background-color);animation:mPush 150ms cubic-bezier(0,0,.35,1) both">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--primary-background-color);border-bottom:1px solid var(--layout-border-color)">
+        <button onClick="{{ onBack }}" style="width:36px;height:36px;border:none;border-radius:4px;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icClose }}</button>
+        <div style="flex:1;min-width:0">
+          <div style="font:600 14px/18px Figtree,sans-serif;color:var(--primary-text-color)">{{ builderTitle }}</div>
+          <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ builderTo }}</div>
+        </div>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" size="small" leftIcon="{{ icSend }}" onClick="{{ onSend }}" hint-size="90px,32px">{{ sendCta }}</x-import>
+      </div>
+
+      <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto;padding:12px 12px 0">
+        <sc-if value="{{ isCompose }}" hint-placeholder-val="{{ false }}">
+          <div style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:12px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ projectOptions }}" value="{{ composerProject }}" onChange="{{ onComposerProject }}" size="small" placeholder="Project" hint-size="100%,32px"></x-import>
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Dropdown" options="{{ templateOptions }}" value="{{ templateValue }}" onChange="{{ onTemplate }}" size="small" placeholder="Template" hint-size="100%,32px"></x-import>
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Subject" value="{{ composerSubject }}" onChange="{{ onComposerSubject }}" hint-size="100%,32px"></x-import>
+            <sc-if value="{{ templateLocked }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Template mode only — custom messages are sent from the desktop app by a manager.</div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="3">
+          <div style="background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;margin-bottom:10px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--om-hairline-soft);background:var(--allgrey-background-color)">
+              <span style="color:var(--icon-color);display:flex">{{ b.icon }}</span>
+              <span style="flex:1;font:700 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.4px">{{ b.typeLabel }}</span>
+              <button onClick="{{ b.onUp }}" style="width:28px;height:28px;border:none;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icChevUp }}</button>
+              <button onClick="{{ b.onDown }}" style="width:28px;height:28px;border:none;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icChevDown }}</button>
+              <button onClick="{{ b.onDelete }}" style="width:28px;height:28px;border:none;background:transparent;color:#d83a52;display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icDelete }}</button>
+            </div>
+            <div style="padding:10px">
+              <sc-if value="{{ b.isWords }}" hint-placeholder-val="{{ true }}">
+                <textarea value="{{ b.text }}" onChange="{{ b.onText }}" placeholder="{{ b.placeholder }}" rows="4" style="width:100%;box-sizing:border-box;border:1px solid var(--ui-border-color);border-radius:4px;padding:8px 10px;font:400 14px/21px Figtree,sans-serif;color:var(--primary-text-color);background:var(--primary-background-color);resize:vertical"></textarea>
+                <div style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);margin-top:6px">{{ b.hint }}</div>
+              </sc-if>
+              <sc-if value="{{ b.isLink }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Button label" value="{{ b.label }}" onChange="{{ b.onLabel }}" hint-size="100%,32px"></x-import>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="https://" value="{{ b.url }}" onChange="{{ b.onUrl }}" hint-size="100%,32px"></x-import>
+                </div>
+              </sc-if>
+              <sc-if value="{{ b.isImage }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="height:104px;border:1px dashed var(--ui-border-color);border-radius:4px;background:var(--allgrey-background-color);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--icon-color)">
+                    {{ icImage }}<span style="font:600 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Tap to add a picture</span>
+                    <span style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">Camera roll or files</span>
+                  </div>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Describe the picture" value="{{ b.alt }}" onChange="{{ b.onAlt }}" hint-size="100%,32px"></x-import>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+
+        <div class="mscroll" style="display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px">
+          <sc-for list="{{ addButtons }}" as="a" hint-placeholder-count="4">
+            <button onClick="{{ a.onClick }}" style="flex:none;display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--ui-border-color);border-radius:17px;background:var(--primary-background-color);font:600 12px/16px Figtree,sans-serif;color:var(--primary-text-color);cursor:pointer">{{ a.icon }}{{ a.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <button onClick="{{ onOpenPreview }}" style="flex:none;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border:none;border-top:1px solid var(--layout-border-color);background:var(--primary-background-color);color:var(--primary-color);font:600 13px/18px Figtree,sans-serif;cursor:pointer">
+        {{ icChevUp }}Swipe up to preview the email
+      </button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ onPortalScreen }}" hint-placeholder-val="{{ false }}">
+    <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto;padding:12px 12px 14px">
+      <div style="padding:2px 2px 10px">
+        <div style="font:600 13px/18px Figtree,sans-serif;color:var(--primary-text-color)">Client portals</div>
+        <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">What each client can see and download</div>
+      </div>
+      <sc-for list="{{ portalItems }}" as="p" hint-placeholder-count="3">
+        <div onClick="{{ p.onOpen }}" style="display:flex;align-items:center;gap:10px;background:var(--primary-background-color);border:1px solid var(--layout-border-color);border-radius:8px;padding:12px 14px;margin-bottom:10px;cursor:pointer">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Avatar" text="{{ p.initials }}" size="medium" backgroundColor="{{ p.tone }}" hint-size="32px,32px"></x-import>
+          <div style="flex:1;min-width:0">
+            <div style="font:600 14px/20px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</div>
+            <div style="font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.meta }}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+              <span style="height:20px;padding:0 6px;border-radius:4px;font:600 11px/20px Figtree,sans-serif;background:{{ p.stateBg }};color:{{ p.stateFg }}">{{ p.stateText }}</span>
+              <span style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ p.visit }}</span>
+            </div>
+          </div>
+          <span style="color:var(--icon-color);display:flex">{{ icChevRight }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showTabs }}" hint-placeholder-val="{{ true }}">
+    <nav style="flex:none;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;background:var(--primary-background-color);border-top:1px solid var(--layout-border-color);padding:6px 4px 10px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+        <button onClick="{{ t.onClick }}" style="position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;border:none;background:transparent;cursor:pointer;color:{{ t.color }}">
+          {{ t.icon }}
+          <span style="font:{{ t.weight }} 11px/14px Figtree,sans-serif;color:{{ t.color }}">{{ t.label }}</span>
+          <sc-if value="{{ t.showCount }}" hint-placeholder-val="{{ false }}">
+            <span style="position:absolute;top:0;left:50%;margin-inline-start:8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:{{ t.countBg }};color:#fff;font:700 10px/16px Figtree,sans-serif;text-align:center">{{ t.count }}</span>
+          </sc-if>
+        </button>
+      </sc-for>
+      <button onClick="{{ onCompose }}" style="justify-self:center;width:56px;height:56px;margin-top:-22px;border:3px solid var(--primary-background-color);border-radius:50%;background:var(--primary-color);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--box-shadow-medium)">{{ icEdit }}</button>
+      <sc-for list="{{ tabsRight }}" as="t" hint-placeholder-count="1">
+        <button onClick="{{ t.onClick }}" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;border:none;background:transparent;cursor:pointer;color:{{ t.color }}">
+          {{ t.icon }}
+          <span style="font:{{ t.weight }} 11px/14px Figtree,sans-serif;color:{{ t.color }}">{{ t.label }}</span>
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+
+  <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseFilters }}" style="position:absolute;inset:0;background:var(--backdrop-color);animation:mFade 100ms both;z-index:20"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;max-height:84%;display:flex;flex-direction:column;background:var(--primary-background-color);border-radius:16px 16px 0 0;box-shadow:var(--box-shadow-large);animation:mSheet 150ms cubic-bezier(0,0,.35,1) both;z-index:21">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 16px 10px;border-bottom:1px solid var(--om-hairline)">
+        <span style="flex:1;font:700 16px/22px Poppins,sans-serif;color:var(--primary-text-color)">Filters</span>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ onClearFilters }}" hint-size="100px,32px">Clear all</x-import>
+        <button onClick="{{ onCloseFilters }}" style="width:32px;height:32px;border:none;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icClose }}</button>
+      </div>
+      <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto;padding:14px 16px 0;display:flex;flex-direction:column;gap:18px">
+        <div>
+          <div style="font:700 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Status</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <sc-for list="{{ statusFilters }}" as="f" hint-placeholder-count="4">
+              <button onClick="{{ f.onClick }}" style="height:34px;padding:0 12px;border:1px solid {{ f.border }};border-radius:17px;background:{{ f.bg }};color:{{ f.fg }};font:600 12px/16px Figtree,sans-serif;cursor:pointer">{{ f.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="font:700 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Breach risk</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <sc-for list="{{ riskFilters }}" as="f" hint-placeholder-count="3">
+              <button onClick="{{ f.onClick }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid {{ f.border }};border-radius:17px;background:{{ f.bg }};color:{{ f.fg }};font:600 12px/16px Figtree,sans-serif;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:{{ f.dot }}"></span>{{ f.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="font:700 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Project</div>
+          <button onClick="{{ onOpenProjectPicker }}" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;height:40px;padding:0 12px;border:1px solid var(--ui-border-color);border-radius:4px;background:var(--primary-background-color);cursor:pointer;text-align:start">
+            <span style="flex:1;min-width:0;font:400 14px/20px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ projectLabel }}</span>
+            <span style="color:var(--icon-color);display:flex">{{ icChevRight }}</span>
+          </button>
+        </div>
+        <div>
+          <div style="font:700 11px/16px Figtree,sans-serif;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Date range</div>
+          <div class="mscroll" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px">
+            <sc-for list="{{ datePresets }}" as="d" hint-placeholder-count="5">
+              <button onClick="{{ d.onClick }}" style="flex:none;height:34px;padding:0 12px;border:1px solid {{ d.border }};border-radius:17px;background:{{ d.bg }};color:{{ d.fg }};font:600 12px/16px Figtree,sans-serif;cursor:pointer">{{ d.label }}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div style="flex:1;min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" type="date" label="From" value="{{ fromDate }}" onChange="{{ onFromDate }}" hint-size="100%,54px"></x-import></div>
+            <div style="flex:1;min-width:0"><x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" type="date" label="To" value="{{ toDate }}" onChange="{{ onToDate }}" hint-size="100%,54px"></x-import></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding-bottom:4px">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Toggle" isSelected="{{ unreadOnly }}" onChange="{{ onUnreadOnly }}" hint-size="40px,24px"></x-import>
+          <span style="font:400 14px/20px Figtree,sans-serif;color:var(--primary-text-color)">Unread only</span>
+        </div>
+      </div>
+      <div style="flex:none;padding:12px 16px 18px;border-top:1px solid var(--om-hairline)">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" size="medium" onClick="{{ onCloseFilters }}" hint-size="100%,40px">{{ applyLabel }}</x-import>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ profileOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseProfile }}" style="position:absolute;inset:0;z-index:28;background:rgba(41,47,76,.24);animation:mFade 100ms both"></div>
+    <div style="position:absolute;top:52px;right:10px;width:250px;z-index:29;background:var(--dialog-background-color);border-radius:8px;box-shadow:var(--box-shadow-medium);overflow:hidden;animation:mFade 100ms both">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--om-hairline)">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Avatar" text="{{ roleInitials }}" size="medium" backgroundColor="primary" hint-size="32px,32px"></x-import>
+        <div style="flex:1;min-width:0">
+          <div style="font:600 13px/18px Figtree,sans-serif;color:var(--primary-text-color)">{{ profileName }}</div>
+          <div style="font:400 11px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ profileEmail }}</div>
+        </div>
+      </div>
+      <sc-for list="{{ profileItems }}" as="i" hint-placeholder-count="3">
+        <button onClick="{{ i.onClick }}" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:11px 14px;border:none;background:transparent;cursor:pointer;text-align:start">
+          <span style="color:var(--icon-color);display:flex">{{ i.icon }}</span>
+          <span style="flex:1;font:400 13px/18px Figtree,sans-serif;color:var(--primary-text-color)">{{ i.label }}</span>
+        </button>
+      </sc-for>
+      <div style="padding:10px 14px 12px;border-top:1px solid var(--om-hairline)">
+        <div style="font:700 10px/14px Figtree,sans-serif;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Appearance</div>
+        <div style="display:flex;gap:4px;padding:3px;border-radius:6px;background:var(--allgrey-background-color)">
+          <sc-for list="{{ themeOptions }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.onClick }}" style="flex:1;height:30px;border:none;border-radius:4px;background:{{ t.bg }};color:{{ t.fg }};font:600 12px/16px Figtree,sans-serif;cursor:pointer">{{ t.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <button onClick="{{ onToggleRole }}" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:12px 14px;border:none;border-top:1px solid var(--om-hairline);background:transparent;cursor:pointer;text-align:start">
+        <span style="color:var(--primary-color);display:flex">{{ icTeam }}</span>
+        <span style="flex:1;font:600 13px/18px Figtree,sans-serif;color:var(--primary-color)">{{ roleSwitchLabel }}</span>
+      </button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ projectPickerOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:25;background:var(--primary-background-color);display:flex;flex-direction:column;animation:mPush 150ms cubic-bezier(0,0,.35,1) both">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 10px 0">
+        <button onClick="{{ onCloseProjectPicker }}" style="width:36px;height:36px;border:none;border-radius:4px;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icBack }}</button>
+        <span style="flex:1;font:700 16px/22px Poppins,sans-serif;color:var(--primary-text-color)">Choose a project</span>
+      </div>
+      <div style="flex:none;padding:10px 14px 12px;border-bottom:1px solid var(--om-hairline)">
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Search" size="small" placeholder="Search projects and clients" value="{{ projectSearch }}" onChange="{{ onProjectSearch }}" hint-size="100%,32px"></x-import>
+      </div>
+      <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto">
+        <sc-for list="{{ projectPickerItems }}" as="p" hint-placeholder-count="5">
+          <button onClick="{{ p.onPick }}" style="display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:13px 16px;border:none;border-bottom:1px solid var(--om-hairline-soft);background:{{ p.rowBg }};cursor:pointer;text-align:start">
+            <span style="flex:none;width:8px;height:8px;border-radius:2px;background:{{ p.swatch }}"></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font:{{ p.weight }} 14px/20px Figtree,sans-serif;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.label }}</span>
+              <span style="display:block;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ p.meta }}</span>
+            </span>
+            <sc-if value="{{ p.selected }}" hint-placeholder-val="{{ false }}">
+              <span style="color:var(--primary-color);display:flex">{{ icCheck }}</span>
+            </sc-if>
+          </button>
+        </sc-for>
+        <sc-if value="{{ projectPickerEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:28px 24px;text-align:center;font:400 13px/18px Figtree,sans-serif;color:var(--secondary-text-color)">No project matches that — try the client's name.</div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ previewOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onClosePreview }}" style="position:absolute;inset:0;background:var(--backdrop-color);animation:mFade 100ms both;z-index:20"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;height:80%;display:flex;flex-direction:column;background:var(--primary-background-color);border-radius:16px 16px 0 0;box-shadow:var(--box-shadow-large);animation:mSheet 150ms cubic-bezier(0,0,.35,1) both;z-index:21">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--om-hairline)">
+        <span style="width:36px;height:4px;border-radius:2px;background:var(--layout-border-color);position:absolute;left:50%;top:6px;margin-inline-start:-18px"></span>
+        <span style="flex:1;font:700 15px/22px Poppins,sans-serif;color:var(--primary-text-color)">What the client sees</span>
+        <button onClick="{{ onClosePreview }}" style="width:32px;height:32px;border:none;background:transparent;color:var(--icon-color);display:flex;align-items:center;justify-content:center;cursor:pointer">{{ icClose }}</button>
+      </div>
+      <div class="mscroll" style="flex:1;min-height:0;overflow-y:auto;background:#eef0f5;padding:14px">
+        <div style="background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e0e3ec">
+          <div style="background:#0e2ba4;padding:14px 16px;display:flex;align-items:center;gap:10px">
+            <img src="assets/ozee-logo-sm.png" alt="OZee" style="height:22px;width:auto;display:block;filter:brightness(0) invert(1)">
+            <span style="font:600 12px/16px Figtree,sans-serif;color:rgba(255,255,255,.85)">Your one stop shop</span>
+          </div>
+          <div style="padding:18px 16px">
+            <div style="font:400 15px/23px Figtree,sans-serif;color:#323338">Hi {{ previewFirst }},</div>
+            <div style="height:10px"></div>
+            {{ previewBody }}
+            <div style="height:14px"></div>
+            <div style="font:400 15px/23px Figtree,sans-serif;color:#323338">Thanks,<br>{{ previewSigner }}</div>
+          </div>
+          <div style="padding:14px 16px;border-top:1px solid #e0e3ec;background:#fafbfd">
+            <div style="font:400 11px/17px Figtree,sans-serif;color:#676879">OZee Web &amp; Digital Services · Thornlie WA · +61 456 639 389<br>Your website and social media are like your home, first impressions matter!</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:12px;right:12px;bottom:92px;z-index:30;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;background:#323338;color:#fff;font:600 13px/18px Figtree,sans-serif;box-shadow:var(--box-shadow-medium);animation:mFade 100ms both">
+      <span style="display:flex;color:#00c875">{{ icCheck }}</span><span style="flex:1">{{ toast }}</span>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844},&quot;role&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;manager&quot;,&quot;contractor&quot;],&quot;default&quot;:&quot;manager&quot;,&quot;tsType&quot;:&quot;\&quot;manager\&quot; | \&quot;contractor\&quot;&quot;},&quot;slaMinutes&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:60,&quot;min&quot;:15,&quot;max&quot;:240,&quot;step&quot;:5,&quot;unit&quot;:&quot;min&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;sortByBreach&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;aiAlwaysOn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.rows = {};
+    let storedTheme = "system";
+    try { storedTheme = localStorage.getItem("om-guest-theme") || "system"; } catch (e) {}
+    this.state = {
+      theme: storedTheme,
+      profileOpen: false,
+      role: props.role ?? "manager",
+      tab: "inbox",
+      screen: "list",
+      search: "",
+      filtersOpen: false,
+      previewOpen: false,
+      status: "all",
+      risk: "all",
+      project: "all",
+      unreadOnly: false,
+      projectPickerOpen: false,
+      projectSearch: "",
+      fromDate: "",
+      toDate: "",
+      datePreset: "any",
+      selectedId: null,
+      expanded: {},
+      quotes: {},
+      builder: null,
+      blocks: [],
+      composerProject: "northshore",
+      templateValue: "update",
+      composerSubject: "",
+      pulling: false,
+      toast: "",
+      emails: this.seed()
+    };
+  }
+
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate(p, prev) { if (prev.theme !== this.state.theme) this.applyTheme(); }
+  applyTheme() { document.documentElement.setAttribute("data-theme", this.state.theme); }
+  setTheme(v) { try { localStorage.setItem("om-guest-theme", v); } catch (e) {} this.setState({ theme: v }); }
+
+  sla() { return this.props.slaMinutes ?? 60; }
+  toast(t) {
+    this.setState({ toast: t });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: "" }), 2600);
+  }
+  ic(name, size) {
+    const url = "url(assets/icons/" + name + ".svg)";
+    return React.createElement("span", { key: name, style: { width: size || 18, height: size || 18, flex: "0 0 auto", display: "inline-block", background: "currentColor", WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center" } });
+  }
+
+  seed() {
+    const P = (s) => s.split("\n").map((text) => ({ text }));
+    return [
+      { id: "e1", dir: "in", status: "received", unread: true, replied: false, minutesAgo: 12, who: "Dr Alan Reid", initials: "AR", projectId: "northshore", projectShort: "Northshore Dental", timeText: "9:18 am", subject: "Can we push the launch to next Tuesday?",
+        preview: "Sorry to move things around — our practice manager is away Friday and she's the only one who can sign off the booking flow.", files: 1,
+        aiSummary: "Alan wants the launch moved from Friday to Tuesday 25 August because the practice manager — the only person who can sign off the booking flow — is away. He has also asked whether the confirmation email can carry the clinic's parking instructions.",
+        aiTask: { title: "Move launch to Tue 25 Aug and re-book the DNS cut-over", meta: "Suggested due Tomorrow · High · Dave Kelso" },
+        msgs: [
+          { id: "m1", dir: "out", author: "Sarah Bennett", initials: "SB", when: "Yesterday, 9:03 am", snippet: "Morning Alan — staging is ready for you.", summary: "Sent the staging link and asked Alan to review the booking flow.", receipt: "Opened yesterday, 9:41 am", opened: true, paras: P("Morning Alan — staging is ready for you: staging.northshoredental.com.au\nHave a click through the booking flow and tell us if anything reads oddly.") },
+          { id: "m2", dir: "in", author: "Dr Alan Reid", initials: "AR", when: "Yesterday, 4:12 pm", snippet: "Had a look this afternoon — the design is spot on.", summary: "Alan approves the design and returns the signed-off checklist.", paras: P("Had a look this afternoon — the design is spot on and the team likes the new booking steps.\nOne of the girls filled in the checklist you sent, attached."), files: [{ name: "signoff-checklist.pdf", size: "412 KB" }] },
+          { id: "m3", dir: "note", author: "Mia Lu (internal note)", initials: "ML", when: "Today, 8:40 am", snippet: "Tuesday suits us better anyway.", paras: P("Tuesday suits us better anyway — Dave isn't free for the DNS cut-over on Friday afternoon. @sarah worth confirming the maintenance window when you reply.") },
+          { id: "m4", dir: "in", author: "Dr Alan Reid", initials: "AR", when: "Today, 9:18 am", snippet: "Sorry to move things around — our practice manager is away Friday…", summary: "Asks to move the launch to Tuesday, and to add parking details to the confirmation email.", paras: P("Sorry to move things around — our practice manager is away Friday and she's the only one who can sign off the booking flow. Could we push the launch to next Tuesday?\nSeparate question: can the confirmation email include our parking instructions? Patients ring about it every week."), quote: "On Wed 19 Aug, Sarah Bennett wrote:\n> Morning Alan — staging is ready for you: staging.northshoredental.com.au\n> Have a click through the booking flow and tell us if anything reads oddly." }
+        ] },
+      { id: "e2", dir: "in", status: "received", unread: true, replied: false, minutesAgo: 71, who: "Fiona Marsh", initials: "FM", projectId: "bayside", projectShort: "Bayside Legal", timeText: "8:19 am", subject: "Where are we with the August SEO report?",
+        preview: "Partners meeting is Thursday morning and I'd like the ranking numbers in the pack. Is the August report ready?", files: 0,
+        aiSummary: "Fiona needs the August SEO report before Thursday's partners meeting and will fall back to July's numbers if it isn't ready. This is her second ask — the first was eight days ago.",
+        aiTask: { title: "Send Bayside Legal the August SEO report", meta: "Suggested due Today · High · Mia Lu" },
+        msgs: [
+          { id: "m1", dir: "out", author: "Mia Lu", initials: "ML", when: "11 Aug, 2:20 pm", snippet: "Hi Fiona — July's report is attached.", summary: "Sent July's report and set the expectation for August.", receipt: "Opened 11 Aug, 4:02 pm", opened: true, paras: P("Hi Fiona — July's report is attached. August lands in the first week of September as usual.") },
+          { id: "m2", dir: "in", author: "Fiona Marsh", initials: "FM", when: "Today, 8:19 am", snippet: "Partners meeting is Thursday morning…", summary: "Needs the August report before Thursday's partners meeting.", paras: P("Partners meeting is Thursday morning and I'd like the ranking numbers in the pack.\nIs the August report ready, or should I present July again?") }
+        ] },
+      { id: "e3", dir: "in", status: "received", unread: true, replied: false, minutesAgo: 54, who: "Nina Petrov", initials: "NP", projectId: "coast", projectShort: "Coast Cafe", timeText: "8:36 am", subject: "Online ordering times out at checkout",
+        preview: "Three customers rang this morning — the payment step spins and then drops them back to the cart.", files: 2,
+        aiSummary: "Nina reports the checkout payment step timing out and dropping customers back to the cart, with three customer calls this morning. It is hitting the breakfast trade, so it reads as urgent.",
+        aiTask: { title: "Investigate checkout timeout on Coast Cafe ordering", meta: "Suggested due Today · High · James Doyle" },
+        msgs: [
+          { id: "m1", dir: "in", author: "Nina Petrov", initials: "NP", when: "Today, 8:36 am", snippet: "Three customers rang this morning…", summary: "Checkout times out and drops customers back to the cart — three calls this morning.", paras: P("Three customers rang this morning — the payment step spins for about a minute and then drops them back to the cart.\nScreenshot and one of the order emails attached. Breakfast rush is our busiest window so we'd love this looked at today."), files: [{ name: "checkout-timeout.png", size: "1.2 MB" }, { name: "order-1841.eml", size: "38 KB" }] }
+        ] },
+      { id: "e4", dir: "in", status: "screening", unread: true, replied: false, minutesAgo: 33, who: "Lead from website form", initials: "LW", projectId: "new", projectShort: "New enquiry", timeText: "8:57 am", subject: "Website enquiry — restaurant group, 4 sites",
+        preview: "Screened until a manager releases it.", files: 0, aiSummary: "",
+        msgs: [ { id: "m1", dir: "in", author: "Lead from website form", initials: "LW", when: "Today, 8:57 am", snippet: "Screened until a manager releases it.", paras: P("We run four venues and need one site with separate menus and booking for each. Budget is flexible for the right team. Can someone call me this week?") } ] },
+      { id: "e5", dir: "in", status: "received", unread: false, replied: true, minutesAgo: 210, who: "Priya Shah", initials: "PS", projectId: "bayside", projectShort: "Bayside Legal", timeText: "Yesterday", subject: "Invoice 1184 and the retainer step-up",
+        preview: "Happy to go ahead with the higher retainer from September.", files: 0,
+        aiSummary: "Priya agrees to the September retainer step-up and asks for the invoice to be split across two cost centres.",
+        msgs: [
+          { id: "m1", dir: "in", author: "Priya Shah", initials: "PS", when: "Yesterday, 3:04 pm", snippet: "Happy to go ahead with the higher retainer from September.", summary: "Agrees to the retainer step-up from September.", paras: P("Happy to go ahead with the higher retainer from September. Can the invoice be split across two cost centres?") },
+          { id: "m2", dir: "note", author: "Sarah Bennett (internal note)", initials: "SB", when: "Yesterday, 3:20 pm", private: true, snippet: "Margin note — do not forward.", paras: P("Margin on this account is thin until the September step-up lands. Don't discount the extra hours if Priya pushes back.") }
+        ] },
+      { id: "e6", dir: "out", status: "approval", unread: false, replied: true, minutesAgo: 40, who: "Mia Lu → Dr Alan Reid", initials: "ML", projectId: "northshore", projectShort: "Northshore Dental", timeText: "8:50 am", subject: "Parking instructions in the confirmation email",
+        preview: "Waiting on a manager to approve and send.", files: 0, aiSummary: "Mia's reply confirms the parking wording and asks Alan to check the tone before it goes out.",
+        msgs: [ { id: "m1", dir: "out", author: "Mia Lu", initials: "ML", when: "Today, 8:50 am", snippet: "Waiting on a manager to approve and send.", receipt: "Not sent yet — waiting on approval", opened: false, paras: P("Hi Alan — we've added your parking instructions to the confirmation email, just under the appointment time. Have a read and tell us if the wording works.") } ] },
+      { id: "e7", dir: "out", status: "sent", unread: false, replied: true, minutesAgo: 1500, who: "Sarah Bennett → Nina Petrov", initials: "SB", projectId: "coast", projectShort: "Coast Cafe", timeText: "Yesterday", subject: "Ordering system — what we changed last week",
+        preview: "AI checker approved it · sent yesterday, 4:30 pm", files: 0, aiSummary: "",
+        msgs: [ { id: "m1", dir: "out", author: "Sarah Bennett", initials: "SB", when: "Yesterday, 4:30 pm", snippet: "AI checker approved it.", receipt: "Not opened yet", opened: false, paras: P("Hi Nina — quick summary of last week's changes to the ordering system, plus the two things we'd still like to tidy up before the school holidays.") } ] }
+    ];
+  }
+
+  now() { return new Date(2026, 7, 21, 9, 30); }
+  ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  dayOf(e) { return this.ymd(new Date(this.now().getTime() - e.minutesAgo * 60000)); }
+  presetRange(key) {
+    const n = this.now(), d = new Date(n);
+    if (key === "today") return [this.ymd(n), this.ymd(n)];
+    if (key === "yesterday") { d.setDate(d.getDate() - 1); return [this.ymd(d), this.ymd(d)]; }
+    if (key === "week") { d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return [this.ymd(d), this.ymd(n)]; }
+    if (key === "month") { d.setDate(1); return [this.ymd(d), this.ymd(n)]; }
+    if (key === "last7") { d.setDate(d.getDate() - 6); return [this.ymd(d), this.ymd(n)]; }
+    return ["", ""];
+  }
+
+  isManager() { return this.state.role === "manager"; }
+  decorate(e) {
+    const left = e.dir === "in" && !e.replied && e.status !== "screening" ? this.sla() - e.minutesAgo : null;
+    let slaColor = "#00854d", slaBg = "#e8f5ee", slaText = "";
+    if (left !== null) {
+      if (left <= 0) { slaColor = "#d83a52"; slaBg = "#fdecef"; slaText = Math.abs(left) + " min over"; }
+      else if (left <= 20) { slaColor = "#c47b00"; slaBg = "#fff6e0"; slaText = left + " min left"; }
+      else { slaText = left + " min left"; }
+    }
+    return { ...e, left, slaColor, slaBg, slaText, hasPrivate: (e.msgs || []).some((m) => m.private) };
+  }
+
+  filtered() {
+    const s = this.state;
+    const mgr = this.isManager();
+    let list = s.emails.map((e) => this.decorate(e));
+    if (s.tab === "sent") list = list.filter((e) => e.dir === "out");
+    else if (s.tab === "alerts") list = list.filter((e) => e.left !== null);
+    else list = list.filter((e) => e.dir === "in" || e.status === "approval");
+    if (s.status === "needsReply") list = list.filter((e) => e.left !== null);
+    if (s.status === "waiting") list = list.filter((e) => e.status === "approval");
+    if (s.status === "screened") list = list.filter((e) => e.status === "screening");
+    if (s.status === "done") list = list.filter((e) => e.replied && e.left === null);
+    if (s.risk === "over") list = list.filter((e) => e.left !== null && e.left <= 0);
+    if (s.risk === "soon") list = list.filter((e) => e.left !== null && e.left > 0 && e.left <= 20);
+    if (s.risk === "ok") list = list.filter((e) => e.left === null || e.left > 20);
+    if (s.project !== "all") list = list.filter((e) => e.projectId === s.project);
+    if (s.fromDate) list = list.filter((e) => this.dayOf(e) >= s.fromDate);
+    if (s.toDate) list = list.filter((e) => this.dayOf(e) <= s.toDate);
+    if (s.unreadOnly) list = list.filter((e) => e.unread);
+    if (s.search.trim()) {
+      const q = s.search.trim().toLowerCase();
+      list = list.filter((e) => (e.who + " " + e.subject + " " + e.preview + " " + e.projectShort).toLowerCase().indexOf(q) >= 0);
+    }
+    if (!mgr) list = list.filter((e) => !e.hasPrivate || true);
+    if (this.props.sortByBreach ?? true) {
+      list = list.slice().sort((a, b) => {
+        const ra = a.left === null ? 9999 : a.left, rb = b.left === null ? 9999 : b.left;
+        return ra - rb;
+      });
+    }
+    return list;
+  }
+
+  openThread(id) {
+    const e = this.state.emails.find((x) => x.id === id);
+    if (!e) return;
+    const last = e.msgs[e.msgs.length - 1];
+    this.setState((s) => ({ selectedId: id, screen: "thread", expanded: { [last.id]: true }, emails: s.emails.map((x) => x.id === id ? { ...x, unread: false } : x) }));
+  }
+  stepThread(dir) {
+    const list = this.filtered();
+    const i = list.findIndex((e) => e.id === this.state.selectedId);
+    const next = list[i + dir];
+    if (!next) { this.toast(dir > 0 ? "That's the last one" : "That's the first one"); return; }
+    this.openThread(next.id);
+  }
+
+  blockDefaults(type) {
+    return { id: Date.now() + Math.floor(Math.random() * 999), type: type, text: "", label: "", url: "", alt: "" };
+  }
+  openReply() {
+    const e = this.state.emails.find((x) => x.id === this.state.selectedId);
+    const draft = e && e.aiSummary ? [{ ...this.blockDefaults("text"), text: this.draftFor(e) }] : [this.blockDefaults("text")];
+    this.setState({ screen: "builder", builder: "reply", blocks: draft });
+  }
+  draftFor(e) {
+    if (e.id === "e1") return "No problem — Tuesday works for us. I'll move the launch to Tuesday 25 August and re-book the DNS cut-over for that morning, so nothing goes live before your practice manager has signed off.";
+    if (e.id === "e2") return "The August report is with Mia for a final check and you'll have it before end of day, so you can build Thursday's pack around the current numbers.";
+    if (e.id === "e3") return "Thanks for flagging it so quickly — James is checking the payment gateway logs now and I'll come back to you within the hour.";
+    return "";
+  }
+  openCompose() {
+    this.setState({ screen: "builder", builder: "compose", blocks: [{ ...this.blockDefaults("text"), text: "Quick update on the site refresh — the booking flow is built and sitting on staging for your review." }, { ...this.blockDefaults("link"), label: "Review on staging", url: "https://staging.northshoredental.com.au" }], filtersOpen: false });
+  }
+  setBlock(id, key, v) {
+    this.setState((s) => ({ blocks: s.blocks.map((b) => b.id === id ? { ...b, [key]: v } : b) }));
+  }
+  moveBlock(id, dir) {
+    this.setState((s) => {
+      const arr = s.blocks.slice();
+      const i = arr.findIndex((b) => b.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return {};
+      arr.splice(j, 0, arr.splice(i, 1)[0]);
+      return { blocks: arr };
+    });
+  }
+
+  parseInline(text) {
+    const out = [];
+    const re = /\(([^)]+)\)\[([^\]]+)\]/g;
+    let last = 0, m, k = 0;
+    while ((m = re.exec(text || "")) !== null) {
+      if (m.index > last) out.push(text.slice(last, m.index));
+      out.push(React.createElement("a", { key: "l" + (k++), href: m[2], style: { color: "#1a73e8" } }, m[1]));
+      last = re.lastIndex;
+    }
+    if (last < (text || "").length) out.push(text.slice(last));
+    return out;
+  }
+  previewBody() {
+    const els = [];
+    this.state.blocks.forEach((b, i) => {
+      const key = "b" + i;
+      if (b.type === "text") els.push(React.createElement("p", { key, style: { margin: "0 0 12px", font: "400 15px/23px Figtree,sans-serif", color: "#323338" } }, this.parseInline(b.text || "Your words go here.")));
+      else if (b.type === "bullets") els.push(React.createElement("ul", { key, style: { margin: "0 0 12px", paddingInlineStart: 20 } }, (b.text || "").split("\n").filter(Boolean).map((t, j) => React.createElement("li", { key: j, style: { font: "400 15px/23px Figtree,sans-serif", color: "#323338", marginBottom: 4 } }, this.parseInline(t)))));
+      else if (b.type === "link") els.push(React.createElement("div", { key, style: { margin: "4px 0 16px" } }, React.createElement("a", { href: b.url || "#", style: { display: "inline-block", padding: "11px 18px", borderRadius: 4, background: "#1a73e8", color: "#fff", font: "600 14px/20px Figtree,sans-serif", textDecoration: "none" } }, b.label || "Button label")));
+      else if (b.type === "image") els.push(React.createElement("div", { key, style: { margin: "0 0 14px", height: 150, borderRadius: 4, background: "#eef0f5", border: "1px dashed #c3c6d4", display: "flex", alignItems: "center", justifyContent: "center", font: "400 12px/16px Figtree,sans-serif", color: "#676879" } }, b.alt || "Picture goes here"));
+    });
+    return els;
+  }
+
+  rowRef(id) {
+    return (el) => { if (el) this.rows[id] = el; };
+  }
+  onRowDown(id) {
+    return (ev) => { this._sw = { id: id, x: ev.clientX, y: ev.clientY, moved: false }; };
+  }
+  onRowMove(id) {
+    return (ev) => {
+      const sw = this._sw;
+      if (!sw || sw.id !== id) return;
+      const dx = ev.clientX - sw.x;
+      if (Math.abs(dx) < 6 || Math.abs(ev.clientY - sw.y) > 26) return;
+      sw.moved = true;
+      const el = this.rows[id];
+      if (el) { el.style.transition = "none"; el.style.transform = "translateX(" + dx + "px)"; }
+    };
+  }
+  onRowUp(id) {
+    return (ev) => {
+      const sw = this._sw;
+      this._sw = null;
+      const el = this.rows[id];
+      if (!sw || sw.id !== id || !sw.moved) return;
+      const dx = ev.clientX - sw.x;
+      if (el) { el.style.transition = "transform 150ms cubic-bezier(.4,0,1,1)"; el.style.transform = "translateX(0)"; }
+      if (dx < -70) this.archive(id);
+      else if (dx > 70) this.markRead(id);
+    };
+  }
+  archive(id) {
+    const e = this.state.emails.find((x) => x.id === id);
+    this.setState((s) => ({ emails: s.emails.filter((x) => x.id !== id), selectedId: s.selectedId === id ? null : s.selectedId }));
+    this.toast("Archived " + (e ? e.subject : "email"));
+  }
+  markRead(id) {
+    let was = false;
+    this.setState((s) => ({ emails: s.emails.map((x) => { if (x.id !== id) return x; was = x.unread; return { ...x, unread: !x.unread }; }) }));
+    setTimeout(() => this.toast(was ? "Marked as read" : "Marked as unread"), 0);
+  }
+
+  onPullStart(ev) {
+    const el = this._list;
+    if (!el || el.scrollTop > 0) return;
+    this._pull = { y: ev.clientY };
+  }
+  onPullMove(ev) {
+    if (!this._pull || this.state.pulling) return;
+    const dy = ev.clientY - this._pull.y;
+    const el = this._pullEl;
+    if (!el) return;
+    if (dy > 0) { el.style.height = Math.min(dy * 0.5, 44) + "px"; }
+    if (dy > 90) { this._pull = null; el.style.height = "44px"; this.refresh(); }
+  }
+  onPullEnd() {
+    this._pull = null;
+    const el = this._pullEl;
+    if (el && !this.state.pulling) { el.style.transition = "height 150ms"; el.style.height = "0px"; setTimeout(() => { if (el) el.style.transition = ""; }, 200); }
+  }
+  refresh() {
+    this.setState({ pulling: true });
+    setTimeout(() => {
+      const el = this._pullEl;
+      if (el) el.style.height = "0px";
+      this.setState({ pulling: false });
+      this.toast("Up to date · nothing new");
+    }, 1100);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const mgr = this.isManager();
+    const all = s.emails.map((e) => this.decorate(e));
+    const overdue = all.filter((e) => e.left !== null && e.left <= 0);
+    const list = this.filtered();
+    const sel = s.selectedId ? all.find((e) => e.id === s.selectedId) : null;
+
+    const projectOptions = [
+      { value: "all", label: "All my projects" },
+      { value: "northshore", label: "Northshore Dental — site refresh" },
+      { value: "bayside", label: "Bayside Legal — SEO retainer" },
+      { value: "coast", label: "Coast Cafe — online ordering" },
+      { value: "new", label: "New enquiries" }
+    ];
+    const projName = (projectOptions.find((p) => p.value === s.project) || {}).label;
+
+    const activeFilters = [];
+    const statusLabels = { needsReply: "Needs reply", waiting: "Waiting approval", screened: "Screened", done: "Done" };
+    if (s.status !== "all") activeFilters.push({ label: statusLabels[s.status], onRemove: () => this.setState({ status: "all" }) });
+    if (s.risk !== "all") activeFilters.push({ label: { over: "Past the hour", soon: "Under 20 min", ok: "Comfortable" }[s.risk], onRemove: () => this.setState({ risk: "all" }) });
+    if (s.project !== "all") activeFilters.push({ label: projName, onRemove: () => this.setState({ project: "all" }) });
+    if (s.unreadOnly) activeFilters.push({ label: "Unread only", onRemove: () => this.setState({ unreadOnly: false }) });
+    if (s.fromDate || s.toDate) {
+      const presetName = { today: "Today", yesterday: "Yesterday", week: "This week", last7: "Last 7 days", month: "This month" }[s.datePreset];
+      activeFilters.push({ label: presetName || (s.fromDate || "Any") + " → " + (s.toDate || "Any"), onRemove: () => this.setState({ fromDate: "", toDate: "", datePreset: "any" }) });
+    }
+
+    const chip = (active) => active
+      ? { bg: "var(--primary-selected-color)", fg: "var(--primary-color)", border: "var(--primary-color)" }
+      : { bg: "var(--primary-background-color)", fg: "var(--primary-text-color)", border: "var(--ui-border-color)" };
+
+    const statusFilters = [
+      { key: "all", label: "Everything" }, { key: "needsReply", label: "Needs reply" },
+      { key: "waiting", label: "Waiting approval" }, { key: "screened", label: "Screened" }, { key: "done", label: "Done" }
+    ].filter((f) => mgr || (f.key !== "waiting" && f.key !== "screened")).map((f) => ({ label: f.label, ...chip(s.status === f.key), onClick: () => this.setState({ status: f.key }) }));
+
+    const riskFilters = [
+      { key: "all", label: "Any", dot: "var(--ui-border-color)" }, { key: "over", label: "Past the hour", dot: "#d83a52" },
+      { key: "soon", label: "Under 20 min", dot: "#c47b00" }, { key: "ok", label: "Comfortable", dot: "#00854d" }
+    ].map((f) => ({ label: f.label, dot: f.dot, ...chip(s.risk === f.key), onClick: () => this.setState({ risk: f.key }) }));
+
+    const projMeta = {
+      all: { meta: "Everything across your projects", swatch: "var(--ui-border-color)" },
+      northshore: { meta: "Dr Alan Reid · site refresh", swatch: "#00854d" },
+      bayside: { meta: "Fiona Marsh, Priya Shah · SEO retainer", swatch: "#1a73e8" },
+      coast: { meta: "Nina Petrov · online ordering", swatch: "#c47b00" },
+      new: { meta: "Website form leads", swatch: "#9699a6" }
+    };
+    const pq = (s.projectSearch || "").trim().toLowerCase();
+    const projectPickerItems = projectOptions
+      .filter((p) => !pq || (p.label + " " + projMeta[p.value].meta).toLowerCase().indexOf(pq) >= 0)
+      .map((p) => ({
+        key: p.value, label: p.label, meta: projMeta[p.value].meta, swatch: projMeta[p.value].swatch,
+        selected: s.project === p.value, weight: s.project === p.value ? 600 : 400,
+        rowBg: s.project === p.value ? "var(--primary-surface-color)" : "var(--primary-background-color)",
+        onPick: () => this.setState({ project: p.value, projectPickerOpen: false })
+      }));
+
+    const datePresets = [
+      { key: "any", label: "Any time" }, { key: "today", label: "Today" }, { key: "yesterday", label: "Yesterday" },
+      { key: "week", label: "This week" }, { key: "last7", label: "Last 7 days" }, { key: "month", label: "This month" }
+    ].map((d) => ({
+      key: d.key, label: d.label, ...chip(s.datePreset === d.key || (d.key === "any" && !s.fromDate && !s.toDate)),
+      onClick: () => { const r = this.presetRange(d.key); this.setState({ datePreset: d.key, fromDate: r[0], toDate: r[1] }); }
+    }));
+
+    const listItems = list.map((e) => {
+      const priv = e.hasPrivate;
+      const screened = e.status === "screening" && !mgr;
+      const hidden = priv && !mgr;
+      let badgeText = "", badgeBg = "", badgeFg = "";
+      if (e.status === "approval") { badgeText = "Waiting approval"; badgeBg = "var(--primary-selected-color)"; badgeFg = "var(--primary-color)"; }
+      else if (e.status === "screening") { badgeText = "Screened"; badgeBg = "#fff6e0"; badgeFg = "#8a6100"; }
+      else if (e.status === "sent") { badgeText = "AI approved"; badgeBg = "#e8f5ee"; badgeFg = "#00854d"; }
+      const outs = (e.msgs || []).filter((m) => m.dir === "out" && m.receipt);
+      const lastOut = outs[outs.length - 1];
+      let warnText = "";
+      if (hidden) warnText = "Contains a private message — a manager marked this one private, so it stays out of your view.";
+      else if (priv) warnText = "Has a private message — hidden from contractors.";
+      else if (screened) warnText = "Screened inbound — a manager releases this before you can read it.";
+      return {
+        key: e.id, who: e.who, subject: hidden || screened ? "Hidden until a manager releases it" : e.subject,
+        previewText: hidden || screened ? "You'll see the message once it's released." : e.preview,
+        timeText: e.timeText, initials: e.initials, avatarTone: e.left !== null && e.left <= 0 ? "negative" : e.dir === "out" ? "primary" : "positive",
+        unread: e.unread, nameWeight: e.unread ? 700 : 600, subjectWeight: e.unread ? 600 : 400,
+        showSla: e.left !== null, slaText: e.slaText, slaColor: e.slaColor, slaBg: e.slaBg,
+        projectShort: e.projectShort, showBadge: !!badgeText, badgeText, badgeBg, badgeFg,
+        hasFiles: e.files > 0, filesText: e.files === 1 ? "1 file" : e.files + " files",
+        showWarn: !!warnText, warnText,
+        showRead: e.dir === "out" && !!lastOut, readText: lastOut ? lastOut.receipt : "", readColor: lastOut && lastOut.opened ? "#00854d" : "var(--secondary-text-color)",
+        rightHint: e.unread ? "Mark read" : "Mark unread",
+        ref: this.rowRef(e.id), onDown: this.onRowDown(e.id), onMove: this.onRowMove(e.id), onUp: this.onRowUp(e.id),
+        onOpen: () => { if (this._sw && this._sw.moved) return; this.openThread(e.id); }
+      };
+    });
+
+    const selHidden = !!sel && !mgr && (sel.hasPrivate || sel.status === "screening");
+    const threadMsgs = sel ? sel.msgs.filter((m) => mgr || !m.private).map((m) => {
+      const open = !!s.expanded[m.id];
+      return {
+        key: m.id, author: m.author, initials: m.initials, when: m.when, snippet: m.snippet, closed: !open, open: open,
+        summary: m.summary, showSummary: open && !!m.summary && (this.props.aiAlwaysOn ?? true) && !m.private,
+        paras: (m.paras || []).map((p, i) => ({ key: i, text: p.text })),
+        files: (m.files || []).map((f, i) => ({ key: i, name: f.name, size: f.size })), hasFiles: !!(m.files || []).length,
+        hasQuote: !!m.quote, quote: m.quote, quoteOpen: !!s.quotes[m.id],
+        onQuote: () => this.setState((st) => ({ quotes: { ...st.quotes, [m.id]: !st.quotes[m.id] } })),
+        showReceipt: !!m.receipt, receipt: m.receipt, receiptColor: m.opened ? "#00854d" : "var(--secondary-text-color)",
+        cardBg: m.dir === "note" ? "var(--om-note-bg)" : "var(--primary-background-color)",
+        avatarTone: m.dir === "out" ? "primary" : m.dir === "note" ? "warning" : "positive",
+        canPrivate: mgr && m.dir === "note", privateLabel: m.private ? "Make visible" : "Make private",
+        onPrivate: () => {
+          this.setState((st) => ({ emails: st.emails.map((e) => e.id !== sel.id ? e : { ...e, msgs: e.msgs.map((x) => x.id === m.id ? { ...x, private: !x.private } : x) }) }));
+          this.toast(m.private ? "Visible to the whole team" : "Marked private — contractors can't see it");
+        },
+        onToggle: () => this.setState((st) => ({ expanded: { ...st.expanded, [m.id]: !st.expanded[m.id] } }))
+      };
+    }) : [];
+
+    const typeMeta = {
+      text: { label: "Words", icon: this.ic("Doc", 16), placeholder: "Write the paragraph…", hint: "Wrap a link like this: (Review on staging)[https://…]" },
+      bullets: { label: "Bullets", icon: this.ic("CheckList", 16), placeholder: "One point per line", hint: "Each line becomes its own bullet." },
+      link: { label: "Button", icon: this.ic("Globe", 16), placeholder: "" },
+      image: { label: "Picture", icon: this.ic("Image", 16), placeholder: "" }
+    };
+    const blocks = s.blocks.map((b) => {
+      const meta = typeMeta[b.type];
+      return {
+        key: b.id, typeLabel: meta.label, icon: meta.icon, placeholder: meta.placeholder, hint: meta.hint,
+        isWords: b.type === "text" || b.type === "bullets", isLink: b.type === "link", isImage: b.type === "image",
+        text: b.text, label: b.label, url: b.url, alt: b.alt,
+        onText: (v) => this.setBlock(b.id, "text", v && v.target ? v.target.value : v),
+        onLabel: (v) => this.setBlock(b.id, "label", v && v.target ? v.target.value : v),
+        onUrl: (v) => this.setBlock(b.id, "url", v && v.target ? v.target.value : v),
+        onAlt: (v) => this.setBlock(b.id, "alt", v && v.target ? v.target.value : v),
+        onUp: () => this.moveBlock(b.id, -1), onDown: () => this.moveBlock(b.id, 1),
+        onDelete: () => this.setState((st) => ({ blocks: st.blocks.filter((x) => x.id !== b.id) }))
+      };
+    });
+    const addButtons = [
+      { key: "text", label: "Words", type: "text", icon: this.ic("Doc", 16) },
+      { key: "bullets", label: "Bullets", type: "bullets", icon: this.ic("CheckList", 16) },
+      { key: "link", label: "Button", type: "link", icon: this.ic("Globe", 16) },
+      { key: "image", label: "Picture", type: "image", icon: this.ic("Image", 16) }
+    ].map((a) => ({ key: a.key, label: a.label, icon: a.icon, onClick: () => this.setState((st) => ({ blocks: st.blocks.concat([this.blockDefaults(a.type)]) })) }));
+
+    const tabDefs = [
+      { key: "inbox", label: "Inbox", icon: "Inbox", count: all.filter((e) => e.unread && (e.dir === "in" || e.status === "approval")).length, countBg: "var(--primary-color)" },
+      { key: "alerts", label: "Alerts", icon: "Alert", count: overdue.length, countBg: "#d83a52" }
+    ];
+    const tabs = tabDefs.map((t) => ({
+      key: t.key, label: t.label, icon: this.ic(t.icon, 22), showCount: t.count > 0, count: t.count, countBg: t.countBg,
+      color: s.tab === t.key && s.screen === "list" ? "var(--primary-color)" : "var(--secondary-text-color)",
+      weight: s.tab === t.key ? 600 : 400,
+      onClick: () => this.setState({ tab: t.key, screen: "list", selectedId: null, status: t.key === "alerts" ? "needsReply" : "all", risk: "all" })
+    }));
+    const tabsRight = [
+      {
+        key: "sent", label: "Sent", icon: this.ic("Send", 22),
+        color: s.tab === "sent" && s.screen === "list" ? "var(--primary-color)" : "var(--secondary-text-color)",
+        weight: s.tab === "sent" ? 600 : 400,
+        onClick: () => this.setState({ tab: "sent", screen: "list", selectedId: null, status: "all", risk: "all" })
+      },
+      {
+        key: "portal", label: "Portal", icon: this.ic("Globe", 22),
+        color: s.tab === "portal" ? "var(--primary-color)" : "var(--secondary-text-color)",
+        weight: s.tab === "portal" ? 600 : 400,
+        onClick: () => this.setState({ tab: "portal", screen: "portal", selectedId: null })
+      }
+    ];
+
+    const portalItems = [
+      { key: "northshore", name: "Northshore Dental", initials: "ND", tone: "positive", meta: "Site refresh · 6 shared items", stateText: "Awaiting sign-off", stateBg: "#fff6e0", stateFg: "#8a6100", visit: "Last visit yesterday, 4:02 pm" },
+      { key: "bayside", name: "Bayside Legal", initials: "BL", tone: "primary", meta: "SEO retainer · 12 shared items", stateText: "Report due", stateBg: "var(--primary-selected-color)", stateFg: "var(--primary-color)", visit: "Last visit 18 Aug" },
+      { key: "coast", name: "Coast Cafe", initials: "CC", tone: "negative", meta: "Online ordering · 4 shared items", stateText: "Open issue", stateBg: "#fdecef", stateFg: "#a32338", visit: "Last visit today, 8:36 am" }
+    ].filter((p) => !s.search.trim() || p.name.toLowerCase().indexOf(s.search.trim().toLowerCase()) >= 0)
+     .map((p) => ({ ...p, onOpen: () => this.toast("Opening " + p.name + "'s portal") }));
+
+    const headingMap = { inbox: "Needs you first", alerts: "The 1-hour clock", sent: "Sent mail" };
+    const subMap = {
+      inbox: overdue.length ? overdue.length + " past the hour" : "All inside the hour",
+      alerts: overdue.length ? overdue.length + " breached · " + list.length + " on the clock" : "Nothing breached",
+      sent: "Read receipts and AI checks"
+    };
+
+    return {
+      icFilter: this.ic("Filter", 18), icWarning: this.ic("Warning", 16), icChevRight: this.ic("NavigationChevronRight", 16),
+      icChevUp: this.ic("NavigationChevronUp", 16), icChevDown: this.ic("NavigationChevronDown", 16),
+      icBack: this.ic("NavigationChevronLeft", 20), icClose: this.ic("Close", 18), icEdit: this.ic("Edit", 22),
+      icArchive: this.ic("Archive", 16), icShow: this.ic("Show", 14), icAttach: this.ic("Attach", 12),
+      icRobot: this.ic("Robot", 14), icFile: this.ic("File", 16), icSend: this.ic("Send", 16), icReply: this.ic("Reply", 16),
+      icDelete: this.ic("Delete", 16), icImage: this.ic("Image", 22), icInbox: this.ic("Inbox", 24), icCheck: this.ic("Check", 16),
+
+      screenTitle: s.screen === "portal" ? "Portal" : s.screen === "list" ? { inbox: "Inbox", alerts: "Alerts", sent: "Sent" }[s.tab] : "Inbox",
+      onPortalScreen: s.screen === "portal", portalItems,
+      roleLabel: mgr ? "Manager" : "Contractor", roleInitials: mgr ? "SB" : "ML",
+      onToggleRole: () => { this.setState({ role: mgr ? "contractor" : "manager", selectedId: null, screen: "list", status: "all", profileOpen: false }); this.toast(mgr ? "Viewing as a contractor" : "Viewing as a manager"); },
+      roleSwitchLabel: mgr ? "Switch to contractor view" : "Switch to manager view",
+      profileOpen: s.profileOpen,
+      onOpenProfile: () => this.setState({ profileOpen: true }),
+      onCloseProfile: () => this.setState({ profileOpen: false }),
+      profileName: mgr ? "Sarah Bennett" : "Mia Lu",
+      profileEmail: mgr ? "sarah@ozeeweb.com.au" : "mia@ozeeweb.com.au",
+      profileItems: [
+        { key: "dash", label: "OZee CRM dashboard", icon: this.ic("Home", 16), onClick: () => { this.setState({ profileOpen: false }); this.toast("Opening the CRM dashboard"); } },
+        { key: "profile", label: "My profile", icon: this.ic("Person", 16), onClick: () => { this.setState({ profileOpen: false }); this.toast("Opening your profile"); } },
+        { key: "signout", label: "Sign out", icon: this.ic("Security", 16), onClick: () => { this.setState({ profileOpen: false }); this.toast("Signed out"); } }
+      ],
+      themeOptions: [
+        { key: "light", label: "Light" }, { key: "dark", label: "Dark" }, { key: "system", label: "Auto" }
+      ].map((t) => ({
+        key: t.key, label: t.label,
+        bg: s.theme === t.key ? "var(--primary-background-color)" : "transparent",
+        fg: s.theme === t.key ? "var(--primary-color)" : "var(--secondary-text-color)",
+        onClick: () => this.setTheme(t.key)
+      })),
+      icTeam: this.ic("Team", 16),
+
+      search: s.search, onSearch: (v) => this.setState({ search: v && v.target ? v.target.value : (v || "") }),
+      onOpenFilters: () => this.setState({ filtersOpen: true }),
+      hasFilters: activeFilters.length > 0, filterCount: activeFilters.length,
+      showFilterSummary: activeFilters.length > 0 && s.screen === "list",
+      activeFilters: activeFilters.map((f, i) => ({ key: i, label: f.label, onRemove: f.onRemove })),
+
+      showBreach: overdue.length > 0 && s.screen === "list",
+      breachText: overdue.length === 1 ? "1 client has waited past the hour" : overdue.length + " clients have waited past the hour",
+      onGoAlerts: () => this.setState({ tab: "alerts", status: "needsReply", screen: "list" }),
+
+      onListScreen: s.screen === "list", onThreadScreen: s.screen === "thread", onBuilderScreen: s.screen === "builder",
+      showTabs: s.screen === "list" || s.screen === "portal",
+      listHeading: headingMap[s.tab], listSubheading: subMap[s.tab],
+      listItems, listEmpty: listItems.length === 0,
+      emptyTitle: s.search ? "Nothing matches that search" : "Nothing here right now",
+      emptyBody: s.search ? "Try a client name, a subject or a project." : "Clear a filter or pull down to refresh.",
+
+      listRef: (el) => { if (el) this._list = el; }, pullRef: (el) => { if (el) this._pullEl = el; },
+      onPullStart: (e) => this.onPullStart(e), onPullMove: (e) => this.onPullMove(e), onPullEnd: () => this.onPullEnd(),
+      pullText: s.pulling ? "Checking for new mail…" : "Release to refresh",
+
+      onBack: () => this.setState({ screen: s.screen === "builder" ? "thread" : "list", builder: null }),
+      threadSubject: sel ? (selHidden ? "Hidden message" : sel.subject) : "",
+      threadProject: sel ? sel.projectShort + " · " + sel.who : "",
+      onPrevThread: () => this.stepThread(-1), onNextThread: () => this.stepThread(1),
+      onThreadSwipeStart: (ev) => { this._ts = { x: ev.clientX, y: ev.clientY }; },
+      onThreadSwipeEnd: (ev) => {
+        const t = this._ts; this._ts = null;
+        if (!t) return;
+        const dx = ev.clientX - t.x;
+        if (Math.abs(dx) > 90 && Math.abs(ev.clientY - t.y) < 50) this.stepThread(dx < 0 ? 1 : -1);
+      },
+      threadLocked: selHidden,
+      lockedText: sel && sel.hasPrivate ? "A manager marked a message in this thread private, so the thread stays out of your view." : "This one is screened — a manager releases it before you can read it.",
+      showAi: !!sel && !selHidden && !!sel.aiSummary && (this.props.aiAlwaysOn ?? true),
+      aiSummary: sel ? sel.aiSummary : "",
+      hasAiTask: !!sel && !!sel.aiTask && !selHidden,
+      aiTaskTitle: sel && sel.aiTask ? sel.aiTask.title : "", aiTaskMeta: sel && sel.aiTask ? sel.aiTask.meta : "",
+      onCreateTask: () => this.toast("Task created and assigned"),
+      threadMsgs,
+      canReply: !!sel && !selHidden, replyCta: sel && sel.dir === "out" ? "Edit and resend" : "Reply",
+      onOpenReply: () => this.openReply(),
+      canApprove: !!sel && sel.status === "approval" && mgr,
+      onApprove: () => { this.toast("Approved and sent"); this.setState({ screen: "list" }); },
+
+      isCompose: s.builder === "compose", templateLocked: !mgr,
+      builderTitle: s.builder === "compose" ? "New email" : "Reply",
+      builderTo: s.builder === "compose" ? "Template email · clients on this project" : (sel ? "To " + sel.who + " · " + sel.projectShort : ""),
+      sendCta: mgr ? "Send" : "For approval",
+      onSend: () => { this.toast(mgr ? "Sent · the AI checker approved it" : "Sent for a manager to approve"); this.setState({ screen: "list", builder: null }); },
+      blocks, addButtons,
+      projectOptions, composerProject: s.composerProject, onComposerProject: (v) => this.setState({ composerProject: v && v.value ? v.value : v }),
+      templateOptions: [{ value: "update", label: "Weekly project update" }, { value: "invoice", label: "Invoice reminder" }, { value: "handover", label: "Launch handover" }],
+      templateValue: s.templateValue, onTemplate: (v) => this.setState({ templateValue: v && v.value ? v.value : v }),
+      composerSubject: s.composerSubject, onComposerSubject: (v) => this.setState({ composerSubject: v && v.target ? v.target.value : v }),
+
+      previewOpen: s.previewOpen, onOpenPreview: () => this.setState({ previewOpen: true }), onClosePreview: () => this.setState({ previewOpen: false }),
+      previewBody: this.previewBody(),
+      previewFirst: s.builder === "reply" && sel ? (sel.who.split(" ").filter((w) => !/^(dr|mr|mrs|ms)\.?$/i.test(w))[0] || "there") : "Alan",
+      previewSigner: mgr ? "Sarah Bennett" : "Mia Lu",
+
+      filtersOpen: s.filtersOpen, onCloseFilters: () => this.setState({ filtersOpen: false }),
+      onClearFilters: () => this.setState({ status: "all", risk: "all", project: "all", unreadOnly: false, fromDate: "", toDate: "", datePreset: "any" }),
+      applyLabel: "Show " + list.length + (list.length === 1 ? " email" : " emails"),
+      statusFilters, riskFilters, datePresets, project: s.project, onProject: (v) => this.setState({ project: v && v.value ? v.value : v }),
+      projectLabel: projName, onOpenProjectPicker: () => this.setState({ projectPickerOpen: true, projectSearch: "" }),
+      onCloseProjectPicker: () => this.setState({ projectPickerOpen: false }),
+      projectPickerOpen: s.projectPickerOpen, projectSearch: s.projectSearch,
+      onProjectSearch: (v) => this.setState({ projectSearch: v && v.target ? v.target.value : (v || "") }),
+      projectPickerItems: projectPickerItems, projectPickerEmpty: projectPickerItems.length === 0,
+      fromDate: s.fromDate, onFromDate: (v) => this.setState({ fromDate: v && v.target ? v.target.value : v, datePreset: "" }),
+      toDate: s.toDate, onToDate: (v) => this.setState({ toDate: v && v.target ? v.target.value : v, datePreset: "" }),
+      unreadOnly: s.unreadOnly, onUnreadOnly: () => this.setState({ unreadOnly: !s.unreadOnly }),
+
+      tabs, tabsRight, onCompose: () => this.openCompose(),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

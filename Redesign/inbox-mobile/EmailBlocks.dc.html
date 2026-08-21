@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/colors.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/brand.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/typography.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/radius.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/shadows.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/motion.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/semantic.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/tokens/base.css">
+<link rel="stylesheet" href="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/styles.css">
+<script>window.OZEE_ICON_BASE = "assets/icons";</script>
+<script src="_ds/vibe-monday-3d3bcd2f-2617-45d4-830a-b39427322625/_ds_bundle.js"></script>
+<style>@keyframes ebFade{from{opacity:0}to{opacity:1}}</style>
+</helmet>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px;align-items:start;font-family:Figtree,sans-serif;color:var(--primary-text-color)">
+
+  <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" leftIcon="{{ kit.icAdd }}" onClick="{{ kit.onAddText }}" hint-size="90px,32px">Text</x-import>
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" leftIcon="{{ kit.icBullets }}" onClick="{{ kit.onAddBullets }}" hint-size="100px,32px">Bullets</x-import>
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" leftIcon="{{ kit.icGlobe }}" onClick="{{ kit.onAddLink }}" hint-size="90px,32px">Link</x-import>
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="secondary" size="small" leftIcon="{{ kit.icImage }}" onClick="{{ kit.onAddImage }}" hint-size="100px,32px">Image</x-import>
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" leftIcon="{{ kit.icDuplicate }}" onClick="{{ kit.onOpenBulk }}" hint-size="120px,32px">Bulk paste</x-import>
+      <span style="margin-inline-start:auto;font:400 12px/16px Figtree,sans-serif;color:var(--secondary-text-color)">{{ kit.blockCountText }}</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:4px;background:var(--primary-highlighted-color)">
+      <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Info" size="{{ 14 }}" color="var(--primary-color)" hint-size="14px,14px"></x-import>
+      <span style="font:400 12px/16px Figtree,sans-serif">Link a few words inside any line by typing (Label)[https://example.com]. Bold a phrase with *asterisks*.</span>
+    </div>
+
+    <sc-if value="{{ kit.bulkOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:10px;border:1px solid var(--primary-color);border-radius:4px;background:var(--allgrey-background-color);animation:ebFade 150ms cubic-bezier(0,0,.35,1) both">
+        <div style="font:600 12px/16px Figtree,sans-serif;margin-bottom:8px">Paste your draft — every line becomes its own block</div>
+        <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextArea" rows="{{ 5 }}" placeholder="Paste from notes, Slack or a chat draft" value="{{ kit.bulkText }}" onChange="{{ kit.onBulkText }}" hint-size="100%,120px"></x-import>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" size="small" onClick="{{ kit.onSplitBulk }}" hint-size="140px,32px">Split into blocks</x-import>
+          <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Button" kind="tertiary" size="small" onClick="{{ kit.onCancelBulk }}" hint-size="80px,32px">Cancel</x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <sc-for list="{{ kit.blocks }}" as="b" hint-placeholder-count="4">
+        <div draggable="{{ true }}" onDragStart="{{ b.onDragStart }}" onDragOver="{{ b.onDragOver }}" onDrop="{{ b.onDrop }}" style="border:1px solid {{ b.borderColor }};border-radius:4px;background:var(--primary-background-color);padding:8px 10px;display:flex;gap:8px;align-items:flex-start;transition:border-color 100ms cubic-bezier(.4,0,.2,1)">
+          <span title="Drag to reorder" style="padding-top:4px;cursor:grab;color:var(--icon-color);display:flex">
+            <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Drag" size="{{ 16 }}" color="currentColor" hint-size="16px,16px"></x-import>
+          </span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Label" text="{{ b.typeLabel }}" kind="line" color="dark" size="small" hint-size="70px,20px"></x-import>
+              <span style="margin-inline-start:auto;display:flex;align-items:center;gap:2px">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.IconButton" name="NavigationChevronUp" size="xs" ariaLabel="Move up" onClick="{{ b.onUp }}" hint-size="24px,24px"></x-import>
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.IconButton" name="NavigationChevronDown" size="xs" ariaLabel="Move down" onClick="{{ b.onDown }}" hint-size="24px,24px"></x-import>
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.MenuButton" items="{{ b.menuItems }}" onSelect="{{ b.onMenu }}" iconName="MoreActions" size="xs" ariaLabel="Block options" hint-size="24px,24px"></x-import>
+              </span>
+            </div>
+            <sc-if value="{{ b.isText }}" hint-placeholder-val="{{ true }}">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextArea" rows="{{ 2 }}" placeholder="One line or paragraph" value="{{ b.text }}" onChange="{{ b.onText }}" hint-size="100%,56px"></x-import>
+            </sc-if>
+            <sc-if value="{{ b.isBullets }}" hint-placeholder-val="{{ true }}">
+              <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextArea" rows="{{ 3 }}" placeholder="One bullet per line" value="{{ b.text }}" onChange="{{ b.onText }}" hint-size="100%,76px"></x-import>
+            </sc-if>
+            <sc-if value="{{ b.isLink }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px">
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Label, e.g. Review on staging" value="{{ b.label }}" onChange="{{ b.onLabel }}" hint-size="100%,32px"></x-import>
+                <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="https://" value="{{ b.url }}" onChange="{{ b.onUrl }}" hint-size="100%,32px"></x-import>
+              </div>
+            </sc-if>
+            <sc-if value="{{ b.isImage }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:8px">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Image URL, or drop a file below" value="{{ b.url }}" onChange="{{ b.onUrl }}" hint-size="100%,32px"></x-import>
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.TextField" size="small" placeholder="Alt text for screen readers" value="{{ b.alt }}" onChange="{{ b.onAlt }}" hint-size="100%,32px"></x-import>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--ui-border-color);border-radius:4px;color:var(--secondary-text-color)">
+                  <x-import component-from-global-scope="OZeeCRMDesignSystem_3d3bcd.Icon" name="Image" size="{{ 16 }}" color="currentColor" hint-size="16px,16px"></x-import>
+                  <span style="font:400 12px/16px Figtree,sans-serif">Drop a screenshot here — it goes inline, 600px wide, and is attached as a fallback</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="border:1px solid var(--layout-border-color);border-radius:8px;background:#ffffff;color:#323338;overflow:hidden;position:sticky;top:0;min-width:0">
+    <div style="padding:12px 20px;border-bottom:1px solid #e6e9ef;display:flex;align-items:center;gap:10px">
+      <img src="assets/ozee-logo-sm.png" alt="OZee Web &amp; Digital" style="height:24px">
+      <span style="font:600 11px/14px Figtree,sans-serif;color:#676879;text-transform:uppercase;letter-spacing:.4px">Live preview — what the client receives</span>
+    </div>
+    <div style="padding:24px 20px 28px;max-width:600px;margin:0 auto">
+      <div style="font:400 15px/24px Figtree,sans-serif;color:#676879;margin-bottom:12px">{{ kit.previewGreeting }}</div>
+      <sc-for list="{{ kit.previewBlocks }}" as="pb" hint-placeholder-count="4">
+        <sc-if value="{{ pb.isPara }}" hint-placeholder-val="{{ true }}">
+          <p style="margin:0 0 14px;font:400 15px/24px Figtree,sans-serif;text-wrap:pretty">
+            <sc-for list="{{ pb.parts }}" as="pt" hint-placeholder-count="1">
+              <sc-if value="{{ pt.isText }}" hint-placeholder-val="{{ true }}"><span>{{ pt.text }}</span></sc-if>
+              <sc-if value="{{ pt.isBold }}" hint-placeholder-val="{{ true }}"><strong>{{ pt.text }}</strong></sc-if>
+              <sc-if value="{{ pt.isLink }}" hint-placeholder-val="{{ true }}"><a href="{{ pt.href }}" style="color:#1a73e8">{{ pt.text }}</a></sc-if>
+            </sc-for>
+          </p>
+        </sc-if>
+        <sc-if value="{{ pb.isList }}" hint-placeholder-val="{{ true }}">
+          <ul style="margin:0 0 14px;padding-inline-start:22px;display:flex;flex-direction:column;gap:6px">
+            <sc-for list="{{ pb.items }}" as="li" hint-placeholder-count="2">
+              <li style="font:400 15px/24px Figtree,sans-serif">{{ li.text }}</li>
+            </sc-for>
+          </ul>
+        </sc-if>
+        <sc-if value="{{ pb.isLinkRow }}" hint-placeholder-val="{{ true }}">
+          <p style="margin:0 0 14px"><a href="{{ pb.href }}" style="font:600 15px/24px Figtree,sans-serif;color:#1a73e8">{{ pb.text }}</a></p>
+        </sc-if>
+        <sc-if value="{{ pb.isImage }}" hint-placeholder-val="{{ true }}">
+          <div style="margin:0 0 14px">
+            <sc-if value="{{ pb.hasSrc }}">
+              <div role="img" aria-label="{{ pb.text }}" style="width:100%;height:220px;border:1px solid #e6e9ef;border-radius:4px;background-image:url({{ pb.href }});background-size:cover;background-position:center"></div>
+            </sc-if>
+            <sc-if value="{{ pb.noSrc }}" hint-placeholder-val="{{ true }}">
+              <div style="height:160px;border:1px dashed #c3c6d4;border-radius:4px;display:flex;align-items:center;justify-content:center;font:400 13px/20px Figtree,sans-serif;color:#676879">Image goes here — 600px wide in the email</div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </sc-for>
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid #e6e9ef;font:400 13px/20px Figtree,sans-serif;color:#676879">
+        <div style="font:600 14px/20px Figtree,sans-serif;color:#323338">{{ kit.previewSignName }}</div>
+        <div>{{ kit.previewSignRole }}</div>
+        <div>OZee Web &amp; Digital · OZeeWeb.com.au</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:620},&quot;kit&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}"></script>
+</body>
+</html>
