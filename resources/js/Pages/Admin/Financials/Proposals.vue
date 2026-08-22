@@ -201,10 +201,38 @@ const onModalSubmitted = () => {
     fetchStats();
 };
 
-onMounted(() => {
-    fetchProposals(1);
+onMounted(async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('search')) {
+        filterSearch.value = urlParams.get('search');
+    }
+    if (urlParams.has('project_id')) {
+        filterProjectId.value = urlParams.get('project_id');
+    }
+    if (urlParams.has('status')) {
+        filterStatus.value = urlParams.get('status');
+    }
+    await fetchProposals(1);
     fetchProjects();
     fetchStats();
+
+    if (urlParams.has('id')) {
+        const targetId = Number(urlParams.get('id'));
+        if (targetId) {
+            const found = proposals.value.find(p => p.id === targetId);
+            if (found) {
+                openProposalSidebar(found);
+            } else {
+                try {
+                    const { data } = await axios.get('/api/admin/proposals', { params: { search: String(targetId), status: 'all' } });
+                    const match = (data.data || []).find(p => p.id === targetId);
+                    if (match) openProposalSidebar(match);
+                } catch (e) {
+                    console.error('Failed to open requested proposal', e);
+                }
+            }
+        }
+    }
 });
 
 const getStatusClass = (status) => {
