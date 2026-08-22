@@ -1,0 +1,1 @@
+import{g as t,N as o,o as r,c as s,a1 as l}from"./vue-entry-zAJdkXMh.js";import"./app-CfmfJWV5.js";import"./index-3x2PB7AK.js";const m={__name:"TabPanel",props:{active:{type:Boolean,default:!1}},setup(e){return(a,c)=>t((r(),s("div",null,[l(a.$slots,"default")],512)),[[o,e.active]])}};export{m as default};
