@@ -29,7 +29,7 @@ class FinancialController extends Controller
         $bill = \App\Models\Bill::with([
             'contractor',
             'project',
-            'expendable',
+            'expendable.expendable',
             'transactionType',
             'paymentDetail',
             'approvalInstance.steps.actedBy',

@@ -507,7 +507,7 @@ class BillController extends Controller
         $user = Auth::user();
 
         $query = Bill::withTrashed()->with([
-            'project', 'contractor', 'expendable', 'transactionType', 'paymentDetail', 'files',
+            'project', 'contractor', 'expendable.expendable', 'transactionType', 'paymentDetail', 'files',
             'transactions.user', 'transactions.transactionType',
             'activities.causer',
             'approvalInstance' => fn($q) => $q->with([

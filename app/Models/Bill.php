@@ -22,7 +22,7 @@ class Bill extends Model
             ->dontSubmitEmptyLogs();
     }
 
-    protected $appends = ['paid_amount', 'remaining_amount'];
+    protected $appends = ['paid_amount', 'remaining_amount', 'bill_number'];
 
     protected $fillable = [
         'contractor_id',
