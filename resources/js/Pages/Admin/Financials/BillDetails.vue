@@ -14,6 +14,12 @@ import axios from 'axios';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import BasicPropertyInput from '@/Components/BasicPropertyInput.vue';
 import Modal from '@/Components/Modal.vue';
+import { 
+    FolderIcon, 
+    DocumentTextIcon, 
+    TagIcon, 
+    ArrowTopRightOnSquareIcon 
+} from '@heroicons/vue/24/outline';
 
 const props = defineProps({
     bill: {
@@ -238,6 +244,12 @@ const formatDateTime = (dateStr) => {
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const isMilestone = (expendable) => {
+    if (!expendable) return false;
+    const type = expendable.expendable_type || '';
+    return type.includes('Milestone') || type === 'App\\Models\\Milestone';
+};
+
 const showLinkModal = ref(false);
 const users = ref([]);
 const clients = ref([]);
@@ -376,8 +388,44 @@ onMounted(() => {
         <template #header>
             <div class="flex items-center justify-between gap-4">
                 <div>
-                    <h2 class="font-semibold text-xl text-gray-800 leading-tight">Bill #{{ bill.id }}</h2>
-                    <p class="text-sm text-gray-500">{{ bill.project?.name }} · {{ bill.expendable?.name }}</p>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2 py-0.5 rounded text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {{ bill.bill_number || ('OZB' + bill.id) }}
+                        </span>
+                        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                            Bill Details
+                        </h2>
+                    </div>
+                    <div class="flex items-center flex-wrap gap-2 text-sm text-gray-500">
+                        <Link 
+                            v-if="bill.project_id"
+                            :href="route('projects.show', { id: bill.project_id })" 
+                            class="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                            title="Open Project"
+                        >
+                            <FolderIcon class="w-4 h-4 text-indigo-500" />
+                            <span>{{ bill.project?.name || 'Project #' + bill.project_id }}</span>
+                        </Link>
+                        <span v-if="bill.project_id && bill.expendable">·</span>
+                        <Link 
+                            v-if="bill.expendable"
+                            :href="route('admin.financials.proposals', { id: bill.expendable.id })" 
+                            class="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                            title="Open Proposal Details"
+                        >
+                            <DocumentTextIcon class="w-4 h-4 text-indigo-500" />
+                            <span class="font-mono text-xs font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{{ bill.expendable.expendable_number || ('OZX' + bill.expendable.id) }}</span>
+                            <span>{{ bill.expendable.name }}</span>
+                        </Link>
+                        <span 
+                            v-if="isMilestone(bill.expendable)"
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100"
+                            :title="`Milestone: ${bill.expendable.expendable?.name || bill.expendable.name}`"
+                        >
+                            <TagIcon class="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Milestone: {{ bill.expendable.expendable?.name || bill.expendable.name }}</span>
+                        </span>
+                    </div>
                 </div>
                 <div class="flex items-center gap-3">
                     <Link :href="route('admin.financials.bills')">
@@ -397,6 +445,59 @@ onMounted(() => {
                                 <div class="flex justify-between gap-4">
                                     <dt class="text-gray-500">Status</dt>
                                     <dd class="font-medium text-gray-900">{{ statusLabel }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-4 items-center">
+                                    <dt class="text-gray-500">Project</dt>
+                                    <dd class="font-medium text-gray-900">
+                                        <Link 
+                                            v-if="bill.project_id"
+                                            :href="route('projects.show', { id: bill.project_id })" 
+                                            class="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+                                            title="Open Project"
+                                        >
+                                            <FolderIcon class="w-4 h-4 text-indigo-500" />
+                                            <span>{{ bill.project?.name || 'Project #' + bill.project_id }}</span>
+                                            <ArrowTopRightOnSquareIcon class="w-3.5 h-3.5 text-gray-400" />
+                                        </Link>
+                                        <span v-else class="text-gray-400">N/A</span>
+                                    </dd>
+                                </div>
+                                <div class="flex justify-between gap-4 items-center">
+                                    <dt class="text-gray-500">Proposal</dt>
+                                    <dd class="font-medium text-gray-900">
+                                        <Link 
+                                            v-if="bill.expendable"
+                                            :href="route('admin.financials.proposals', { id: bill.expendable.id })" 
+                                            class="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+                                            title="Open Proposal Details"
+                                        >
+                                            <DocumentTextIcon class="w-4 h-4 text-indigo-500" />
+                                            <span class="font-mono text-xs font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-indigo-700">
+                                                {{ bill.expendable.expendable_number || ('OZX' + bill.expendable.id) }}
+                                            </span>
+                                            <span>{{ bill.expendable.name }}</span>
+                                            <ArrowTopRightOnSquareIcon class="w-3.5 h-3.5 text-gray-400" />
+                                        </Link>
+                                        <span v-else class="text-gray-400">N/A</span>
+                                    </dd>
+                                </div>
+                                <div v-if="bill.expendable" class="flex justify-between gap-4 items-center">
+                                    <dt class="text-gray-500">Scope / Milestone</dt>
+                                    <dd class="font-medium text-gray-900">
+                                        <span 
+                                            v-if="isMilestone(bill.expendable)"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100"
+                                        >
+                                            <TagIcon class="w-3.5 h-3.5 text-emerald-600" />
+                                            Milestone: {{ bill.expendable.expendable?.name || bill.expendable.name }}
+                                        </span>
+                                        <span 
+                                            v-else
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100"
+                                        >
+                                            Project Scope
+                                        </span>
+                                    </dd>
                                 </div>
                                 <div class="flex justify-between gap-4">
                                     <dt class="text-gray-500">Contractor</dt>
