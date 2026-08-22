@@ -21,7 +21,11 @@ import {
     UserIcon,
     FolderIcon,
     DocumentTextIcon,
-    ArrowTopRightOnSquareIcon
+    ArrowTopRightOnSquareIcon,
+    ClockIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+    TagIcon
 } from '@heroicons/vue/24/outline';
 
 const { canDo } = usePermissions();
@@ -292,6 +296,75 @@ const paymentTermsSummary = (terms) => {
         return `Hourly: ${parsed.hourly_rate || 0}/hr, est. ${parsed.estimated_hours || 0} hrs`;
     }
     return 'Custom payment terms';
+};
+
+const sortedActivities = (activities) => {
+    if (!activities || !activities.length) return [];
+    return [...activities].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+};
+
+const formatActivityDate = (dateStr) => {
+    if (!dateStr) return '---';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const getActivityEventInfo = (activity, proposal) => {
+    const event = activity.event || activity.description || '';
+    const desc = (activity.description || '').toLowerCase();
+    
+    let badgeClass = 'bg-gray-100 text-gray-700 border-gray-200';
+    let label = activity.description || 'Activity';
+
+    if (event === 'expendable.accepted' || desc.includes('accepted')) {
+        badgeClass = 'bg-green-100 text-green-800 border-green-200';
+        label = 'Accepted';
+    } else if (event === 'expendable.rejected' || desc.includes('rejected')) {
+        badgeClass = 'bg-red-100 text-red-800 border-red-200';
+        label = 'Rejected';
+    } else if (event === 'expendable.shortlisted' || desc.includes('shortlisted')) {
+        badgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        label = 'Shortlisted';
+    } else if (event === 'expendable.unshortlisted' || desc.includes('unshortlisted') || desc.includes('moved back to pending')) {
+        badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+        label = 'Moved to Pending';
+    } else if (event === 'expendable.completed' || event === 'expendable.auto_completed' || desc.includes('completed')) {
+        badgeClass = 'bg-blue-100 text-blue-800 border-blue-200';
+        label = event === 'expendable.auto_completed' ? 'Auto Completed' : 'Completed';
+    } else if (event === 'created' || desc === 'created') {
+        badgeClass = 'bg-purple-100 text-purple-800 border-purple-200';
+        label = 'Created';
+    } else if (event === 'updated' || desc === 'updated') {
+        badgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+        label = 'Updated';
+    } else if (event === 'expendable.deleted' || desc.includes('deleted')) {
+        badgeClass = 'bg-rose-100 text-rose-800 border-rose-200';
+        label = 'Deleted';
+    }
+
+    return { label, badgeClass };
+};
+
+const presentableActivityAttributes = (attributes) => {
+    if (!attributes) return [];
+    const ignoredKeys = ['project_id', 'user_id', 'expendable_id', 'expendable_type', 'balance', 'name'];
+    const friendlyNames = {
+        amount: 'Amount',
+        currency: 'Currency',
+        status: 'Status',
+        description: 'Description',
+        payment_terms: 'Payment Terms'
+    };
+
+    return Object.entries(attributes)
+        .filter(([key, val]) => !ignoredKeys.includes(key) && val !== null && val !== '')
+        .map(([key, val]) => {
+            return {
+                key,
+                label: friendlyNames[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+                value: val
+            };
+        });
 };
 </script>
 
@@ -909,6 +982,72 @@ const paymentTermsSummary = (terms) => {
                     </div>
                     <p v-else class="text-gray-500 text-xs italic text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                         No bills have been added for this proposal.
+                    </p>
+                </div>
+
+                <!-- Activity Log & History Section -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h4 class="text-md font-bold text-gray-900 mb-4 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <ClockIcon class="w-5 h-5 text-indigo-500" />
+                            Activity History & Audit Trail
+                        </span>
+                        <span class="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full border border-indigo-100">
+                            {{ selectedProposal.activities ? selectedProposal.activities.length : 0 }} Events
+                        </span>
+                    </h4>
+
+                    <div v-if="selectedProposal.activities && selectedProposal.activities.length" class="space-y-3">
+                        <div 
+                            v-for="activity in sortedActivities(selectedProposal.activities)" 
+                            :key="activity.id"
+                            class="relative bg-white border border-gray-200 rounded-lg p-3.5 shadow-sm hover:border-gray-300 transition-colors"
+                        >
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700">
+                                        {{ (activity.causer?.name || (activity.description === 'created' ? (selectedProposal.user?.name || 'P') : 'S')).charAt(0).toUpperCase() }}
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-gray-900">
+                                            {{ activity.causer?.name || (activity.description === 'created' ? (selectedProposal.user?.name || 'Proposer') : 'System') }}
+                                        </div>
+                                        <div class="text-[10px] text-gray-400">
+                                            {{ formatActivityDate(activity.created_at) }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <span :class="['px-2 py-0.5 text-[10px] font-bold rounded-full border', getActivityEventInfo(activity, selectedProposal).badgeClass]">
+                                    {{ getActivityEventInfo(activity, selectedProposal).label }}
+                                </span>
+                            </div>
+
+                            <!-- Log Description / Note -->
+                            <p class="text-xs text-gray-700 mt-2 font-medium">
+                                {{ activity.description }}
+                            </p>
+
+                            <!-- Reason if provided (e.g., on accept, reject, complete) -->
+                            <div v-if="activity.properties?.reason" class="mt-2 text-xs bg-amber-50/70 border border-amber-200/80 rounded-md p-2.5 text-amber-900">
+                                <span class="font-semibold block text-[10px] uppercase tracking-wider text-amber-700 mb-0.5">Reason / Note:</span>
+                                <span class="italic whitespace-pre-wrap">{{ activity.properties.reason }}</span>
+                            </div>
+
+                            <!-- Changed Attributes if tracked -->
+                            <div v-if="presentableActivityAttributes(activity.properties?.attributes).length" class="mt-2 space-y-1 bg-gray-50 border border-gray-150 rounded p-2.5 text-[11px] text-gray-600">
+                                <div class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Changed Attributes</div>
+                                <div v-for="attr in presentableActivityAttributes(activity.properties?.attributes)" :key="attr.key" class="grid grid-cols-3 gap-2 border-b border-gray-100 last:border-0 pb-1 last:pb-0">
+                                    <div class="font-semibold text-gray-700 col-span-1 truncate" :title="attr.label">{{ attr.label }}</div>
+                                    <div class="col-span-2 text-gray-600 truncate" :title="String(attr.value)">
+                                        {{ String(attr.value).length > 80 ? String(attr.value).substring(0, 80) + '...' : attr.value }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p v-else class="text-gray-500 text-xs italic text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                        No activity recorded for this proposal yet.
                     </p>
                 </div>
             </div>
