@@ -599,8 +599,13 @@ const presentableActivityAttributes = (attributes) => {
                                         <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                                             {{ proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '---' }}
                                         </td>
-                                        <td class="px-4 py-3 text-xs font-medium text-gray-900 min-w-[200px]">
-                                            {{ proposal.name }}
+                                        <td class="px-4 py-3 text-xs min-w-[200px]">
+                                            <div class="flex items-center gap-1.5 mb-1">
+                                                <span class="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                    {{ proposal.expendable_number || ('OZX' + proposal.id) }}
+                                                </span>
+                                            </div>
+                                            <div class="font-medium text-gray-900 leading-snug">{{ proposal.name }}</div>
                                         </td>
                                         <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                                             <span v-if="isMilestoneScope(proposal)" class="px-2 py-0.5 rounded text-[11px] bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
@@ -815,6 +820,11 @@ const presentableActivityAttributes = (attributes) => {
                 <div class="border-b border-gray-200 pb-6">
                     <div class="flex justify-between items-start gap-4">
                         <div>
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <span class="px-2 py-0.5 rounded text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    {{ selectedProposal.expendable_number || ('OZX' + selectedProposal.id) }}
+                                </span>
+                            </div>
                             <h3 class="text-lg font-bold text-gray-900">{{ selectedProposal.name }}</h3>
                             <p class="text-sm text-gray-500 mt-1 flex items-center gap-2">
                                 <CalendarIcon class="w-4 h-4" />

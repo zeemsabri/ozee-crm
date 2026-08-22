@@ -39,6 +39,7 @@ class FinancialController extends Controller
             'transactions.transactionType',
             // The uploaded invoice — the whole point of a supplier-submitted bill.
             'files',
+            'activities.causer',
         ])->findOrFail($id);
         $transactionTypes = \App\Models\TransactionType::query()
             ->select(['id', 'name', 'xero_account_code'])

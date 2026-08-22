@@ -232,6 +232,12 @@ const fetchXeroAccounts = async () => {
     }
 };
 
+const formatDateTime = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const showLinkModal = ref(false);
 const users = ref([]);
 const clients = ref([]);
@@ -631,6 +637,7 @@ onMounted(() => {
                                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Approver</th>
                                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acted By</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acted Date</th>
                                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Comment</th>
                                 </tr>
                             </thead>
@@ -638,8 +645,13 @@ onMounted(() => {
                                 <tr v-for="step in bill.approval_instance.steps" :key="step.id">
                                     <td class="px-4 py-2 text-sm">{{ step.step_order }}</td>
                                     <td class="px-4 py-2 text-sm">{{ step.label || (step.approver_type === 'role' ? step.approver_role?.name : step.approver_user?.name) }}</td>
-                                    <td class="px-4 py-2 text-sm">{{ (step.status || '').toUpperCase() }}</td>
+                                    <td class="px-4 py-2 text-sm">
+                                        <span :class="['px-2 py-0.5 text-xs font-semibold rounded-full', step.status === 'approved' ? 'bg-green-100 text-green-800' : step.status === 'rejected' ? 'bg-red-100 text-red-800' : step.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800']">
+                                            {{ (step.status || '').toUpperCase() }}
+                                        </span>
+                                    </td>
                                     <td class="px-4 py-2 text-sm">{{ step.acted_by?.name || '—' }}</td>
+                                    <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{{ formatDateTime(step.acted_at || (step.status !== 'pending' ? step.updated_at : null)) }}</td>
                                     <td class="px-4 py-2 text-sm">{{ step.comment || '—' }}</td>
                                 </tr>
                             </tbody>

@@ -49,6 +49,10 @@ class ProjectExpendable extends Model
         'currency' => 'string',
     ];
 
+    protected $appends = [
+        'expendable_number',
+    ];
+
     protected static function booted()
     {
         static::creating(function (self $model) {
