@@ -339,9 +339,17 @@ const clientOptions = computed(() => {
 
 const billOptions = computed(() => {
     return bills.value.map(bill => {
-        let label = `OZB${bill.id} - ${bill.amount} ${bill.currency || 'AUD'} (${bill.reference_number || 'No Ref'})`;
+        const billNum = bill.bill_number || ('OZB' + bill.id);
+        const contractorName = bill.contractor?.name ? ` · Contractor: ${bill.contractor.name}` : '';
+        const proposalInfo = bill.expendable 
+            ? ` · [${bill.expendable.expendable_number || ('OZX' + bill.expendable.id)}: ${bill.expendable.name}]` 
+            : '';
+        const milestoneInfo = bill.expendable?.expendable?.name 
+            ? ` (Milestone: ${bill.expendable.expendable.name})` 
+            : '';
+        let label = `${billNum}${contractorName}${proposalInfo}${milestoneInfo} - ${bill.amount} ${bill.currency || 'AUD'} (${bill.reference_number || 'No Ref'})`;
         if (!transactionForm.value.project_id && bill.project) {
-            label += ` - ${bill.project.name}`;
+            label += ` - Project: ${bill.project.name}`;
         }
         if (transactionForm.value.user_id && bill.contractor_id !== transactionForm.value.user_id) {
             label += ` [WARNING: User Mismatch]`;

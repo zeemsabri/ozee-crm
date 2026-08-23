@@ -974,46 +974,68 @@ const presentableActivityAttributes = (attributes) => {
 
                     <!-- Bills List -->
                     <div v-if="selectedProposal.bills && selectedProposal.bills.length" class="space-y-4">
-                        <div v-for="bill in selectedProposal.bills" :key="bill.id" class="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                        <div v-for="bill in selectedProposal.bills" :key="bill.id" class="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm hover:border-indigo-200 transition-colors">
                             <div class="bg-gray-50 px-4 py-3 flex justify-between items-center border-b border-gray-150">
-                                <div>
-                                    <span class="text-xs font-bold text-gray-700">OZB{{ bill.id }}</span>
-                                    <span class="text-[10px] font-medium text-gray-400 ml-2" v-if="bill.due_date">
+                                <div class="flex items-center gap-2">
+                                    <Link 
+                                        :href="route('admin.financials.bills.show', { id: bill.id })" 
+                                        class="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1 hover:underline"
+                                        title="Open Bill Details"
+                                    >
+                                        <span>{{ bill.bill_number || ('OZB' + bill.id) }}</span>
+                                        <ArrowTopRightOnSquareIcon class="w-3 h-3 text-indigo-500" />
+                                    </Link>
+                                    <span class="text-[10px] font-medium text-gray-400" v-if="bill.due_date">
                                         Due: {{ new Date(bill.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }}
                                     </span>
                                 </div>
-                                <span :class="['px-2 py-0.5 text-[10px] font-bold rounded-full', bill.status === 'approved' ? 'bg-green-100 text-green-800' : bill.status === 'pending_approval' ? 'bg-amber-100 text-amber-800' : bill.status === 'paid' ? 'bg-blue-100 text-blue-800' : bill.status === 'partial_paid' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-800']">
-                                    {{ bill.status }}
+                                <span :class="['px-2 py-0.5 text-[10px] font-bold rounded-full border', bill.status === 'approved' ? 'bg-green-100 text-green-800 border-green-200' : bill.status === 'pending_approval' ? 'bg-amber-100 text-amber-800 border-amber-200' : bill.status === 'paid' ? 'bg-blue-100 text-blue-800 border-blue-200' : bill.status === 'partial_paid' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : 'bg-gray-100 text-gray-800 border-gray-200']">
+                                    {{ (bill.status || '').toUpperCase() }}
                                 </span>
                             </div>
                             <div class="p-4 space-y-3">
                                 <div class="flex justify-between items-center text-sm">
-                                    <div class="text-gray-500">Contractor</div>
-                                    <div class="font-medium text-gray-900">{{ bill.contractor?.name || '---' }}</div>
+                                    <div class="text-gray-500 flex items-center gap-1">
+                                        <UserIcon class="w-3.5 h-3.5 text-gray-400" />
+                                        Contractor
+                                    </div>
+                                    <div class="font-medium text-gray-900">{{ bill.contractor?.name || selectedProposal.user?.name || '---' }}</div>
                                 </div>
                                 <div class="flex justify-between items-center text-sm">
-                                    <div class="text-gray-500">Amount</div>
-                                    <div class="font-semibold text-gray-900">{{ formatCurrency(bill.amount, bill.currency || selectedProposal.currency) }}</div>
+                                    <div class="text-gray-500 flex items-center gap-1">
+                                        <BanknotesIcon class="w-3.5 h-3.5 text-gray-400" />
+                                        Bill Amount
+                                    </div>
+                                    <div class="font-bold text-gray-900">{{ formatCurrency(bill.amount, bill.currency || selectedProposal.currency) }}</div>
                                 </div>
 
                                 <!-- Transactions nested breakdown -->
                                 <div class="mt-3 pt-3 border-t border-gray-100">
-                                    <div class="text-xs font-bold text-gray-700 mb-2">Transactions</div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs font-bold text-gray-700">Linked Transactions</span>
+                                        <span class="text-[10px] text-gray-400 font-medium">
+                                            {{ bill.transactions ? bill.transactions.length : 0 }} recorded
+                                        </span>
+                                    </div>
                                     <div v-if="bill.transactions && bill.transactions.length" class="space-y-2">
-                                        <div v-for="tx in bill.transactions" :key="tx.id" class="bg-gray-50 rounded p-2 text-xs border border-gray-100">
+                                        <div v-for="tx in bill.transactions" :key="tx.id" class="bg-gray-50 rounded p-2.5 text-xs border border-gray-150">
                                             <div class="flex justify-between items-center">
-                                                <span class="font-medium text-gray-800 truncate max-w-[200px]" :title="tx.description">{{ tx.description || 'No description' }}</span>
-                                                <span :class="['px-1.5 py-0.5 rounded-full text-[9px] font-bold', tx.is_paid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                                                <span class="font-medium text-gray-800 truncate max-w-[200px]" :title="tx.description">
+                                                    {{ tx.description || 'Transaction #' + tx.id }}
+                                                </span>
+                                                <span :class="['px-1.5 py-0.5 rounded-full text-[9px] font-bold border', tx.is_paid ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200']">
                                                     {{ tx.is_paid ? 'Paid' : 'Unpaid' }}
                                                 </span>
                                             </div>
-                                            <div class="flex justify-between items-center mt-1 text-[10px] text-gray-400">
+                                            <div class="flex justify-between items-center mt-1.5 text-[10px] text-gray-500">
                                                 <span>{{ tx.payment_date ? new Date(tx.payment_date).toLocaleDateString('en-GB') : (tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-GB') : '---') }}</span>
-                                                <span class="font-bold text-gray-700">{{ formatCurrency(tx.amount, tx.currency || bill.currency) }}</span>
+                                                <span class="font-bold text-gray-900">{{ formatCurrency(tx.amount, tx.currency || bill.currency) }}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div v-else class="text-xs text-gray-400 italic">No transactions recorded for this bill.</div>
+                                    <div v-else class="text-xs text-gray-400 italic bg-gray-50/50 p-2 rounded text-center border border-dashed border-gray-200">
+                                        No transactions recorded for this bill yet.
+                                    </div>
                                 </div>
                             </div>
                         </div>

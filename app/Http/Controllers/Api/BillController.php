@@ -49,7 +49,7 @@ class BillController extends Controller
         }
 
         $bills = Bill::where('project_id', $project->id)
-            ->with(['contractor', 'expendable', 'transactionType', 'approvalInstance.steps', 'files'])
+            ->with(['contractor', 'expendable.expendable', 'expendable.user', 'transactionType', 'approvalInstance.steps', 'files'])
             ->latest()
             ->get();
 
@@ -180,10 +180,14 @@ class BillController extends Controller
             }
         }
 
-        $bill = DB::transaction(function () use ($project, $validated, $isGeneralExpense) {
+        $bill = DB::transaction(function () use ($project, $validated, $isGeneralExpense, $expendable) {
+            $contractorId = $isGeneralExpense 
+                ? ($validated['contractor_id'] ?? null) 
+                : ($expendable ? ($expendable->user_id ?: $validated['contractor_id']) : $validated['contractor_id']);
+
             $bill = Bill::create([
                 'project_id' => $project->id,
-                'contractor_id' => $isGeneralExpense ? ($validated['contractor_id'] ?? null) : $validated['contractor_id'],
+                'contractor_id' => $contractorId,
                 'project_expendable_id' => $isGeneralExpense ? null : $validated['project_expendable_id'],
                 'transaction_type_id' => $validated['transaction_type_id'] ?? null,
                 'xero_account_code' => $validated['xero_account_code'] ?? null,

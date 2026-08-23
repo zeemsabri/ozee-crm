@@ -33,7 +33,7 @@ class ProjectExpendableController extends Controller
                 ->where('project_id', $project->id)
                 ->whereNotNull('user_id')
                 ->where('status', $acceptedStatus)
-                ->with(['user:id,name,email,metadata,user_type', 'bills.transactionType'])
+                ->with(['user:id,name,email,metadata,user_type', 'expendable', 'bills.transactionType'])
                 ->latest()
                 ->get();
 
@@ -42,7 +42,7 @@ class ProjectExpendableController extends Controller
 
         if (request('type') === 'project_contracts') {
             $contracts = $project->projectContracts();
-            $contracts->load(['user:id,name,email,metadata,user_type', 'bills.transactionType', 'files', 'activities.causer']);
+            $contracts->load(['user:id,name,email,metadata,user_type', 'expendable', 'bills.transactionType', 'files', 'activities.causer']);
             return response()->json($contracts);
         }
 

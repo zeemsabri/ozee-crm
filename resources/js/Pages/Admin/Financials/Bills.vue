@@ -298,10 +298,17 @@ const projectOptions = computed(() => {
 });
 
 const expendableOptions = computed(() => {
-    return expendables.value.map(exp => ({
-        id: exp.id,
-        label: `${exp.name} (${exp.expendable_type?.replace('App\\Models\\', '') || 'Project'}) - Rem: ${formatCurrency(exp.balance, exp.currency)}`
-    }));
+    return expendables.value.map(exp => {
+        const proposalNum = exp.expendable_number || ('OZX' + exp.id);
+        const contractorName = exp.user?.name ? ` · Contractor: ${exp.user.name}` : '';
+        const scope = isMilestone(exp)
+            ? `Milestone: ${exp.expendable?.name || exp.name}`
+            : 'Project Scope';
+        return {
+            id: exp.id,
+            label: `[${proposalNum}] ${exp.name}${contractorName} (${scope}) - Rem: ${formatCurrency(exp.balance, exp.currency)}`
+        };
+    });
 });
 
 const fetchBills = async () => {
