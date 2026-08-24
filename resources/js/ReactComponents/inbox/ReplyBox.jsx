@@ -34,6 +34,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, ButtonGroup, Chips, Icon, TextArea, TextField, Toggle } from '../ds';
 import { BlockBuilder } from './BlockBuilder';
+import { GreetingPicker, SignOffPreview, greetingTextFor } from './Salutation';
 import { TemplateFields } from './TemplateFields';
 import { useBlocks } from './useBlocks';
 import { emptyValueFor, inputPlaceholders } from './useTemplates';
@@ -124,6 +125,22 @@ export function ReplyBox({
     // legitimate thing for a manager to do on someone else's behalf.
     const canSeePrivate = compose?.canSeePrivate ?? false;
     const [isPrivate, setIsPrivate] = useState(false);
+
+    /*
+     * The greeting.
+     *
+     * A reply used to have none at all — InboxReplyController stored the body verbatim —
+     * so a custom reply opened with whatever you typed, while a new email opened with a
+     * greeting the server added invisibly. Two composers, two rules, neither on screen.
+     * The endpoint now takes `greeting_name` and this picks it.
+     *
+     * Default is "No greeting", NOT the new-email default, and deliberately so: replies
+     * have never carried one, an AI draft writes its own opening, and mid-thread a fresh
+     * "Hi Sarah," on every message reads like a form letter. Choosing one is a decision,
+     * not the default.
+     */
+    const [greetingMode, setGreetingMode] = useState('none');
+    const [greetingName, setGreetingName] = useState('');
     const [templateId, setTemplateId] = useState(null);
     const [templateData, setTemplateData] = useState({});
     // Which template the currently-shown subject came from. Gates sending — see canSend.
@@ -131,6 +148,25 @@ export function ReplyBox({
 
     const isTemplateKind = kind === 'template';
     const isBlocksKind = kind === 'blocks';
+
+    /*
+     * Only the custom composer greets. A template renders its own opening, and on the
+     * block builder a greeting has to BE a block or the send-time re-render drops it (see
+     * BlockComposition::renderForSend) — the server applies exactly the same rule.
+     * Editing an existing draft is showing someone's actual words, so nothing is prepended
+     * to those either.
+     */
+    const canGreet = !isTemplateKind && !isBlocksKind && !isEditing;
+
+    // Display names for the thread's clients, from the recipients endpoint. Names, never
+    // addresses — see Correspondent::namesFor.
+    const greeting = canGreet
+        ? greetingTextFor({
+              mode: greetingMode,
+              customName: greetingName,
+              names: recipients?.recipient_names || [],
+          })
+        : '';
 
     /*
      * The block builder has its own gate, and anyone who may compose clears it.
@@ -197,6 +233,10 @@ export function ReplyBox({
         if (!isEditing && draftMatchesTarget && aiDraft && !body.trim()) {
             setBody(aiDraft);
             setUsedAi(true);
+            // InboxAiService::draftReply is prompted to open with "Hi <first name>,", so a
+            // picked greeting on top of it would send two. Forced back to none rather than
+            // disabled: the person can still choose one after clearing the draft.
+            setGreetingMode('none');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aiDraft, isEditing, draftMatchesTarget]);
@@ -291,6 +331,9 @@ export function ReplyBox({
         // Only sent when it is on AND allowed, so a stale toggle can never post a flag the
         // server would 403 on. The server re-checks the permission regardless.
         is_private: canMarkPrivate && isPrivate ? true : undefined,
+        // '' is meaningful — it is "no greeting", which is the default here — so this is
+        // sent rather than omitted. The server treats empty as none and prepends nothing.
+        greeting_name: canGreet ? greeting : '',
     });
 
     return (
@@ -620,6 +663,18 @@ export function ReplyBox({
                     </div>
                 ) : null}
 
+                {canGreet ? (
+                    <GreetingPicker
+                        allowNone
+                        mode={greetingMode}
+                        customName={greetingName}
+                        names={recipients?.recipient_names || []}
+                        disabled={busy}
+                        onMode={setGreetingMode}
+                        onCustomName={setGreetingName}
+                    />
+                ) : null}
+
                 {(!isTemplateKind && !isBlocksKind) || isEditing ? (
                     <TextArea
                         rows={8}
@@ -630,6 +685,16 @@ export function ReplyBox({
                             if (usedAi && e.target.value !== aiDraft) setUsedAi(false);
                         }}
                     />
+                ) : null}
+
+                {/*
+                  Shown for a custom reply and for editing a draft, because the branded
+                  block goes on the way out either way — it is the layout, not the
+                  composer, that adds it. Not under the block builder, which draws its own
+                  sign-off inside the preview.
+                */}
+                {(!isTemplateKind && !isBlocksKind) || isEditing ? (
+                    <SignOffPreview signOff={compose?.signOff} />
                 ) : null}
             </div>
 

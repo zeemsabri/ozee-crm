@@ -114,6 +114,16 @@ class InboxReplyController extends Controller
             'template_id' => ['required_if:composition_type,template', 'nullable', 'integer', 'exists:email_templates,id'],
             'template_data' => ['nullable', 'array'],
             /*
+             * The opening line, already built — "Hi Sarah," — not a name to build one
+             * from. Same shape and same key the classic composer posts to
+             * POST /api/emails, so one composer produces one string and neither end has a
+             * second opinion about how to address a client.
+             *
+             * Optional, and empty means none: a reply had no greeting at all before this,
+             * an AI draft writes its own, and both of those must stay possible.
+             */
+            'greeting_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            /*
              * Keep this message out of the project team's view. Same flag the toggle next
              * to a sent message writes, set at compose time instead of after the fact.
              * Permission-checked below; absent or false is the normal case.
@@ -309,6 +319,25 @@ class InboxReplyController extends Controller
             ? $this->renderer->render($blocks, BlockRenderer::MODE_SEND)
             : null;
 
+        /*
+         * The greeting, prepended to a CUSTOM body only.
+         *
+         * `$greeting.'<br/>'.$body` is deliberately byte-identical to what
+         * HandlesEmailCreation does for a new email, so a reply and a first message open
+         * the same way and EmailHtml has one shape to render.
+         *
+         * Not for a template, which renders its own opening from the template; not for
+         * blocks, where a greeting has to BE a block or the send-time re-render drops it
+         * (see BlockComposition::renderForSend).
+         *
+         * Null when the composer sent nothing or sent an empty string — which is what an
+         * AI draft does, because InboxAiService::draftReply is prompted to open with "Hi
+         * <first name>," itself. Prepending on top of that is how you get two greetings.
+         */
+        $greeting = $isTemplate || $isBlocks
+            ? null
+            : (trim((string) ($data['greeting_name'] ?? '')) ?: null);
+
         $email = new Email([
             'conversation_id' => $conversation->id,
             'sender_id' => $user->id,
@@ -322,7 +351,9 @@ class InboxReplyController extends Controller
             'body' => match (true) {
                 $isTemplate => null,
                 $isBlocks => $renderedBlocks,
-                default => $data['body'],
+                default => $greeting === null
+                    ? $data['body']
+                    : $greeting.'<br/>'.$data['body'],
             },
             'status' => $status->value,
             'type' => EmailType::Sent->value,
@@ -433,6 +464,12 @@ class InboxReplyController extends Controller
             'subject' => $this->replySubject($conversation),
             'last_inbound_email_id' => $lastInbound?->id,
             'masked' => $mask,
+
+            // Who to say hello to. NAMES, never addresses — the composer builds the
+            // greeting line from these, and they are the same names the thread already
+            // prints on every message, so nothing is exposed that was not already on
+            // screen. See Correspondent::namesFor.
+            'recipient_names' => $this->correspondent->namesFor($conversation),
 
             // Whether this person may type an address at all. The composer hides the
             // forward option and the address field unless this is true; the server refuses

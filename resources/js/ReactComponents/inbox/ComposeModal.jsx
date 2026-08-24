@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Button, ButtonGroup, Chips, Dropdown, Icon, Modal, TextArea, TextField, Toggle } from '../ds';
 import { BlockBuilder } from './BlockBuilder';
+import { GreetingPicker, SignOffPreview, greetingTextFor } from './Salutation';
 import { TemplateFields } from './TemplateFields';
 import { useBlocks } from './useBlocks';
 import { emptyValueFor, inputPlaceholders, useTemplatePreview } from './useTemplates';
@@ -65,8 +66,30 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
     const [body, setBody] = useState('');
     const [busy, setBusy] = useState(false);
 
+    /*
+     * The greeting was here all along, hardcoded to the first client's first name and
+     * invisible: `greeting_name` was posted and HandlesEmailCreation prepended it, so
+     * anyone who did not already know that typed their own "Hi Sarah," and sent two.
+     * Now it is a control. Default matches the Vue composer's — full name.
+     */
+    const [greetingMode, setGreetingMode] = useState('full_name');
+    const [greetingName, setGreetingName] = useState('');
+
     const isTemplate = kind === 'template';
     const isBlocks = kind === 'blocks';
+
+    // Names of the people actually selected, in the order they were picked, so a greeting
+    // reading "Hi Sarah & Tom," names the two clients this email is going to and nobody
+    // else on the project.
+    const recipientNames = clientIds
+        .map((id) => clients.find((c) => c.id === id)?.name)
+        .filter(Boolean);
+
+    const greeting = greetingTextFor({
+        mode: greetingMode,
+        customName: greetingName,
+        names: recipientNames,
+    });
 
     // Gated on its own permission, not on free-form: the builder emits typed blocks the
     // server renders, so it is offered to anyone who may compose. The server applies the
@@ -105,6 +128,8 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
         setPreviewedTemplateId(null);
         setSubject('');
         setBody('');
+        setGreetingMode('full_name');
+        setGreetingName('');
         blocks.reset();
         setIsPrivate(false);
         setKind(initialKind);
@@ -195,14 +220,18 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                     ...(canMarkPrivate && isPrivate ? { is_private: true } : {}),
                 });
             } else {
-                // greeting_name matters: HandlesEmailCreation prepends the greeting to the
-                // body and defaults it to a literal "Hi there" when none is sent. The
-                // legacy composer always sends "Hi {client name}," — without this every
-                // email from the new inbox opened with a generic greeting and there was
-                // no field to change it.
-                const primary = clients.find((c) => c.id === clientIds[0]);
-                const greeting = primary?.name ? `Hi ${primary.name},` : 'Hi there,';
-
+                /*
+                 * greeting_name matters: HandlesEmailCreation prepends it to the body and
+                 * falls back to a literal "Hi there" when none is sent, so this key is
+                 * never optional in practice — it only decides whether the client reads
+                 * their own name or a generic line.
+                 *
+                 * `custom_greeting_name` is deliberately NOT posted, even though the Vue
+                 * composer posts it: the server reads it with `??`, so the empty string
+                 * that composer sends whenever the mode is not "custom" wins over
+                 * greeting_name and the email goes out with no greeting at all. Sending
+                 * one fully-built string avoids the whole question.
+                 */
                 await axios.post('/api/emails', {
                     project_id: projectId,
                     client_ids: clientIds.map((id) => ({ id })), // objects for this one
@@ -371,21 +400,32 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                             <BlockBuilder
                                 blocks={blocks}
                                 disabled={busy}
-                                greeting={
-                                    clients.find((c) => c.id === clientIds[0])?.name
-                                        ? `Hi ${clients.find((c) => c.id === clientIds[0]).name.split(' ')[0]},`
-                                        : 'Hi there,'
-                                }
+                                // The builder puts the greeting in as its first block, so
+                                // the preview has to show the same string the send will —
+                                // see HandlesEmailCreation, which unshifts it.
+                                greeting={greeting || 'Hi there,'}
                                 signOff={compose?.signOff}
                             />
                         ) : (
-                            <TextArea
-                                label="Message"
-                                rows={8}
-                                placeholder="Your signature and role are added automatically."
-                                value={body}
-                                onChange={(e) => setBody(e.target.value)}
-                            />
+                            <>
+                                <GreetingPicker
+                                    // No "No greeting" here — see GreetingPicker.
+                                    mode={greetingMode}
+                                    customName={greetingName}
+                                    names={recipientNames}
+                                    disabled={busy}
+                                    onMode={setGreetingMode}
+                                    onCustomName={setGreetingName}
+                                />
+                                <TextArea
+                                    label="Message"
+                                    rows={8}
+                                    placeholder="Start with what you need to say — the greeting above and the sign-off below are added for you."
+                                    value={body}
+                                    onChange={(e) => setBody(e.target.value)}
+                                />
+                                <SignOffPreview signOff={compose?.signOff} />
+                            </>
                         )}
                     </div>
                 ) : (

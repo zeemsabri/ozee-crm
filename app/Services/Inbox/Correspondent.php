@@ -184,6 +184,42 @@ class Correspondent
     }
 
     /**
+     * Everyone on this thread we might greet, by name.
+     *
+     * The same chain as addressesFor(), minus the two steps that can only ever yield an
+     * address: an unmatched inbound `From` header and a stored `emails.to`. Those are fine
+     * for delivery and useless for a greeting — "Hi priya@acme.com," is worse than no
+     * greeting at all — so they are left out rather than reformatted.
+     *
+     * Names, not addresses, so this is safe to return to someone without `edit_clients`:
+     * the thread already prints these names on every message.
+     *
+     * @return array<int,string>
+     */
+    public function namesFor(Conversation $conversation, ?Collection $emails = null): array
+    {
+        $emails = $emails ?? $conversation->emails ?? collect();
+        $names = [$this->nameFor($conversation->conversable)];
+
+        if ($conversation->project) {
+            foreach ($conversation->project->clients as $client) {
+                $names[] = $this->nameFor($client);
+            }
+        }
+
+        // Whoever last wrote in, when the poller matched them to a record. An unmatched
+        // sender has no name to use and is deliberately skipped.
+        if ($inbound = $emails->last(fn (Email $e) => $this->isInbound($e))) {
+            $names[] = $this->nameFor($inbound->sender);
+        }
+
+        return array_values(array_unique(array_filter(
+            array_map(fn ($n) => is_string($n) ? trim($n) : null, $names),
+            fn ($n) => is_string($n) && $n !== ''
+        )));
+    }
+
+    /**
      * The sender's address off an inbound email, dug out of `template_data`.
      *
      * The poller stores the raw headers there, but in two different shapes depending on
