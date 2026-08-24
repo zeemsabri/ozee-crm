@@ -112,6 +112,9 @@ trait HandlesEmailCreation
                 : null,
             'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
+            // Compose-time privacy. Permission-checked in EmailController::store before
+            // it reaches here; absent for every classic-composer request.
+            'is_private' => (bool) ($validated['is_private'] ?? false),
         ]);
 
         // Re-point the images from the project to the email now that one exists.
@@ -184,6 +187,9 @@ trait HandlesEmailCreation
             'template_data' => json_encode($validated['template_data'] ?? []),
             'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
+            // Compose-time privacy. Permission-checked in EmailController::store before
+            // it reaches here; absent for every classic-composer request.
+            'is_private' => (bool) ($validated['is_private'] ?? false),
         ]);
 
         //        ProcessDraftEmailJob::dispatch($email);
@@ -228,6 +234,9 @@ trait HandlesEmailCreation
             'body' => $greeting.'<br/>'.$validated['body'],
             'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
+            // Compose-time privacy. Permission-checked in EmailController::store before
+            // it reaches here; absent for every classic-composer request.
+            'is_private' => (bool) ($validated['is_private'] ?? false),
         ]);
 
         //        ProcessDraftEmailJob::dispatch($email);

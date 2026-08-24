@@ -114,6 +114,12 @@ class InboxReplyController extends Controller
             'template_id' => ['required_if:composition_type,template', 'nullable', 'integer', 'exists:email_templates,id'],
             'template_data' => ['nullable', 'array'],
             /*
+             * Keep this message out of the project team's view. Same flag the toggle next
+             * to a sent message writes, set at compose time instead of after the fact.
+             * Permission-checked below; absent or false is the normal case.
+             */
+            'is_private' => ['sometimes', 'boolean'],
+            /*
              * Only honoured for `forward`, and only from someone with
              * `email_custom_recipients`. For reply and replyAll the server resolves the
              * recipients from the project and ignores this entirely — see
@@ -151,8 +157,9 @@ class InboxReplyController extends Controller
          * The legacy page hides its Custom Email button from everyone but super admins and
          * then accepts a custom email from anyone who posts one — the endpoint never
          * checks. Reproducing the hole alongside the button would be a poor trade, so the
-         * new reply endpoint enforces both gates. See InboxAccess::canComposeCustom for
-         * why "custom" resolves to super-admin-only today.
+         * new reply endpoint enforces every gate. See InboxAccess::canComposeCustom for
+         * why "custom" resolves to super-admin-only today, and canComposeBlocks for why
+         * "blocks" deliberately does not.
          */
         $isTemplate = $data['composition_type'] === 'template';
         $isBlocks = $data['composition_type'] === 'blocks';
@@ -161,12 +168,35 @@ class InboxReplyController extends Controller
             abort(403, 'You do not have permission to send template emails.');
         }
 
-        // Blocks are free-form content wearing a nicer editor — the text, links and
-        // images are whatever the author typed, with no template to constrain them. So it
-        // is gated as custom, not as template. Letting the builder through on the template
-        // permission would be a quiet privilege escalation for every non-admin.
-        if (! $isTemplate && ! $this->access->canComposeCustom($user)) {
-            abort(403, 'Free-form emails are admin-only — build your reply from a template.');
+        /*
+         * Blocks used to be gated as custom, on the reasoning that the builder is
+         * free-form content wearing a nicer editor. It is not: it emits a fixed set of
+         * typed blocks that BlockRenderer turns into our own markup, with no HTML
+         * passthrough and no free-text recipient, so it puts the same class of thing in
+         * front of a client that a template does. It now carries its own gate, which any
+         * composer clears — see InboxAccess::canComposeBlocks.
+         *
+         * A genuinely free-form body is unchanged and still admin-only.
+         */
+        if ($isBlocks && ! $this->access->canComposeBlocks($user)) {
+            abort(403, 'You do not have permission to send emails on this thread.');
+        }
+
+        if (! $isTemplate && ! $isBlocks && ! $this->access->canComposeCustom($user)) {
+            abort(403, 'Free-form emails are admin-only — build your reply from a template or a project update.');
+        }
+
+        /*
+         * Sending as private.
+         *
+         * Refused rather than silently downgraded: someone who ticked the box believes
+         * this message is being kept from the team, and creating it visible anyway is the
+         * one failure mode worth being loud about.
+         */
+        $isPrivate = (bool) ($data['is_private'] ?? false);
+
+        if ($isPrivate && ! $this->access->canMarkPrivate($user)) {
+            abort(403, 'Marking a message private needs the "Delete Emails" permission.');
         }
 
         /*
@@ -297,6 +327,11 @@ class InboxReplyController extends Controller
             'status' => $status->value,
             'type' => EmailType::Sent->value,
             'in_reply_to_email_id' => $parentId,
+            // Set at creation, so the message is never briefly visible to the team between
+            // being written and someone remembering to flip the toggle. Sending is
+            // unaffected — the client receives it either way; this only governs who on our
+            // side can read it afterwards.
+            'is_private' => $isPrivate,
             // Written through TemplateData::encode, which reproduces the double-encoded
             // shape every other writer in the codebase produces. Storing the "correct"
             // single-encoded array instead would 500 the classic pending-approvals list

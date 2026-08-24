@@ -32,7 +32,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Button, ButtonGroup, Chips, Icon, TextArea, TextField } from '../ds';
+import { Button, ButtonGroup, Chips, Icon, TextArea, TextField, Toggle } from '../ds';
 import { BlockBuilder } from './BlockBuilder';
 import { TemplateFields } from './TemplateFields';
 import { useBlocks } from './useBlocks';
@@ -94,12 +94,36 @@ export function ReplyBox({
      * Template vs custom.
      *
      * Custom is admin-only — the same rule the legacy inbox applies to its "Custom Email"
-     * button, except the server now enforces it too. Someone who can only use templates
-     * never sees the switch, and the box opens straight into the template picker.
+     * button, except the server now enforces it too. "Project update" is NOT part of that
+     * rule any more: it carries canComposeBlocks, which anyone who may compose clears, so
+     * a template-only user sees Template and Project update and opens on the former.
      */
     const canTemplate = compose?.canTemplate ?? false;
     const canCustom = compose?.canCustom ?? false;
+    const canBlocks = compose?.canBlocks ?? canCustom;
     const [kind, setKind] = useState(canCustom ? 'custom' : 'template');
+
+    /*
+     * Send-as-private.
+     *
+     * The flag already exists and already has a control — "Make private" next to a sent
+     * message — but only AFTER the fact, which means every private message is visible to
+     * the whole project team for however long it takes someone to remember. Setting it
+     * here writes it at creation instead. `delete_emails`, the same permission as that
+     * toggle; see InboxAccess::canMarkPrivate.
+     *
+     * Not offered when editing an existing draft: that row already exists, and the
+     * approve endpoint does not carry the flag — the per-message toggle is the control
+     * for one of those.
+     */
+    const canMarkPrivate = (compose?.canMarkPrivate ?? false) && !isEditing;
+    // Marking private is `delete_emails`; READING a private message is
+    // `view_private_emails`. Someone can hold the first without the second, and the reply
+    // endpoint refuses every later reply on a thread holding a message they cannot read —
+    // so they would lock themselves out of their own thread. Warned, not blocked: it is a
+    // legitimate thing for a manager to do on someone else's behalf.
+    const canSeePrivate = compose?.canSeePrivate ?? false;
+    const [isPrivate, setIsPrivate] = useState(false);
     const [templateId, setTemplateId] = useState(null);
     const [templateData, setTemplateData] = useState({});
     // Which template the currently-shown subject came from. Gates sending — see canSend.
@@ -109,12 +133,13 @@ export function ReplyBox({
     const isBlocksKind = kind === 'blocks';
 
     /*
-     * The block builder is gated as free-form, not as template.
+     * The block builder has its own gate, and anyone who may compose clears it.
      *
-     * Its content is whatever the author typed — prose, links, screenshots — with no
-     * template constraining it, so offering it on the template permission would hand
-     * every non-admin the free-form composer through a different door. The server applies
-     * the same rule; this only decides whether the tab is drawn.
+     * It was gated as free-form on the reasoning that its content is whatever the author
+     * typed. It is not the same door: it emits a fixed set of typed blocks — text,
+     * bullets, a link, an image — that BlockRenderer turns into our own markup, with no
+     * HTML passthrough and no free-text recipient. The server applies the same rule; this
+     * only decides whether the tab is drawn. See InboxAccess::canComposeBlocks.
      */
     const blocks = useBlocks({ projectId: thread?.project?.id ?? null, onError });
 
@@ -123,9 +148,9 @@ export function ReplyBox({
             [
                 canTemplate ? { value: 'template', text: 'Template' } : null,
                 canCustom ? { value: 'custom', text: 'Custom message' } : null,
-                canCustom ? { value: 'blocks', text: 'Project update' } : null,
+                canBlocks ? { value: 'blocks', text: 'Project update' } : null,
             ].filter(Boolean),
-        [canTemplate, canCustom]
+        [canTemplate, canCustom, canBlocks]
     );
 
     // Seed the placeholder keys when a template is picked, so every field is controlled
@@ -263,6 +288,9 @@ export function ReplyBox({
         // the newest inbound one. The server re-checks that it belongs to this thread and
         // applies the same fallback if it is null.
         in_reply_to_email_id: replyTo?.emailId ?? recipients?.last_inbound_email_id ?? null,
+        // Only sent when it is on AND allowed, so a stale toggle can never post a flag the
+        // server would 403 on. The server re-checks the permission regardless.
+        is_private: canMarkPrivate && isPrivate ? true : undefined,
     });
 
     return (
@@ -640,6 +668,45 @@ export function ReplyBox({
                 <Button kind="tertiary" size="small" color="negative" disabled={busy} onClick={onDiscard}>
                     Discard
                 </Button>
+                {canMarkPrivate ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <Toggle
+                            size="small"
+                            checked={isPrivate}
+                            disabled={busy}
+                            ariaLabel="Keep this message private"
+                            onChange={setIsPrivate}
+                        />
+                        <span
+                            style={{
+                                font: '400 12px/16px Figtree, sans-serif',
+                                color: isPrivate ? 'var(--primary-text-color)' : 'var(--secondary-text-color)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                            }}
+                        >
+                            <Icon name="Hide" size={14} color="currentColor" />
+                            Private
+                        </span>
+                    </span>
+                ) : null}
+                {isPrivate && !canSeePrivate ? (
+                    <span
+                        style={{
+                            flexBasis: '100%',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            font: '400 12px/16px Figtree, sans-serif',
+                            color: 'var(--negative-color)',
+                        }}
+                    >
+                        <Icon name="Alert" size={14} color="currentColor" />
+                        You cannot read private messages, so you will not be able to open this
+                        one or reply on this thread afterwards.
+                    </span>
+                ) : null}
                 <span
                     style={{
                         marginInlineStart: 'auto',
@@ -657,7 +724,9 @@ export function ReplyBox({
                       reply. That is what keeps the thread out of the AI checker's prompt.
                     */}
                     <span>
-                        {isEditing
+                        {isPrivate && canMarkPrivate
+                            ? 'The client still receives this — it is hidden from the project team'
+                            : isEditing
                             ? 'Approving this sends it to the client now'
                             : isTemplateKind
                               ? 'Checked by AI, then sent — the template is rendered on the way out'

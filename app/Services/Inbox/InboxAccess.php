@@ -104,6 +104,44 @@ class InboxAccess
     }
 
     /**
+     * May this user build a PROJECT UPDATE (the block builder)?
+     *
+     * Anyone who may compose at all. The builder used to sit behind
+     * `canComposeCustom`, on the reasoning that its content is free-form and offering it
+     * on the template permission would hand every non-admin the free-form composer
+     * through a different door. In practice that made it invisible to everyone but super
+     * admins, and it is not the same door: the builder emits a fixed set of typed blocks
+     * — text, bullets, a link, an image — rendered server-side by BlockRenderer into our
+     * own markup. There is no HTML passthrough and no free-text recipient, so what a
+     * non-admin can put in front of a client through it is the same class of thing a
+     * template already puts there. Deliberately widened; see canComposeCustom, which is
+     * unchanged and still governs the genuinely free-form body.
+     */
+    public function canComposeBlocks(User $user): bool
+    {
+        return $this->canComposeTemplate($user) || $this->canComposeCustom($user);
+    }
+
+    /**
+     * May this user mark a message PRIVATE?
+     *
+     * `delete_emails`, which is what `EmailPolicy::delete` checks and therefore what the
+     * existing after-the-fact toggle already uses (Api\EmailController::togglePrivacy,
+     * surfaced as `can.toggle_privacy`). Deliberately the same population: a compose-time
+     * switch that a different set of people could see than the one next to the sent
+     * message would be two controls disagreeing about who may keep a message from the
+     * team.
+     *
+     * Note this is NOT `view_private_emails`. That governs READING private mail, and the
+     * two are separate on purpose — but it means someone can mark a reply private and
+     * then not be able to open it, or reply on that thread again. The composers say so.
+     */
+    public function canMarkPrivate(User $user): bool
+    {
+        return $user->isSuperAdmin() || (bool) $user->hasPermission('delete_emails');
+    }
+
+    /**
      * May this user type an email address by hand?
      *
      * Almost nobody, by design. Client mail travels one route — from our authorised

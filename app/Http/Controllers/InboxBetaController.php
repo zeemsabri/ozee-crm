@@ -35,6 +35,12 @@ class InboxBetaController extends Controller
                 // buttons; see InboxAccess for why custom is effectively super-admin only.
                 'can_compose_template' => $this->access->canComposeTemplate($user),
                 'can_compose_custom' => $this->access->canComposeCustom($user),
+                // "Project update" is its own gate — anyone who may compose at all gets
+                // the block builder. See InboxAccess::canComposeBlocks.
+                'can_compose_blocks' => $this->access->canComposeBlocks($user),
+                // Whether the composers draw a "Private" switch. Same permission as the
+                // toggle next to an already-sent message — see InboxAccess::canMarkPrivate.
+                'can_mark_private' => $this->access->canMarkPrivate($user),
                 // Whether the composer draws a free-text address field at all. Client mail
                 // otherwise only ever goes to the project's clients — see
                 // InboxAccess::canAddressManually.

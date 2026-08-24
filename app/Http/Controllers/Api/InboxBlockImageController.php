@@ -54,7 +54,7 @@ class InboxBlockImageController extends Controller
         // Same gate as composing itself: if you cannot write the email, you cannot upload
         // into it. Also confirms the project is one this user may compose on, so the
         // upload cannot be used to drop files into an arbitrary project.
-        if (! $this->access->canComposeTemplate($user) && ! $this->access->canComposeCustom($user)) {
+        if (! $this->access->canComposeBlocks($user)) {
             abort(403, 'You do not have permission to compose emails.');
         }
 
@@ -97,7 +97,7 @@ class InboxBlockImageController extends Controller
     {
         $user = Auth::user();
 
-        if (! $this->access->canComposeTemplate($user) && ! $this->access->canComposeCustom($user)) {
+        if (! $this->access->canComposeBlocks($user)) {
             abort(403, 'You do not have permission to compose emails.');
         }
 

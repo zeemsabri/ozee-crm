@@ -218,6 +218,8 @@ class InboxThreadController extends Controller
             'is_manager' => $this->access->isManager($user),
             'can_compose_template' => $this->access->canComposeTemplate($user),
             'can_compose_custom' => $this->access->canComposeCustom($user),
+            'can_compose_blocks' => $this->access->canComposeBlocks($user),
+            'can_mark_private' => $this->access->canMarkPrivate($user),
             'ai' => [
                 'enabled' => (bool) config('inbox.ai.enabled'),
                 'check_outbound' => (bool) config('inbox.ai.check_outbound'),

@@ -149,7 +149,28 @@ class EmailController extends Controller
                 'custom_greeting_name' => 'string|nullable',
                 'greeting_name' => 'string|nullable',
                 'status' => 'sometimes|in:draft,pending_approval,delayed',
+                // Keep this message out of the project team's view. Sent by the redesigned
+                // inbox's composer; the classic one has never sent it, so absent-and-false
+                // is the existing behaviour for everyone else.
+                'is_private' => 'sometimes|boolean',
             ]);
+
+            /*
+             * Marking a message private at compose time is the same act, and the same
+             * permission, as the toggle next to an already-sent one — which is
+             * togglePrivacy() below, authorised through EmailPolicy::delete. Resolved
+             * through InboxAccess so there is one authority for the rule rather than a
+             * second copy of `delete_emails` here.
+             *
+             * Refused rather than silently downgraded: someone who ticked the box believes
+             * the message is being kept from the team.
+             */
+            if (($validated['is_private'] ?? false)
+                && ! app(\App\Services\Inbox\InboxAccess::class)->canMarkPrivate($user)) {
+                return response()->json([
+                    'message' => 'Marking a message private needs the "Delete Emails" permission.',
+                ], 403);
+            }
 
             if (array_key_exists('status', $validated)) {
                 app(\App\Services\ValueSetValidator::class)->validate('Email', 'status', $validated['status']);
@@ -203,7 +224,16 @@ class EmailController extends Controller
                 'template_id' => 'required|exists:email_templates,id',
                 'template_data' => 'nullable|array',
                 'status' => 'sometimes|in:draft,pending_approval,delayed',
+                // See the note on store(): same flag, same permission as togglePrivacy().
+                'is_private' => 'sometimes|boolean',
             ]);
+
+            if (($validated['is_private'] ?? false)
+                && ! app(\App\Services\Inbox\InboxAccess::class)->canMarkPrivate($user)) {
+                return response()->json([
+                    'message' => 'Marking a message private needs the "Delete Emails" permission.',
+                ], 403);
+            }
 
             $clientIds = $validated['client_ids'];
 
@@ -255,6 +285,10 @@ class EmailController extends Controller
                     'template_data' => json_encode($validated['template_data'] ?? []),
                     'status' => $validated['status'] ?? Email::STATUS_DRAFT,
                     'type' => \App\Enums\EmailType::Sent, // Set type to sent for outgoing emails
+                    // Set at creation so the message is never briefly visible to the team
+                    // between being written and someone flipping the toggle. Does not
+                    // affect delivery — the client receives it either way.
+                    'is_private' => (bool) ($validated['is_private'] ?? false),
                 ]);
 
                 //            ProcessDraftEmailJob::dispatch($email);

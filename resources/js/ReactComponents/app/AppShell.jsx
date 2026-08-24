@@ -22,13 +22,13 @@
  */
 
 import { useMemo } from 'react';
-import { Head, usePage, router } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import '../../../css/ozee-ds/index.css';
 
 import { Avatar, ButtonGroup, Icon, IconButton, MenuButton, Search, Toast } from '../ds';
 import { useTheme, THEME_OPTIONS } from './useTheme';
 import { usePermissions } from './usePermissions';
-import { RAIL_ITEMS, USER_MENU_ITEMS, FOOTER_LINKS, url, activeRailKey } from './navigation';
+import { RAIL_ITEMS, USER_MENU_ITEMS, FOOTER_LINKS, url, activeRailKey, signOut } from './navigation';
 
 const HEADER_HEIGHT = 56;
 const RAIL_WIDTH = 64;
@@ -165,19 +165,9 @@ export function AppShell({
 
     const onUserMenu = (value) => {
         if (value === 'logout') {
-            // Inertia post rather than <a>: logout is a POST and the Vue side clears the
-            // same localStorage keys on success.
-            router.post(url('logout', '/logout'), {}, {
-                onFinish: () => {
-                    ['authToken', 'userRole', 'userId', 'userEmail', 'remembered'].forEach((k) => {
-                        try {
-                            localStorage.removeItem(k);
-                        } catch {
-                            /* ignore */
-                        }
-                    });
-                },
-            });
+            // Deliberately not an Inertia visit — the redirect lands on a Vue page and the
+            // React runtime cannot mount it. See signOut().
+            signOut();
             return;
         }
 

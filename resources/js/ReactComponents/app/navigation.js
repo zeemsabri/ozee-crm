@@ -29,6 +29,57 @@ export function url(name, fallback) {
     return fallback;
 }
 
+/**
+ * Sign out, and actually leave the page.
+ *
+ * NOT `router.post('/logout')`, which is what this used to be and why signing out of a
+ * React page appeared to do nothing until you refreshed.
+ *
+ * `AuthenticatedSessionController::destroy` answers 302 → `/`, which renders the Vue
+ * `Welcome` component. Inertia follows the redirect inside the SPA and asks the React
+ * runtime to resolve `Welcome` — there is no `ReactPages/Welcome.jsx`, the resolve
+ * rejects, and because Inertia resolves the component BEFORE it touches history, nothing
+ * moves: no navigation, no error, the signed-out inbox just sits there until a refresh
+ * re-runs the app.js dispatcher and boots Vue. This is the cross-framework rule in
+ * resources/js/app.js, hit by a redirect rather than by a link.
+ *
+ * So: a plain axios POST (which carries the XSRF cookie header like every other request
+ * in the app — see bootstrap.js, and note the deliberate decision there NOT to rely on a
+ * static csrf-token meta tag), then a real navigation. `Api\Portal\PortalController`
+ * solves the same problem from the other end with `Inertia::location`; that is not used
+ * here because the legacy Vue layouts post to this same route and clear their own local
+ * state in Inertia's `@success` callback, which a 409 location visit never fires.
+ *
+ * Local state is cleared BEFORE the request, not after: the user has already decided to
+ * leave, and a callback racing a page teardown is how keys get left behind.
+ */
+export async function signOut() {
+    ['authToken', 'userRole', 'userId', 'userEmail', 'remembered'].forEach((key) => {
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            /* Private mode, or storage disabled. Signing out still has to work. */
+        }
+    });
+
+    try {
+        if (window.axios?.defaults?.headers?.common) {
+            delete window.axios.defaults.headers.common.Authorization;
+        }
+    } catch {
+        /* ignore */
+    }
+
+    try {
+        await window.axios.post(url('logout', '/logout'));
+    } catch {
+        // A 419 means the session had already expired, which is the state we were trying
+        // to reach anyway. Either way the next line is what the person asked for.
+    } finally {
+        window.location.assign('/');
+    }
+}
+
 /** The 64px icon rail down the left edge. Icons are Vibe glyph names. */
 export const RAIL_ITEMS = [
     { key: 'work', icon: 'Home', label: 'My work', route: 'workspace.index', href: '/workspace', match: ['/workspace'] },

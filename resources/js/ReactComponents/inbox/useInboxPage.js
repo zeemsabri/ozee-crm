@@ -100,6 +100,21 @@ export function useInboxPage({ settings, initialThreadId }) {
     const slaMinutes = settings?.sla_minutes || 60;
     const canComposeTemplate = settings?.can_compose_template ?? false;
     const canComposeCustom = settings?.can_compose_custom ?? false;
+    // "Project update" is not the free-form composer — it emits typed blocks the server
+    // renders — so it rides on its own flag, which anyone who may compose clears. The
+    // fallback keeps an older payload (before can_compose_blocks existed) working.
+    const canComposeBlocks =
+        settings?.can_compose_blocks ?? (canComposeTemplate || canComposeCustom);
+    // Whether the composers draw a "Private" switch. Same permission as the toggle next
+    // to a sent message — see InboxAccess::canMarkPrivate. Absent means off: an older
+    // payload must not start offering a control whose flag the server would refuse.
+    const canMarkPrivate = settings?.can_mark_private ?? false;
+    // Passed to the composers only so they can WARN. Marking a message private is
+    // `delete_emails`; reading one is `view_private_emails`, and holding the first
+    // without the second means you can hide a message from yourself — on a NEW thread,
+    // the whole conversation, because ThreadQuery drops a conversation whose every email
+    // is private. Saying so at the toggle is cheaper than the support ticket.
+    const canSeePrivate = settings?.can_see_private ?? false;
 
     // Templates load once for the session, but only for someone who can actually use
     // them — no point fetching the list for a user who only ever composes free-form.
@@ -115,6 +130,9 @@ export function useInboxPage({ settings, initialThreadId }) {
         () => ({
             canTemplate: canComposeTemplate,
             canCustom: canComposeCustom,
+            canBlocks: canComposeBlocks,
+            canMarkPrivate,
+            canSeePrivate,
             templates: templates.templates,
             templateOptions: templates.options,
             sourceData: templates.sourceData,
@@ -124,7 +142,16 @@ export function useInboxPage({ settings, initialThreadId }) {
             // For the block builder's preview pane only.
             signOff: settings?.sign_off,
         }),
-        [canComposeTemplate, canComposeCustom, templates, preview, settings?.sign_off]
+        [
+            canComposeTemplate,
+            canComposeCustom,
+            canComposeBlocks,
+            canMarkPrivate,
+            canSeePrivate,
+            templates,
+            preview,
+            settings?.sign_off,
+        ]
     );
 
     // --------------------------------------------------------------- opening

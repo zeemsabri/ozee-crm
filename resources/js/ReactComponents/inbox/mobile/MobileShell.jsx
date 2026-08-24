@@ -14,12 +14,12 @@
  */
 
 import { useState } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 
 import { Avatar, Icon, Search, Toast } from '../../ds';
 import { useTheme, THEME_OPTIONS } from '../../app/useTheme';
 import { usePermissions } from '../../app/usePermissions';
-import { RAIL_ITEMS, url } from '../../app/navigation';
+import { RAIL_ITEMS, url, signOut } from '../../app/navigation';
 import { Sheet } from './Sheet';
 
 const TAB_ICON_SIZE = 22;
@@ -80,20 +80,6 @@ function TabButton({ label, icon, active, count, countTone, onClick }) {
 
 function AccountSheet({ open, onClose, user, classicUrl, can }) {
     const { theme, setTheme } = useTheme();
-
-    const signOut = () => {
-        router.post(url('logout', '/logout'), {}, {
-            onFinish: () => {
-                ['authToken', 'userRole', 'userId', 'userEmail', 'remembered'].forEach((k) => {
-                    try {
-                        localStorage.removeItem(k);
-                    } catch {
-                        /* ignore */
-                    }
-                });
-            },
-        });
-    };
 
     const row = {
         display: 'flex',

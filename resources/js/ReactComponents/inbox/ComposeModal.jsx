@@ -24,7 +24,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Button, ButtonGroup, Chips, Dropdown, Icon, Modal, TextArea, TextField } from '../ds';
+import { Button, ButtonGroup, Chips, Dropdown, Icon, Modal, TextArea, TextField, Toggle } from '../ds';
 import { BlockBuilder } from './BlockBuilder';
 import { TemplateFields } from './TemplateFields';
 import { useBlocks } from './useBlocks';
@@ -33,13 +33,30 @@ import { emptyValueFor, inputPlaceholders, useTemplatePreview } from './useTempl
 export function ComposeModal({ open, onClose, onCreated, compose, projects, onError, classicUrl, style, dense }) {
     const canTemplate = compose?.canTemplate ?? false;
     const canCustom = compose?.canCustom ?? false;
+    const canBlocks = compose?.canBlocks ?? canCustom;
+    /*
+     * Send-as-private. The flag and its permission already exist — "Make private" next to
+     * a sent message — but only after the fact, so every private message was visible to
+     * the project team until someone remembered to flip it. Setting it here writes it at
+     * creation. See InboxAccess::canMarkPrivate.
+     */
+    const canMarkPrivate = compose?.canMarkPrivate ?? false;
+    // See ReplyBox: marking private is `delete_emails`, reading one is
+    // `view_private_emails`, and on a NEW thread every email is this one — so someone
+    // holding the first without the second loses the whole conversation from their list.
+    const canSeePrivate = compose?.canSeePrivate ?? false;
+    const [isPrivate, setIsPrivate] = useState(false);
 
     const [projectId, setProjectId] = useState(null);
     const [clients, setClients] = useState([]);
     const [clientIds, setClientIds] = useState([]);
     const [loadingClients, setLoadingClients] = useState(false);
 
-    const [kind, setKind] = useState(canCustom && !canTemplate ? 'custom' : 'template');
+    // Open on a mode this person actually has. Template first when they have it;
+    // otherwise custom, and failing that the block builder — a template-less user who can
+    // only build project updates must not open on an empty 'template' tab.
+    const initialKind = canTemplate ? 'template' : canCustom ? 'custom' : 'blocks';
+    const [kind, setKind] = useState(initialKind);
     const [templateId, setTemplateId] = useState(null);
     const [templateData, setTemplateData] = useState({});
     const [previewedTemplateId, setPreviewedTemplateId] = useState(null);
@@ -51,8 +68,9 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
     const isTemplate = kind === 'template';
     const isBlocks = kind === 'blocks';
 
-    // Gated as free-form, not as template — the builder produces whatever the author
-    // types, with no template constraining it. The server applies the same rule.
+    // Gated on its own permission, not on free-form: the builder emits typed blocks the
+    // server renders, so it is offered to anyone who may compose. The server applies the
+    // same rule — see InboxAccess::canComposeBlocks.
     const blocks = useBlocks({ projectId, onError });
 
     // The preview endpoint takes one client id. It CAN combine several names, but only
@@ -70,9 +88,9 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
             [
                 canTemplate ? { value: 'template', text: 'Template' } : null,
                 canCustom ? { value: 'custom', text: 'Custom message' } : null,
-                canCustom ? { value: 'blocks', text: 'Project update' } : null,
+                canBlocks ? { value: 'blocks', text: 'Project update' } : null,
             ].filter(Boolean),
-        [canTemplate, canCustom]
+        [canTemplate, canCustom, canBlocks]
     );
 
     // Reset everything each time it opens — a half-filled composer from last time is
@@ -88,7 +106,8 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
         setSubject('');
         setBody('');
         blocks.reset();
-        setKind(canCustom && !canTemplate ? 'custom' : 'template');
+        setIsPrivate(false);
+        setKind(initialKind);
         preview.reset();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
@@ -171,6 +190,9 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                     template_id: templateId,
                     template_data: templateData,
                     status: 'draft',
+                    // Only when it is on AND allowed, so a stale toggle cannot post a flag
+                    // the server would refuse. The server re-checks the permission anyway.
+                    ...(canMarkPrivate && isPrivate ? { is_private: true } : {}),
                 });
             } else {
                 // greeting_name matters: HandlesEmailCreation prepends the greeting to the
@@ -190,6 +212,7 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                     // there are no blocks.
                     ...(isBlocks ? { blocks: blocks.payload() } : { body: body.trim() }),
                     greeting_name: greeting,
+                    ...(canMarkPrivate && isPrivate ? { is_private: true } : {}),
                 });
             }
 
@@ -389,6 +412,47 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                     <Button size="small" disabled={!canCreate} loading={busy} onClick={create}>
                         Submit for review
                     </Button>
+                    {canMarkPrivate ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <Toggle
+                                size="small"
+                                checked={isPrivate}
+                                disabled={busy}
+                                ariaLabel="Keep this message private"
+                                onChange={setIsPrivate}
+                            />
+                            <span
+                                style={{
+                                    font: '400 12px/16px Figtree, sans-serif',
+                                    color: isPrivate
+                                        ? 'var(--primary-text-color)'
+                                        : 'var(--secondary-text-color)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                }}
+                            >
+                                <Icon name="Hide" size={14} color="currentColor" />
+                                Private
+                            </span>
+                        </span>
+                    ) : null}
+                    {isPrivate && !canSeePrivate ? (
+                        <span
+                            style={{
+                                flexBasis: '100%',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                font: '400 12px/16px Figtree, sans-serif',
+                                color: 'var(--negative-color)',
+                            }}
+                        >
+                            <Icon name="Alert" size={14} color="currentColor" />
+                            You cannot read private messages, so this thread will vanish from
+                            your inbox as soon as it is created.
+                        </span>
+                    ) : null}
                     <span style={{ font: '400 12px/16px Figtree, sans-serif', color: 'var(--secondary-text-color)' }}>
                         {/*
                           This used to read "Save to drafts / Creates a draft. Submitting it
@@ -397,8 +461,9 @@ export function ComposeModal({ open, onClose, onCreated, compose, projects, onEr
                           nobody has to go back to Drafts to push it along. Worse, it implied
                           the email was parked and safe when it was already on its way.
                         */}
-                        Goes to the AI checker first. If it passes, it is sent; if not, someone
-                        approves it by hand.
+                        {canMarkPrivate && isPrivate
+                            ? 'The client still receives this — it is hidden from the project team.'
+                            : 'Goes to the AI checker first. If it passes, it is sent; if not, someone approves it by hand.'}
                     </span>
                     <span style={{ marginInlineStart: 'auto', display: 'flex', gap: 8 }}>
                         {classicUrl ? (
