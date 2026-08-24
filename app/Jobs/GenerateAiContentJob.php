@@ -120,8 +120,19 @@ class GenerateAiContentJob implements ShouldQueue
                 'cost' => $out['cost'] ?? null,
             ]);
         } catch (\Throwable $e) {
+            // `error_message`, not `error`: `error` is not in ExecutionLog::$fillable, so
+            // mass assignment dropped it silently and every failure here logged as
+            // status=error with a NULL message. Log too — the row records that the step
+            // failed, the log records the stack that explains why.
             $this->execLog->update([
                 'status' => 'error',
+                'error_message' => $e->getMessage(),
+            ]);
+
+            Log::error('GenerateAiContentJob failed.', [
+                'workflow_id' => $this->workflowId,
+                'step_id' => $this->currentStepId,
+                'execution_log_id' => $this->execLog->id,
                 'error' => $e->getMessage(),
             ]);
         }

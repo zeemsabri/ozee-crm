@@ -211,21 +211,44 @@ class EmailProcessingService
                 }
             }
 
-            // After the whole loop, not inside it — see the matching note in
-            // Api\EmailController::editAndApprove. Written for every send now, not just
-            // replies, so the SENT ingester can recognise this message when it sees it.
+            /*
+             * ONE write, not two. Everything the send produced lands in a single UPDATE.
+             *
+             * This used to be a forceFill()->save() for the threading ids followed by a
+             * separate update() for the status. That intermediate save fired Eloquent's
+             * `updated` event — and therefore `email.updated` into the automation engine —
+             * while the row still read `status = draft, sent_at = null`, even though Gmail
+             * had already accepted the message.
+             *
+             * Any workflow listening for `email.updated` on a draft (the delayed-email
+             * release path does exactly that: Email::runScheduled flips delayed -> draft)
+             * could not tell that snapshot apart from a genuine release, so it woke up and
+             * re-ran the approval branch against an email that was already gone. It then
+             * either wrote the status backwards or, worse, queued a second send.
+             *
+             * Collapsing the two writes means the row moves draft -> sent atomically and
+             * `email.updated` is emitted exactly once, carrying `status = sent`. A
+             * status-guarded workflow now correctly ignores it.
+             *
+             * It also closes the older hole: a throw between the two writes left a
+             * DELIVERED email at `draft` with `sent_at` null, which is precisely the state
+             * processDraftEmail's catch demotes to pending_approval — and the sent-status
+             * guard on the model cannot object, because the row never reached `sent`.
+             *
+             * `?->id`, not `->id ?? null`: if that user row is missing, `null->id` is a
+             * PHP 8 warning, Laravel's error handler turns warnings into ErrorException,
+             * and the whole send lands in the catch AFTER the client already has the mail.
+             */
             $email->forceFill([
+                // After the whole loop, not inside it — see the matching note in
+                // Api\EmailController::editAndApprove. Written for every send now, not
+                // just replies, so the SENT ingester can recognise this message.
                 'rfc_message_id' => $outgoingMessageId,
                 'gmail_thread_id' => $gmailThreadId,
-            ])->save();
-
-            // Update email status after sending
-            $email->update([
                 'status' => EmailStatus::Sent,
-                // We can use a dedicated system user ID or null for 'approved_by'
-                'approved_by' => User::where('email', 'info@ozeeweb.com.au')->first()->id ?? null,
+                'approved_by' => User::where('email', 'info@ozeeweb.com.au')->first()?->id,
                 'sent_at' => now(),
-            ]);
+            ])->save();
         } else {
             // If no recipient, mark as failed instead of sending
             $email->update(['status' => 'failed']);

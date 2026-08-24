@@ -78,44 +78,7 @@ class Email extends Model
          * mid-recovery from some other failure, and an exception here would mask it — and
          * logs enough of the call stack to name the writer.
          */
-        static::updating(function (Email $email) {
-            if (! $email->isDirty('status')) {
-                return;
-            }
-
-            $original = self::statusValueOf($email->getOriginal('status'));
-
-            if ($original !== \App\Enums\EmailStatus::Sent) {
-                return;
-            }
-
-            $incoming = self::statusValueOf($email->status);
-
-            $regressions = [
-                \App\Enums\EmailStatus::Draft,
-                \App\Enums\EmailStatus::PendingApproval,
-                \App\Enums\EmailStatus::AutoSend,
-            ];
-
-            if (! in_array($incoming, $regressions, true)) {
-                return;
-            }
-
-            Log::warning('Refused to move a sent email back to an unsent status.', [
-                'email_id' => $email->id,
-                'attempted_status' => $incoming?->value,
-                // Nothing else identifies the caller: the processing service and the
-                // automation engine both arrive as a plain save() inside a queued job.
-                'caller' => collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 25))
-                    ->map(fn ($frame) => ($frame['class'] ?? '').($frame['type'] ?? '').($frame['function'] ?? ''))
-                    ->filter(fn ($f) => str_starts_with($f, 'App\\'))
-                    ->take(5)
-                    ->values()
-                    ->all(),
-            ]);
-
-            $email->status = $original;
-        });
+        static::updating(fn (Email $email) => self::guardStatusRegression($email));
 
         static::updated(function (Email $email) {
             // Only trigger when moving into sent state
@@ -135,6 +98,61 @@ class Email extends Model
                 }
             }
         });
+    }
+
+    /**
+     * Drop any write that moves a SENT email back to an unsent status.
+     *
+     * Extracted from the `updating` hook so it has a second caller: the automation
+     * engine's UPDATE_RECORD action persists inside Model::withoutEvents(), which
+     * silences every model event — including the hook this rule used to live in only.
+     * That is not a hypothetical: it is how a delivered email ended up reading
+     * pending_approval with sent_at and approved_by both populated.
+     *
+     * Any writer that deliberately bypasses model events MUST call this before saving.
+     *
+     * It DROPS the offending change rather than throwing — the caller is usually
+     * mid-recovery from some other failure, and an exception here would mask it — and
+     * logs enough of the call stack to name the writer.
+     */
+    public static function guardStatusRegression(Email $email): void
+    {
+        if (! $email->isDirty('status')) {
+            return;
+        }
+
+        $original = self::statusValueOf($email->getOriginal('status'));
+
+        if ($original !== \App\Enums\EmailStatus::Sent) {
+            return;
+        }
+
+        $incoming = self::statusValueOf($email->status);
+
+        $regressions = [
+            \App\Enums\EmailStatus::Draft,
+            \App\Enums\EmailStatus::PendingApproval,
+            \App\Enums\EmailStatus::AutoSend,
+        ];
+
+        if (! in_array($incoming, $regressions, true)) {
+            return;
+        }
+
+        Log::warning('Refused to move a sent email back to an unsent status.', [
+            'email_id' => $email->id,
+            'attempted_status' => $incoming?->value,
+            // Nothing else identifies the caller: the processing service and the
+            // automation engine both arrive as a plain save() inside a queued job.
+            'caller' => collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 25))
+                ->map(fn ($frame) => ($frame['class'] ?? '').($frame['type'] ?? '').($frame['function'] ?? ''))
+                ->filter(fn ($f) => str_starts_with($f, 'App\\'))
+                ->take(5)
+                ->values()
+                ->all(),
+        ]);
+
+        $email->status = $original;
     }
 
     /**

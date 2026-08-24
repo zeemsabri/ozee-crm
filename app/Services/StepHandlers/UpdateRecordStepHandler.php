@@ -61,6 +61,27 @@ class UpdateRecordStepHandler implements StepHandlerContract
             $data[$key] = $resolved;
         }
         $model->fill($data);
+
+        /*
+         * withoutEvents() silences EVERY model event, not just the automation feedback
+         * loop it is here for — including model-level invariants that exist precisely to
+         * stop a workflow writing something it must not.
+         *
+         * The one that bit us: Email::booted()'s `updating` hook refuses to move a `sent`
+         * email back to draft / pending_approval / auto_send. A workflow triggered on
+         * email.updated took its approval branch against a stale snapshot and wrote
+         * pending_approval over a row Gmail had already delivered — and the guard, living
+         * only in a model event, never ran. The email then offered "Approve & send" on a
+         * message the client already had.
+         *
+         * So re-assert the invariant here, on the same model instance, immediately before
+         * the silenced save. Add a line for every model whose events carry a rule a
+         * workflow could otherwise trample.
+         */
+        if ($model instanceof \App\Models\Email) {
+            \App\Models\Email::guardStatusRegression($model);
+        }
+
         // Avoid feedback loop: persist changes without firing Eloquent model events
         Model::withoutEvents(function () use ($model) {
             $model->save();
