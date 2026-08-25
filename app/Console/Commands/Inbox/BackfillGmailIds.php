@@ -50,7 +50,9 @@ class BackfillGmailIds extends Command
 
         $query = Email::query()
             ->whereNull('message_id')
-            ->whereNotNull('rfc_message_id')
+            // Either route is enough: the Message-ID header, or the Gmail thread we
+            // recorded at send time. See GmailCopy for why the header alone is not.
+            ->where(fn ($q) => $q->whereNotNull('rfc_message_id')->orWhereNotNull('gmail_thread_id'))
             // Only mail that actually reached Gmail. A draft has no copy there, and a
             // rejected draft never will.
             ->whereIn('status', [EmailStatus::Sent->value, EmailStatus::Approved->value]);
@@ -63,7 +65,7 @@ class BackfillGmailIds extends Command
             return self::SUCCESS;
         }
 
-        $this->line("{$total} sent email(s) have a Message-ID but no Gmail id.");
+        $this->line("{$total} sent email(s) have no Gmail id.");
         $this->line($dryRun ? 'Dry run — nothing will be written.' : "Attempting up to {$limit}.");
         $this->newLine();
 
@@ -71,18 +73,34 @@ class BackfillGmailIds extends Command
 
         $resolved = 0;
         $missing = 0;
+        // Which route answered. Worth reporting rather than just counting: if `header` is
+        // zero and `thread` is not, Gmail is replacing the Message-ID we mint on the way
+        // out, and anything that relies on matching that header — IngestSentMail's
+        // enrichment in particular — is not doing what it looks like it does.
+        $byRoute = ['header' => 0, 'thread' => 0];
 
         $bar = $this->output->createProgressBar($rows->count());
         $bar->start();
 
         foreach ($rows as $email) {
-            // A dry run still does the real lookup — the whole question is how many Gmail
-            // can actually find. Only the write is skipped.
-            $found = $dryRun
-                ? $this->probe($email)
-                : $gmail->idFor($email) !== null;
+            $via = null;
 
-            $found ? $resolved++ : $missing++;
+            // A dry run still does the real lookups — the whole question is how many Gmail
+            // can actually find, and which way. Only the write is skipped.
+            $found = $dryRun
+                ? $this->probe($email, $via)
+                : $gmail->idFor($email, $via) !== null;
+
+            if ($found) {
+                $resolved++;
+
+                if ($via && isset($byRoute[$via])) {
+                    $byRoute[$via]++;
+                }
+            } else {
+                $missing++;
+            }
+
             $bar->advance();
         }
 
@@ -91,10 +109,24 @@ class BackfillGmailIds extends Command
 
         $this->info(($dryRun ? 'Would resolve: ' : 'Resolved: ')."{$resolved}");
 
+        if ($resolved) {
+            $this->line("  by Message-ID search: {$byRoute['header']}");
+            $this->line("  by Gmail thread:      {$byRoute['thread']}");
+
+            if ($byRoute['header'] === 0 && $byRoute['thread'] > 0) {
+                $this->newLine();
+                $this->warn('  Every one of those was found by thread, none by Message-ID.');
+                $this->line('  That means Gmail is REPLACING the Message-ID we set when it sends,');
+                $this->line('  so emails.rfc_message_id does not name anything in the mailbox.');
+                $this->line('  Consequence worth knowing: IngestSentMail matches our own sent');
+                $this->line('  mail on that header, so its "enriched" branch never fires.');
+            }
+        }
+
         if ($missing) {
             $this->warn("Not found in Gmail: {$missing}");
-            $this->line('  Those are usually already in the Gmail bin, or were sent from');
-            $this->line('  outside this system. Nothing is wrong with the rows themselves.');
+            $this->line('  Already in the Gmail bin, sent from outside this system, or sent');
+            $this->line('  before we recorded a thread id. Nothing is wrong with the rows.');
         }
 
         $remaining = $total - $rows->count();
@@ -110,23 +142,48 @@ class BackfillGmailIds extends Command
     /**
      * A lookup with the write suppressed, for --dry-run.
      *
-     * GmailCopy::idFor persists what it finds, which is the right behaviour everywhere
-     * except here. Rather than give that method a flag nobody else would ever pass, the
-     * dry run does its own search and discards the result.
+     * GmailCopy::idFor persists what it finds, which is right everywhere except here.
+     * Rather than give that method a flag nobody else would ever pass, the dry run repeats
+     * the same two searches and discards the result. Kept deliberately parallel to
+     * GmailCopy — if the matching rule there changes, change it here too or the dry run
+     * stops predicting the real one.
      */
-    private function probe(Email $email): bool
+    private function probe(Email $email, ?string &$via = null): bool
     {
+        $gmail = app(\App\Services\GmailService::class);
         $addrSpec = trim((string) $email->rfc_message_id, '<> ');
 
-        if ($addrSpec === '') {
+        if ($addrSpec !== '') {
+            try {
+                if ($gmail->listMessages(1, 'rfc822msgid:'.$addrSpec) !== []) {
+                    $via = 'header';
+
+                    return true;
+                }
+            } catch (\Throwable) {
+                // Fall through to the thread route.
+            }
+        }
+
+        $threadId = trim((string) $email->gmail_thread_id);
+
+        if ($threadId === '') {
             return false;
         }
 
         try {
-            return app(\App\Services\GmailService::class)
-                ->listMessages(1, 'rfc822msgid:'.$addrSpec) !== [];
+            // Only asking whether the thread is still there and has anything in it. The
+            // precise which-message-is-ours rule is GmailCopy's, and a dry run does not
+            // need to reproduce its one-hour bound to answer "is this findable".
+            if ($gmail->getThread($threadId) !== []) {
+                $via = 'thread';
+
+                return true;
+            }
         } catch (\Throwable) {
             return false;
         }
+
+        return false;
     }
 }

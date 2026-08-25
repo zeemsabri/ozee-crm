@@ -170,6 +170,51 @@ class GmailService
     }
 
     /**
+     * The messages in one Gmail thread, headers only.
+     *
+     * `metadata` format with an explicit header list: the bodies of a long thread are
+     * megabytes we would immediately discard, and this is only ever asked "which message
+     * in here is ours".
+     *
+     * @return array<int,array{id:string,messageIdHeader:?string,from:string,subject:string,date:?string,internalDate:?int}>
+     */
+    public function getThread(string $threadId): array
+    {
+        try {
+            $thread = $this->gmailService->users_threads->get('me', $threadId, [
+                'format' => 'metadata',
+                'metadataHeaders' => ['Message-ID', 'From', 'Subject', 'Date'],
+            ]);
+        } catch (Exception $e) {
+            throw new Exception('Failed to load thread: '.$e->getMessage());
+        }
+
+        $out = [];
+
+        foreach ($thread->getMessages() ?? [] as $message) {
+            $headers = [];
+
+            foreach ($message->getPayload()?->getHeaders() ?? [] as $header) {
+                $headers[strtolower($header->getName())] = $header->getValue();
+            }
+
+            $out[] = [
+                'id' => $message->getId(),
+                // The RFC 5322 header, not the API id — see getMessage()'s note.
+                'messageIdHeader' => $headers['message-id'] ?? null,
+                'from' => $headers['from'] ?? '',
+                'subject' => $headers['subject'] ?? '',
+                'date' => $headers['date'] ?? null,
+                // Milliseconds since epoch, set by Gmail on receipt. More reliable for
+                // ordering than the Date header, which the sender writes.
+                'internalDate' => $message->getInternalDate() ? (int) $message->getInternalDate() : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Lists email message IDs from the authenticated user's mailbox.
      *
      * @param  int  $maxResults  Maximum number of messages to retrieve.

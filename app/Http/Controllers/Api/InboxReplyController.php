@@ -144,6 +144,19 @@ class InboxReplyController extends Controller
              */
             'to' => ['nullable', 'array'],
             'to.*' => ['email'],
+            /*
+             * The chosen recipients, as KEYS from the recipients endpoint's `candidates`
+             * — `client:42`, `sender:918` — never addresses. Resolved back through
+             * Correspondent::selectableFor in resolveRecipients(), so a key naming
+             * somebody who is not on this thread resolves to nothing rather than to a
+             * recipient, and the "nothing the browser posted" property survives handing
+             * the choice over.
+             *
+             * Optional: an older bundle posts none, and that still means everyone on the
+             * thread — what it did before this existed.
+             */
+            'recipient_keys' => ['sometimes', 'array', 'max:50'],
+            'recipient_keys.*' => ['string', 'max:64'],
             // The message being answered. Drives both the Gmail threading headers and the
             // quoted chain at send time; validated against this conversation below so a
             // reply cannot be linked to a message on someone else's thread.
@@ -288,9 +301,26 @@ class InboxReplyController extends Controller
                     === EmailType::Received->value)?->id;
         }
 
-        $to = $this->resolveRecipients($conversation, $data['mode'], $data['to'] ?? [], $user);
+        $to = $this->resolveRecipients(
+            $conversation,
+            $data['mode'],
+            $data['to'] ?? [],
+            $user,
+            $data['recipient_keys'] ?? null,
+            // The message being answered, so the candidate list is built against the same
+            // reply target the composer showed. `$parentId` is already resolved above,
+            // including the fallback to the newest inbound message.
+            $parentId ? $conversation->emails->firstWhere('id', $parentId) : null,
+        );
 
         if (empty($to)) {
+            // An empty selection is a different problem from a thread with nobody on it,
+            // and telling someone their project has no clients when they simply unticked
+            // everyone sends them looking in the wrong place.
+            if (($data['recipient_keys'] ?? null) !== null && $data['mode'] !== 'forward') {
+                abort(422, 'Choose at least one person to send this to.');
+            }
+
             abort(422, $data['mode'] === 'forward'
                 ? 'Enter at least one valid address to forward this to.'
                 : match ($this->correspondent->kindFor($conversation)) {
@@ -454,6 +484,24 @@ class InboxReplyController extends Controller
 
         $to = $this->resolveRecipients($conversation, 'reply', [], $user);
 
+        /*
+         * Who this reply MAY go to, as a list to pick from — and which of them is ticked
+         * by default. The composer used to be handed a finished address list and no say in
+         * it; see Correspondent::selectableFor for why that was wrong and how the keys keep
+         * the choice server-verifiable.
+         */
+        $candidates = collect($this->correspondent->selectableFor($conversation, $lastInbound))
+            ->map(fn (array $c) => [
+                'key' => $c['key'],
+                'name' => $c['name'],
+                // Masked for anyone without edit_clients, exactly like `reply` below. The
+                // key is what the composer posts, so a masked address is only ever a label.
+                'address' => $mask ? $this->maskAddress($c['address']) : $c['address'],
+                'suggested' => $c['suggested'],
+                'reason' => $c['reason'],
+            ])
+            ->values();
+
         return response()->json([
             // reply and replyAll are the same list now — the recipients are the project's
             // clients either way. Both keys are still returned so an older bundle asking
@@ -470,6 +518,10 @@ class InboxReplyController extends Controller
             // prints on every message, so nothing is exposed that was not already on
             // screen. See Correspondent::namesFor.
             'recipient_names' => $this->correspondent->namesFor($conversation),
+
+            // The picker's options, and its initial state.
+            'candidates' => $candidates,
+            'suggested_keys' => $candidates->where('suggested', true)->pluck('key')->values(),
 
             // Whether this person may type an address at all. The composer hides the
             // forward option and the address field unless this is true; the server refuses
@@ -535,7 +587,9 @@ class InboxReplyController extends Controller
         Conversation $conversation,
         string $mode,
         array $requested = [],
-        mixed $user = null
+        mixed $user = null,
+        ?array $keys = null,
+        ?Email $replyingTo = null
     ): array {
         if ($mode === 'forward') {
             // Gated by the caller too; re-checked here so no future path can reach this
@@ -550,9 +604,36 @@ class InboxReplyController extends Controller
             )));
         }
 
-        // `reply` and `replyAll` resolve identically now. Under a client-only rule there is
-        // nobody for "all" to add, so the distinction stopped meaning anything; the mode is
-        // still accepted so older bundles keep working.
+        /*
+         * A chosen subset, when the composer sent one.
+         *
+         * The keys are resolved against selectableFor() — the same method that produced
+         * the list the person picked from — so the only addresses reachable here are the
+         * ones already on this thread. A key for somebody else's client resolves to
+         * nothing; it is not an error, it simply is not a recipient.
+         *
+         * `reply` and `replyAll` are the same code path. The two modes stopped differing
+         * when recipients became a client-only rule, and rather than reviving the
+         * distinction the composer now offers one Reply and lets you tick who it goes to.
+         * `replyAll` is still accepted so an older bundle keeps working.
+         */
+        if ($keys !== null) {
+            $wanted = array_flip(array_map('strval', $keys));
+
+            $chosen = array_values(array_filter(array_map(
+                fn (array $c) => isset($wanted[$c['key']]) ? $c['address'] : null,
+                $this->correspondent->selectableFor($conversation, $replyingTo)
+            )));
+
+            /*
+             * An empty result is NOT silently widened back to everyone. If the person
+             * unticked every recipient, sending to the whole project instead is the worst
+             * possible reading of that. store() turns this into a 422.
+             */
+            return $chosen;
+        }
+
+        // No selection posted — an older bundle. Everyone on the thread, as before.
         //
         // Correspondent owns the chain — conversable, then project clients, then the From
         // header of the newest inbound message, then whoever we last wrote to. That third

@@ -184,6 +184,164 @@ class Correspondent
     }
 
     /**
+     * Who a reply on this thread MAY be addressed to, as a list to pick from.
+     *
+     * The reply box used to send to `addressesFor()` wholesale — every client on the
+     * project, whether or not they had anything to do with the message being answered. On
+     * a project with five contacts that meant answering one person's question in front of
+     * four others, every time, with no way to narrow it.
+     *
+     * This returns candidates instead, each with a `key` the server can verify. That is
+     * the point of the key format: the browser never posts an ADDRESS for a reply, it
+     * posts `client:42`, and store() resolves that back through this same method. So a
+     * person can choose among the people on this thread and cannot invent a recipient —
+     * the property `addressesFor`'s "nothing the browser posted" note protects, kept while
+     * handing over the choice.
+     *
+     * `suggested` marks the default selection: whoever sent the message being answered.
+     * Everyone else on the project stays in the list, unticked, one click away.
+     *
+     * @param  Email|null  $replyingTo  the message being answered; the newest inbound one
+     *                                  when the composer at the bottom is used
+     * @return array<int,array{key:string,name:string,address:string,suggested:bool,reason:string}>
+     */
+    public function selectableFor(
+        Conversation $conversation,
+        ?Email $replyingTo = null,
+        ?Collection $emails = null
+    ): array {
+        $emails = $emails ?? $conversation->emails ?? collect();
+        $candidates = [];
+
+        $add = function (string $key, ?string $name, ?string $address, string $reason) use (&$candidates) {
+            if (! $address || ! filter_var($address, FILTER_VALIDATE_EMAIL)) {
+                return;
+            }
+
+            // First writer wins, so the richer entry — a Client with a real name — is not
+            // overwritten by a bare header for the same person.
+            $candidates[mb_strtolower($address)] ??= [
+                'key' => $key,
+                'name' => $name ?: $address,
+                'address' => $address,
+                'suggested' => false,
+                'reason' => $reason,
+            ];
+        };
+
+        // The conversable first: the person the thread is with.
+        if ($conversation->conversable) {
+            $model = $conversation->conversable;
+            $prefix = $model instanceof Lead ? 'lead' : 'client';
+            $add(
+                $prefix.':'.$model->getKey(),
+                $this->nameFor($model),
+                $this->addressFor($model),
+                'on this thread'
+            );
+        }
+
+        // Everyone else on the project — the people you may want to add.
+        if ($conversation->project) {
+            foreach ($conversation->project->clients as $client) {
+                $add(
+                    'client:'.$client->getKey(),
+                    $this->nameFor($client),
+                    $this->addressFor($client),
+                    'on this project'
+                );
+            }
+        }
+
+        /*
+         * The sender of the message being answered, and of the newest inbound message.
+         *
+         * Keyed by EMAIL id rather than by address, so an unmatched sender — someone the
+         * poller could not tie to a Client record — is still selectable and still
+         * server-verifiable: store() re-reads the header off that same row rather than
+         * trusting anything posted.
+         */
+        $target = $replyingTo && $this->isInbound($replyingTo)
+            ? $replyingTo
+            : $emails->last(fn (Email $e) => $this->isInbound($e));
+
+        if ($target) {
+            $add(
+                'client:'.($target->sender?->getKey() ?? 0),
+                $this->nameFor($target->sender),
+                $this->addressFor($target->sender),
+                'wrote this message'
+            );
+
+            $add(
+                'sender:'.$target->getKey(),
+                $this->nameFor($target->sender),
+                $this->inboundFrom($target),
+                'wrote this message'
+            );
+        }
+
+        $candidates = $this->withoutOurs($candidates);
+
+        /*
+         * The default selection.
+         *
+         * Whoever sent the message being answered, and nobody else. When there is no
+         * inbound message to answer — a thread we started, or one whose sender has no
+         * usable address — fall back to the first candidate, because a composer that opens
+         * with nothing selected and no explanation is worse than one that opens with the
+         * obvious person.
+         */
+        $suggested = [];
+
+        if ($target) {
+            foreach ([$this->addressFor($target->sender), $this->inboundFrom($target)] as $address) {
+                if ($address && isset($candidates[mb_strtolower($address)])) {
+                    $suggested[] = mb_strtolower($address);
+                }
+            }
+        }
+
+        if ($suggested === [] && $candidates !== []) {
+            $suggested[] = array_key_first($candidates);
+        }
+
+        foreach ($suggested as $address) {
+            $candidates[$address]['suggested'] = true;
+            // Overwrite the reason: first-writer-wins above means a sender who is also on
+            // the project reads "on this project", which is true but not why they are
+            // ticked. The reason is shown next to the chip, so it should answer that.
+            if ($target) {
+                $candidates[$address]['reason'] = 'wrote this message';
+            }
+        }
+
+        return array_values($candidates);
+    }
+
+    /**
+     * Drop our own mailboxes from a keyed candidate list.
+     *
+     * Same rule as clean(), for the same reason: inbound mail stores `to` as the
+     * authorised Gmail account, so without this a reply-all loops our own mail back into
+     * the poller.
+     */
+    private function withoutOurs(array $candidates): array
+    {
+        $ours = array_map('mb_strtolower', array_filter([
+            rescue(fn () => app(\App\Services\GmailService::class)->getAuthorizedEmail(), null, false),
+            config('mail.from.address'),
+            env('GOOGLE_PRIMARY_EMAIL'),
+        ]));
+
+        return array_filter(
+            $candidates,
+            fn ($address) => ! in_array($address, $ours, true),
+            ARRAY_FILTER_USE_KEY
+        );
+    }
+
+    /**
      * Everyone on this thread we might greet, by name.
      *
      * The same chain as addressesFor(), minus the two steps that can only ever yield an

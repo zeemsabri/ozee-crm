@@ -40,11 +40,16 @@ import { useBlocks } from './useBlocks';
 import { emptyValueFor, inputPlaceholders } from './useTemplates';
 
 /*
- * No "Reply all".
+ * No "Reply all" — one Reply, and a recipient picker.
  *
- * Recipients are the project's clients whichever you pick, so "Reply" and "Reply all"
- * resolved to the same list and the choice was decoration. Forward is the only mode that
- * changes who receives it, and it only appears for someone who may type an address.
+ * "Reply" and "Reply all" both resolved to every client on the project, so the choice was
+ * decoration. The answer is not to revive the distinction but to remove the guess: the To
+ * row is a set of chips, pre-ticked with whoever wrote the message being answered, and
+ * everyone else on the project is one click away. That covers what both buttons meant and
+ * the cases neither did.
+ *
+ * Forward is still its own mode — it is the only one that reaches an address that is not
+ * on the thread, and it only appears for someone holding `email_custom_recipients`.
  */
 const MODES = [{ value: 'reply', text: 'Reply' }];
 const FORWARD_MODE = { value: 'forward', text: 'Forward' };
@@ -141,6 +146,28 @@ export function ReplyBox({
      */
     const [greetingMode, setGreetingMode] = useState('none');
     const [greetingName, setGreetingName] = useState('');
+
+    /*
+     * Who this reply goes to.
+     *
+     * It used to go to every client on the project, always, with no say in it — answering
+     * one person's question in front of four others. `candidates` is the people on this
+     * thread and this project; `suggested_keys` is whoever wrote the message being
+     * answered. Both come from the recipients endpoint; see Correspondent::selectableFor.
+     *
+     * KEYS travel, never addresses. The server resolves them against the same candidate
+     * list, so a reply can be narrowed or widened among the people on the thread and still
+     * cannot be redirected to somebody who is not.
+     *
+     * null means "not initialised yet" — distinct from [], which is a person having
+     * unticked everyone and is refused rather than quietly widened back to all.
+     */
+    const candidates = recipients?.candidates || [];
+    const [recipientKeys, setRecipientKeys] = useState(null);
+
+    // The ticked rows. Declared here rather than beside `to` below because the greeting,
+    // which is computed further up, names exactly these people.
+    const chosen = candidates.filter((c) => (recipientKeys || []).includes(c.key));
     const [templateId, setTemplateId] = useState(null);
     const [templateData, setTemplateData] = useState({});
     // Which template the currently-shown subject came from. Gates sending — see canSend.
@@ -164,7 +191,11 @@ export function ReplyBox({
         ? greetingTextFor({
               mode: greetingMode,
               customName: greetingName,
-              names: recipients?.recipient_names || [],
+              // The people actually ticked, not everyone on the thread — otherwise a reply
+              // narrowed to one person would still open "Hi Sarah & Tom,".
+              names: chosen.length
+                  ? chosen.map((c) => c.name)
+                  : recipients?.recipient_names || [],
           })
         : '';
 
@@ -265,12 +296,40 @@ export function ReplyBox({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditing, editing?.emailId, recipients?.subject]);
 
-    // An existing draft already has its recipients; the reply modes do not apply to it.
+    /*
+     * Reset the selection to the suggestion whenever the message being answered changes.
+     *
+     * Deliberately NOT sticky per thread. Carrying a selection forward would mean somebody
+     * added once for one reason stays on every later reply with nothing on screen saying
+     * why — and the person who added them is not necessarily the one sending next. Every
+     * reply starts from who wrote the message you clicked Reply on.
+     *
+     * Keyed on the target message id so an ordinary re-render cannot undo a change made
+     * by hand.
+     */
+    const replyTargetId = replyTo?.emailId ?? recipients?.last_inbound_email_id ?? null;
+    const suggestedKeys = recipients?.suggested_keys;
+
+    useEffect(() => {
+        setRecipientKeys(suggestedKeys ? [...suggestedKeys] : null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [replyTargetId, (suggestedKeys || []).join(',')]);
+
+    /*
+     * An existing draft already has its recipients on the record server-side, and forward
+     * types its own. Otherwise this is the selection.
+     *
+     * Falls back to the flat `reply` list when the endpoint sent no candidates — an older
+     * payload, or a thread shape selectableFor found nobody on — so the box degrades to
+     * what it did before rather than looking empty.
+     */
     const to = isEditing
         ? editing.to || recipients?.reply || []
         : mode === 'forward'
           ? forwardTo.split(',').map((s) => s.trim()).filter(Boolean)
-          : recipients?.[mode] || recipients?.reply || [];
+          : candidates.length
+            ? chosen.map((c) => c.address)
+            : recipients?.reply || [];
 
     // When editing, the draft's recipients are already on the record server-side, so an
     // empty display list must not block approving it.
@@ -293,6 +352,10 @@ export function ReplyBox({
 
     const canSend = (() => {
         if (busy) return false;
+        // Every branch needs somebody to send to. Only worth stating now that the
+        // recipients are a choice — before this they could not be empty, so the template
+        // branch never checked and would have offered Send on a reply the server refuses.
+        if (!isEditing && to.length === 0) return false;
         if (isTemplateKind) return !!templateId && previewed && !!subject.trim();
         if (!isEditing && isBlocksKind) {
             return to.length > 0 && !!subject.trim() && blocks.meaningfulCount > 0 && !blocks.uploading;
@@ -323,6 +386,14 @@ export function ReplyBox({
         // Only forwarding sends addresses, and only from someone permitted to type one.
         // For a reply the server resolves the project's clients and ignores this.
         to: mode === 'forward' ? to : undefined,
+        /*
+         * The chosen recipients, as keys. Only for a reply — forward addresses are typed,
+         * and editing a draft does not re-address it. Omitted entirely when the endpoint
+         * offered no candidates, which is what makes the server fall back to its old
+         * everyone-on-the-thread behaviour instead of refusing an empty selection.
+         */
+        recipient_keys:
+            mode === 'forward' || isEditing || !candidates.length ? undefined : recipientKeys || [],
         // The message this answers, and so what In-Reply-To/References will point at.
         // The message the person clicked Reply on wins; the bottom composer falls back to
         // the newest inbound one. The server re-checks that it belongs to this thread and
@@ -422,6 +493,65 @@ export function ReplyBox({
                                 onChange={(e) => setForwardTo(e.target.value)}
                             />
                         </div>
+                    ) : candidates.length ? (
+                        /*
+                          A picker, not a display.
+
+                          Every candidate is drawn; the ticked ones are solid, the rest are
+                          outlined and one click away. Showing the untick-able people
+                          alongside the unselected ones is the whole point — the previous
+                          version listed only the recipients and gave no hint that the
+                          project had three more contacts, or that you could drop one.
+
+                          The chip carries the NAME. Addresses are masked for anyone without
+                          edit_clients and are only ever a title here; what the server acts
+                          on is the key.
+                        */
+                        <>
+                            {candidates.map((candidate) => {
+                                const on = (recipientKeys || []).includes(candidate.key);
+
+                                return (
+                                    <Chips
+                                        key={candidate.key}
+                                        label={candidate.name}
+                                        // 'neutral' is the unselected tone; ds/Chips
+                                        // defaults `color` to primary, so undefined would
+                                        // make every chip look ticked.
+                                        color={on ? 'primary' : 'neutral'}
+                                        // Drives aria-pressed — these are toggles, and the
+                                        // opacity below is not something a screen reader
+                                        // can report.
+                                        selected={on}
+                                        size="small"
+                                        title={`${candidate.address} — ${candidate.reason}`}
+                                        onClick={() =>
+                                            setRecipientKeys((current) => {
+                                                const keys = current || [];
+
+                                                return keys.includes(candidate.key)
+                                                    ? keys.filter((k) => k !== candidate.key)
+                                                    : [...keys, candidate.key];
+                                            })
+                                        }
+                                        style={{
+                                            cursor: 'pointer',
+                                            opacity: on ? 1 : 0.55,
+                                        }}
+                                    />
+                                );
+                            })}
+                            {(recipientKeys || []).length === 0 ? (
+                                <span
+                                    style={{
+                                        font: '400 12px/16px Figtree, sans-serif',
+                                        color: 'var(--negative-color)',
+                                    }}
+                                >
+                                    Pick at least one person.
+                                </span>
+                            ) : null}
+                        </>
                     ) : to.length ? (
                         to.map((address) => (
                             <Chips
@@ -445,7 +575,7 @@ export function ReplyBox({
                 </div>
 
                 {/*
-                  No Cc / Bcc, and no editable To.
+                  No Cc / Bcc. The To row above IS the picker this note used to promise.
 
                   There was an "Add Cc / Bcc" button here with two text fields behind it.
                   They did nothing: `emails` has no cc or bcc column, so the endpoint wrote
@@ -455,8 +585,9 @@ export function ReplyBox({
                   They are not coming back as free text. Client mail goes from our mailbox
                   to the project's clients and nowhere else; that is what keeps a client
                   from corresponding with an individual staff member directly, and only a
-                  handful of people have Gmail access at all. When a real Cc arrives it will
-                  be a picker over the project's clients, not a box you type into.
+                  handful of people have Gmail access at all. That is exactly why the To row
+                  is a picker over the people on the thread rather than a box you type into
+                  — the choice is real, the set it chooses from is not negotiable.
                 */}
                 {!isEditing && to.length > 1 ? (
                     <span
@@ -470,7 +601,8 @@ export function ReplyBox({
                     >
                         <Icon name="Team" size={14} color="currentColor" />
                         <span>
-                            {to.length} clients on this project — each receives their own copy.
+                            {/* Not "on this project" any more — it is who you picked. */}
+                            {to.length} people on this reply — each receives their own copy.
                         </span>
                     </span>
                 ) : null}

@@ -195,6 +195,7 @@ class EmailProcessingService
 
         if (! empty($recipients)) {
             $gmailThreadId = null;
+            $gmailMessageId = null;
 
             foreach ($recipients as $recipientEmail) {
                 if (! empty($recipientEmail)) {
@@ -208,6 +209,21 @@ class EmailProcessingService
                     );
 
                     $gmailThreadId ??= $sent['threadId'] ?? null;
+                    /*
+                     * The id Gmail assigns the message in our own mailbox.
+                     *
+                     * This was returned by sendMessage() from the beginning and thrown
+                     * away — only threadId was kept — which is why `emails.message_id`
+                     * was null on most sent mail and deleting the Gmail copy refused.
+                     * It cannot be recovered reliably afterwards: the Message-ID header
+                     * we mint is often replaced by Gmail on send, so searching for it
+                     * later finds nothing (see Services\Inbox\GmailCopy).
+                     *
+                     * First recipient only, matching gmail_thread_id above. sendMessage
+                     * is called once per recipient, so an email to three clients is
+                     * three Gmail messages against one row, and the column holds one.
+                     */
+                    $gmailMessageId ??= $sent['id'] ?? null;
                 }
             }
 
@@ -245,6 +261,7 @@ class EmailProcessingService
                 // just replies, so the SENT ingester can recognise this message.
                 'rfc_message_id' => $outgoingMessageId,
                 'gmail_thread_id' => $gmailThreadId,
+                'message_id' => $gmailMessageId,
                 'status' => EmailStatus::Sent,
                 'approved_by' => User::where('email', 'info@ozeeweb.com.au')->first()?->id,
                 'sent_at' => now(),

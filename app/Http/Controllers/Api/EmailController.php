@@ -574,6 +574,7 @@ class EmailController extends Controller
 
             if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && ! empty($recipients)) {
                 $gmailThreadId = null;
+                $gmailMessageId = null;
 
                 foreach ($recipients as $recipientEmail) {
                     if (! empty($recipientEmail)) {
@@ -588,6 +589,19 @@ class EmailController extends Controller
                         );
 
                         $gmailThreadId ??= $sent['threadId'] ?? null;
+
+                        /*
+                         * The id Gmail assigns the message in our mailbox — returned by
+                         * sendMessage() all along and thrown away here, which is why
+                         * `emails.message_id` was null on most sent mail and deleting the
+                         * Gmail copy refused. It cannot be recovered reliably afterwards:
+                         * the Message-ID header we mint is often replaced by Gmail on send,
+                         * so searching for it later finds nothing. See
+                         * Services\Inbox\GmailCopy.
+                         *
+                         * First recipient only, matching gmail_thread_id.
+                         */
+                        $gmailMessageId ??= $sent['id'] ?? null;
                     }
                 }
 
@@ -601,6 +615,7 @@ class EmailController extends Controller
                 $email->forceFill([
                     'rfc_message_id' => $outgoingMessageId,
                     'gmail_thread_id' => $gmailThreadId,
+                    'message_id' => $gmailMessageId,
                 ])->save();
             }
 
