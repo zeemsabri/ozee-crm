@@ -217,3 +217,67 @@
     color: var(--link-color) !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * The letter editor — ComposeModal's custom tab (see inbox/MarkdownEditor.jsx).
+ *
+ * A contentEditable surface that LOOKS like the email but STORES markdown: the AI
+ * approval step reads emails.body, and plain text was chosen to keep that cheap, so
+ * formatting rides as markdown rather than HTML. These rules style what the editor
+ * shows while someone types; what the client eventually receives is rendered
+ * server-side from the markdown (backend follow-up).
+ * ------------------------------------------------------------------------- */
+
+.ozds-letter-body {
+  min-height: 190px;
+  padding: 10px 16px 14px;
+  font: var(--font-text2-normal);
+  line-height: 22px;
+  color: var(--primary-text-color);
+  outline: none;
+  overflow-wrap: anywhere;
+  caret-color: var(--primary-color);
+}
+
+.ozds-letter-body > div,
+.ozds-letter-body > p {
+  margin: 0;
+  min-height: 22px;
+}
+
+.ozds-letter-body ul,
+.ozds-letter-body ol {
+  margin: 4px 0;
+  padding-inline-start: 22px;
+}
+
+.ozds-letter-body li {
+  margin: 0 0 2px;
+}
+
+.ozds-letter-body blockquote {
+  margin: 4px 0;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--layout-border-color);
+  color: var(--secondary-text-color);
+}
+
+.ozds-letter-body a {
+  color: var(--link-color, var(--primary-color));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The raw-markdown peek ("what the AI reviewer sees"). */
+.ozds-letter-source {
+  width: 100%;
+  min-height: 214px;
+  padding: 10px 16px 14px;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background: var(--allgrey-background-color);
+  color: var(--primary-text-color);
+  font: 400 13px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  box-sizing: border-box;
+}

@@ -98,6 +98,16 @@ trait HandlesEmailCreation
             $body = $greeting.'<br/>'.$validated['body'];
         }
 
+        /*
+         * The redesigned composer's letter editor stores MARKDOWN in `body` (near plain
+         * text, so the AI approval read stays cheap) and says so with `body_format`.
+         * The flag rides in draft_meta and is what renderEmailContent keys the
+         * markdown→HTML rendering off at send time. Never inferred from the body: a
+         * legacy custom email is rich-editor HTML and must keep taking the nl2br path.
+         * Blocks ignore it — their body is rendered from the blocks themselves.
+         */
+        $bodyIsMarkdown = $blocks === [] && ($validated['body_format'] ?? null) === 'markdown';
+
         $email = Email::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $user->id,
@@ -115,6 +125,7 @@ trait HandlesEmailCreation
             // Compose-time privacy. Permission-checked in EmailController::store before
             // it reaches here; absent for every classic-composer request.
             'is_private' => (bool) ($validated['is_private'] ?? false),
+            'draft_meta' => $bodyIsMarkdown ? ['body_format' => 'markdown'] : null,
         ]);
 
         // Re-point the images from the project to the email now that one exists.

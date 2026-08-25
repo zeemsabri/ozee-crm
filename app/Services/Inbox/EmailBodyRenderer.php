@@ -103,8 +103,14 @@ class EmailBodyRenderer
         }
 
         if (! $this->isTemplated($email)) {
-            // No-op unless this email was built in the block builder.
-            $raw = $this->blocks->toPreviewHtml($email->body, $email);
+            // The redesigned composer's markdown bodies render to our own HTML first —
+            // otherwise the thread shows literal **stars** around every bold word. The
+            // result still goes through EmailHtml below for the quote split and the
+            // dark-mode/containment rules.
+            $raw = MarkdownBody::isMarkdown($email)
+                ? MarkdownBody::render($email->body)
+                // No-op unless this email was built in the block builder.
+                : $this->blocks->toPreviewHtml($email->body, $email);
 
             /*
              * Four things arrive here and only two of them are HTML: received mail is

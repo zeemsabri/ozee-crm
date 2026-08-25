@@ -5,6 +5,7 @@ namespace App\Services\Inbox;
 use App\Enums\EmailStatus;
 use App\Models\Email;
 use App\Services\GmailService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -236,7 +237,14 @@ class GmailCopy
      */
     private function remember(Email $email, string $id): void
     {
-        $email->forceFill(['message_id' => $id])->saveQuietly();
+        try {
+            $email->forceFill(['message_id' => $id])->saveQuietly();
+        } catch (UniqueConstraintViolationException) {
+            Log::warning('inbox.gmail: message_id already taken by another email', [
+                'email_id' => $email->id,
+                'message_id' => $id,
+            ]);
+        }
     }
 
     /**

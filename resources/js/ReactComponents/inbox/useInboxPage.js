@@ -21,6 +21,7 @@ import axios from 'axios';
 import { useToasts } from '../app/useToasts';
 import { defaultSortFor, inboxActions, useInbox, useThread } from './useInbox';
 import { useTemplatePreview, useTemplates } from './useTemplates';
+import { useSavedEmails } from './useComposeDrafts';
 import { longTime, plural } from './format';
 
 /** Short label for "which message am I answering", e.g. "Today, 9:18 am". */
@@ -86,6 +87,9 @@ export function useInboxPage({ settings, initialThreadId }) {
      */
     const [bulkIds, setBulkIds] = useState(null);
     const [composeOpen, setComposeOpen] = useState(false);
+    // A saved email being resumed: SavedList (or the composer's own Drafts popover) sets
+    // it, ComposeModal applies it once on open, closing clears it.
+    const [savedResume, setSavedResume] = useState(null);
     /**
      * The message whose full branded document is on screen.
      *
@@ -118,10 +122,18 @@ export function useInboxPage({ settings, initialThreadId }) {
     // Whether the rail offers Deleted. Off when absent: an older payload must not draw a
     // view whose endpoint would 403.
     const canSeeDeleted = settings?.can_see_deleted ?? false;
+    // Display-only: the letter editor's "</>" markdown peek is super-admin-only — other
+    // users read the toggle as a mode switch. Absent means hidden (stale payload safe).
+    const isSuperAdmin = settings?.is_super_admin ?? false;
 
     // Templates load once for the session, but only for someone who can actually use
     // them — no point fetching the list for a user who only ever composes free-form.
     const templates = useTemplates({ enabled: canComposeTemplate, onError: warn });
+
+    // Saved (unfinished) emails — ONE instance feeds the rail badge, the Saved view and
+    // the composer's Drafts popover, so the three can never disagree. Gated like the
+    // server gates it: saved emails are custom-tab drafts.
+    const saved = useSavedEmails({ enabled: canComposeCustom, onError: warn });
 
     const preview = useTemplatePreview({
         projectId: thread.thread?.project?.id,
@@ -136,6 +148,7 @@ export function useInboxPage({ settings, initialThreadId }) {
             canBlocks: canComposeBlocks,
             canMarkPrivate,
             canSeePrivate,
+            isSuperAdmin,
             templates: templates.templates,
             templateOptions: templates.options,
             sourceData: templates.sourceData,
@@ -151,6 +164,7 @@ export function useInboxPage({ settings, initialThreadId }) {
             canComposeBlocks,
             canMarkPrivate,
             canSeePrivate,
+            isSuperAdmin,
             templates,
             preview,
             settings?.sign_off,
@@ -845,8 +859,18 @@ export function useInboxPage({ settings, initialThreadId }) {
         isManager,
         slaMinutes,
         canCompose: canComposeTemplate || canComposeCustom,
+        canComposeCustom,
         compose,
         users,
+
+        // saved (unfinished) emails — the shared list plus the resume handshake
+        saved,
+        savedResume,
+        clearSavedResume: () => setSavedResume(null),
+        resumeSaved: (draft) => {
+            setSavedResume(draft);
+            setComposeOpen(true);
+        },
 
         // data
         inbox,

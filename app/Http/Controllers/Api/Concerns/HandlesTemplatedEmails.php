@@ -296,6 +296,19 @@ trait HandlesTemplatedEmails
         } else {
             $subject = $email->subject;
             $body = $email->body;
+
+            /*
+             * A body the redesigned composer stored as markdown (flagged at creation —
+             * see MarkdownBody for why the flag, never sniffing). Rendering here covers
+             * every path in one place: the real send (EmailProcessingService via
+             * ProcessDraftEmailJob calls this with $isFinalSend = true), edit-and-
+             * approve, previews and "see it as the client does". nl2br must NOT run on
+             * top — the renderer owns line breaks, and nl2br over its output would
+             * double-space it exactly the way it double-spaces templates.
+             */
+            if (\App\Services\Inbox\MarkdownBody::isMarkdown($email)) {
+                return ['subject' => $subject, 'body' => \App\Services\Inbox\MarkdownBody::render($body)];
+            }
         }
 
         if ($nl2br) {

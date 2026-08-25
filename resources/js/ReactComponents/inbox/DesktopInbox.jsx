@@ -15,6 +15,7 @@ import { AlertBanner, Button } from '../ds';
 import { FilterRail } from './FilterRail';
 import { ThreadList } from './ThreadList';
 import { DeletedList } from './DeletedList';
+import { SavedList } from './SavedList';
 import { ThreadView } from './ThreadView';
 import { InboxDialogs } from './InboxDialogs';
 import { plural } from './format';
@@ -28,6 +29,7 @@ const BACK_LABELS = {
     sent: 'Back to sent',
     drafts: 'Back to in review',
     all: 'Back to all mail',
+    saved: 'Back to saved',
 };
 
 export function DesktopInbox({ page }) {
@@ -74,8 +76,11 @@ export function DesktopInbox({ page }) {
             <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
                 <FilterRail
                     canSeeDeleted={page.canSeeDeleted}
+                    canComposeCustom={page.canComposeCustom}
                     filters={inbox.filters}
-                    counts={inbox.counts}
+                    // The Saved badge comes from the saved list itself, not the thread
+                    // counts endpoint — one source, and it is already loaded.
+                    counts={{ ...inbox.counts, saved: page.saved.drafts.length }}
                     overdueCount={inbox.overdueCount}
                     options={inbox.options}
                     hasFilters={inbox.hasFilters}
@@ -99,7 +104,14 @@ export function DesktopInbox({ page }) {
                       switching to it while a thread is open shows the bin rather than the
                       thread that was already there.
                     */}
-                    {inbox.filters.view === 'deleted' ? (
+                    {inbox.filters.view === 'saved' ? (
+                        <SavedList
+                            saved={page.saved}
+                            projects={inbox.options.compose_projects}
+                            currentUserName={page.compose?.signOff?.name}
+                            onResume={page.resumeSaved}
+                        />
+                    ) : inbox.filters.view === 'deleted' ? (
                         <DeletedList
                             onError={page.warn}
                             onRestored={() => {

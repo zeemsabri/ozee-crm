@@ -19,7 +19,8 @@
  * what is shown and what is sent cannot drift.
  */
 
-import { Dropdown, TextField } from '../ds';
+import { useState } from 'react';
+import { Dropdown, Icon, Popover, TextField, useAnchoredPopover } from '../ds';
 
 // `label`, not `text`: ds/Dropdown reads `option.label`, while ds/ButtonGroup reads
 // `option.text`. Both appear in this folder — check which control you are feeding.
@@ -135,6 +136,130 @@ export function GreetingPicker({ mode, customName, names, onMode, onCustomName, 
                     'No greeting — your message starts with whatever you type.'
                 )}
             </div>
+        </div>
+    );
+}
+
+/**
+ * The greeting as the letter shows it — the opening line itself, editable in place.
+ *
+ * Same state and the same greetingTextFor() as GreetingPicker (which ReplyBox still
+ * uses), different clothes: the composer's letter card shows the literal "Hi Alan,"
+ * the client will read, with a dashed underline and a chevron to say it can change.
+ * Clicking it opens the mode list; "Something else" reveals the name field inside the
+ * panel. No "No greeting" here for the same reason GreetingPicker withholds it on new
+ * emails: HandlesEmailCreation always prepends one.
+ */
+export function GreetingLine({ mode, customName, names, onMode, onCustomName, disabled }) {
+    const pop = useAnchoredPopover({ preferredHeight: 300, align: 'start', minWidth: 260 });
+    const [hover, setHover] = useState(false);
+    const text = greetingTextFor({ mode, customName, names });
+    const options = GREETING_MODES.filter((o) => o.value !== 'none');
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span ref={pop.anchorRef} style={{ display: 'inline-flex' }}>
+                <button
+                    type="button"
+                    disabled={disabled}
+                    title="Change how the email opens"
+                    onClick={() => pop.setOpen(!pop.open)}
+                    onMouseEnter={() => setHover(true)}
+                    onMouseLeave={() => setHover(false)}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        border: 'none',
+                        background: hover && !disabled ? 'var(--primary-background-hover-color)' : 'transparent',
+                        borderRadius: 'var(--border-radius-small)',
+                        padding: '2px 6px 2px 2px',
+                        margin: '-2px 0 -2px -2px',
+                        cursor: disabled ? 'default' : 'pointer',
+                        font: 'var(--font-text2-normal)',
+                        color: 'var(--primary-text-color)',
+                    }}
+                >
+                    <span style={{ borderBottom: '1px dashed var(--ui-border-color)', lineHeight: '22px' }}>
+                        {text || 'Hi there,'}
+                    </span>
+                    <Icon name="DropdownChevronDown" size={14} color="var(--icon-color)" />
+                </button>
+            </span>
+            <span
+                style={{
+                    marginInlineStart: 'auto',
+                    font: 'var(--font-text3-normal)',
+                    color: 'var(--secondary-text-color)',
+                }}
+            >
+                greeting added for you
+            </span>
+
+            {pop.open ? (
+                <Popover
+                    position={pop.position}
+                    panelRef={pop.panelRef}
+                    style={{
+                        background: 'var(--dialog-background-color)',
+                        border: '1px solid var(--layout-border-color)',
+                        borderRadius: 'var(--border-radius-medium)',
+                        boxShadow: 'var(--box-shadow-medium)',
+                        padding: 8,
+                    }}
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 240 }}>
+                        <span
+                            style={{
+                                font: 'var(--font-text3-medium)',
+                                color: 'var(--secondary-text-color)',
+                                padding: '4px 8px',
+                            }}
+                        >
+                            Address them by
+                        </span>
+                        {options.map((o) => {
+                            const on = o.value === mode;
+                            return (
+                                <button
+                                    key={o.value}
+                                    type="button"
+                                    onClick={() => {
+                                        onMode(o.value);
+                                        if (o.value !== 'custom') pop.setOpen(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        border: 'none',
+                                        textAlign: 'start',
+                                        background: on ? 'var(--primary-selected-color)' : 'transparent',
+                                        color: on ? 'var(--primary-color)' : 'var(--primary-text-color)',
+                                        borderRadius: 'var(--border-radius-small)',
+                                        padding: '6px 8px',
+                                        cursor: 'pointer',
+                                        font: 'var(--font-text2-normal)',
+                                    }}
+                                >
+                                    {o.label}
+                                </button>
+                            );
+                        })}
+                        {mode === 'custom' ? (
+                            <div style={{ padding: '6px 8px 4px' }}>
+                                <TextField
+                                    label="Name"
+                                    size="small"
+                                    placeholder="e.g. Sarah"
+                                    value={customName || ''}
+                                    onChange={(e) => onCustomName(e.target.value)}
+                                />
+                            </div>
+                        ) : null}
+                    </div>
+                </Popover>
+            ) : null}
         </div>
     );
 }

@@ -208,6 +208,10 @@ class Email extends Model
         'type',
         'template_id',
         'template_data',
+        // Saved (unfinished) emails only — the composer state a resume needs (project,
+        // recipients, greeting), since a saved row has no conversation to derive it
+        // from. Written only by Api\InboxSavedController; no send path reads it.
+        'draft_meta',
         'email_template',
         'is_private',
         // Redesigned inbox (/inbox/beta) — see config/inbox.php and the
@@ -234,6 +238,7 @@ class Email extends Model
         'read_at' => 'datetime',
         'to' => 'array', // If 'to' can store multiple recipients as JSON
         'template_data' => 'array',
+        'draft_meta' => 'array',
         'is_private' => 'boolean',
         'status' => \App\Enums\EmailStatus::class,
         'type' => \App\Enums\EmailType::class,

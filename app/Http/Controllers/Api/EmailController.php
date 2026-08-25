@@ -142,6 +142,9 @@ class EmailController extends Controller
                 // existed before sends this key, so `body` stays required for everyone
                 // else exactly as it was.
                 'body' => 'required_without_all:template_id,blocks|string|nullable',
+                // The redesigned composer stores markdown in `body` and says so here, so
+                // the send path knows to render it. Absent for every legacy caller.
+                'body_format' => 'sometimes|nullable|string|in:markdown,plain',
                 'composition_type' => 'sometimes|string|in:custom,template,blocks',
                 'blocks' => 'nullable|array|max:60',
                 'blocks.*.type' => 'required_with:blocks|string|in:text,bullets,link,image',

@@ -36,6 +36,7 @@ export function FilterRail({
     onChange,
     onClear,
     canSeeDeleted = false,
+    canComposeCustom = false,
 }) {
     const selected = new Set(filters.category_ids.map(Number));
 
@@ -61,7 +62,7 @@ export function FilterRail({
             }}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
-                {viewsFor({ canSeeDeleted }).map((view) => {
+                {viewsFor({ canSeeDeleted, canComposeCustom }).map((view) => {
                     const active = filters.view === view.key;
                     const count = counts[view.key] || 0;
                     // Only the reply queue turns red, and only when something in it has

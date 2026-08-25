@@ -534,6 +534,18 @@ Route::middleware('auth:sanctum')->group(function () {
          * default binding respects the soft-delete scope and would 404 on every row this
          * endpoint exists to act on.
          */
+        /*
+         * Saved (unfinished) emails — the composer's Save button, its autosave, and the
+         * rail's Saved view. Real emails rows with status 'saved' and NO conversation,
+         * written with model events off so the workflow automation never sees them.
+         * Submitting one goes through POST /api/emails as usual; the saved row is then
+         * deleted here. See InboxSavedController.
+         */
+        Route::get('saved', [\App\Http\Controllers\Api\InboxSavedController::class, 'index']);
+        Route::post('saved', [\App\Http\Controllers\Api\InboxSavedController::class, 'store']);
+        Route::put('saved/{email}', [\App\Http\Controllers\Api\InboxSavedController::class, 'update']);
+        Route::delete('saved/{email}', [\App\Http\Controllers\Api\InboxSavedController::class, 'destroy']);
+
         Route::get('deleted', [\App\Http\Controllers\Api\InboxDeletedController::class, 'index']);
         Route::post('emails/{emailId}/restore', [\App\Http\Controllers\Api\InboxDeletedController::class, 'restore'])
             ->where('emailId', '[0-9]+');

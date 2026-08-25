@@ -35,6 +35,12 @@ class InboxBetaController extends Controller
                 // buttons; see InboxAccess for why custom is effectively super-admin only.
                 'can_compose_template' => $this->access->canComposeTemplate($user),
                 'can_compose_custom' => $this->access->canComposeCustom($user),
+                // Display-only: whether the letter editor offers its "</>" peek at the
+                // stored markdown ("what the AI reviewer sees"). Super admins only — for
+                // everyone else the toggle read as a mode switch and confused more than
+                // it explained. Gates nothing server-side; the stored body is the same
+                // for everyone.
+                'is_super_admin' => (bool) $user?->isSuperAdmin(),
                 // "Project update" is its own gate — anyone who may compose at all gets
                 // the block builder. See InboxAccess::canComposeBlocks.
                 'can_compose_blocks' => $this->access->canComposeBlocks($user),

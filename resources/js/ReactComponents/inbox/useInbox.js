@@ -99,12 +99,13 @@ export function useInbox({ onError } = {}) {
     const load = useCallback(
         async (nextFilters, nextPage) => {
             /*
-             * "deleted" is not a thread view — DeletedList fetches its own rows from
-             * /api/inbox/deleted. Asking the thread endpoint for it would fall through
-             * applyView's switch and quietly return EVERY thread, which is both a wasted
-             * query on every keystroke in that screen's search box and a list nobody sees.
+             * "deleted" and "saved" are not thread views — DeletedList and SavedList
+             * fetch their own rows from /api/inbox/deleted and /api/inbox/saved. Asking
+             * the thread endpoint for either would fall through applyView's switch and
+             * quietly return EVERY thread, which is both a wasted query on every
+             * keystroke in that screen's search box and a list nobody sees.
              */
-            if (nextFilters?.view === 'deleted') {
+            if (nextFilters?.view === 'deleted' || nextFilters?.view === 'saved') {
                 setLoading(false);
                 return;
             }

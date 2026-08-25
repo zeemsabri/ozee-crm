@@ -21,4 +21,10 @@ enum EmailStatus: string
     case Approved = 'approved';
     case AutoSend = 'auto_send';
     case Delayed = 'delayed';
+    // Parked by its author, NOT submitted. Deliberately distinct from Draft, which the
+    // workflow automation selects on: a saved email must never enter that pipeline.
+    // Written only by Api\InboxSavedController; a saved row has no conversation, which is
+    // what keeps it out of every thread/list/quote query. See the 2026_08_26_100000
+    // migration for the full story.
+    case Saved = 'saved';
 }

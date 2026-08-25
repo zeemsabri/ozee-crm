@@ -89,6 +89,8 @@ export function InboxDialogs({ page, fullScreen = false }) {
                     compose={page.compose}
                     projects={page.inbox.options.compose_projects}
                     classicUrl={page.settings.classic_url}
+                    saved={page.saved}
+                    initialDraft={page.savedResume}
                     style={modalStyle}
                     dense={fullScreen}
                     onError={page.warn}
@@ -98,7 +100,10 @@ export function InboxDialogs({ page, fullScreen = false }) {
                         // and the list agree with what was just created.
                         page.inbox.refresh();
                     }}
-                    onClose={() => page.setComposeOpen(false)}
+                    onClose={() => {
+                        page.setComposeOpen(false);
+                        page.clearSavedResume();
+                    }}
                 />
             ) : null}
 

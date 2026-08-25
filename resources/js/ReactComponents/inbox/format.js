@@ -260,6 +260,22 @@ export const VIEW_DEFS = [
       swaps in DeletedList instead of ThreadList. Anything that maps VIEW_DEFS onto the
       thread endpoint must skip it.
     */
+    /*
+      Saved ≠ "In review". A saved email is PARKED — status 'saved', no conversation,
+      untouched by the automation until its author submits it (which creates a fresh
+      email through the normal endpoint). `permission: 'composeCustom'` because saved
+      emails are custom-tab drafts: only someone who could finish one should see the
+      view. `standalone` for the same reason as Deleted — these are not threads, so
+      DesktopInbox swaps in SavedList.
+    */
+    {
+        key: 'saved',
+        label: 'Saved',
+        icon: 'Doc',
+        hint: 'Unfinished emails — nothing here goes out until you submit it',
+        permission: 'composeCustom',
+        standalone: true,
+    },
     {
         key: 'deleted',
         label: 'Deleted',
@@ -271,8 +287,12 @@ export const VIEW_DEFS = [
 ];
 
 /** The views this person may actually open. See VIEW_DEFS' `permission`. */
-export function viewsFor({ canSeeDeleted = false } = {}) {
-    return VIEW_DEFS.filter((v) => (v.permission === 'delete' ? canSeeDeleted : true));
+export function viewsFor({ canSeeDeleted = false, canComposeCustom = false } = {}) {
+    return VIEW_DEFS.filter((v) => {
+        if (v.permission === 'delete') return canSeeDeleted;
+        if (v.permission === 'composeCustom') return canComposeCustom;
+        return true;
+    });
 }
 
 export function viewSubtitle(view, overdueCount, slaMinutes) {
@@ -289,6 +309,8 @@ export function viewSubtitle(view, overdueCount, slaMinutes) {
             return 'Locked while the checker verifies them';
         case 'approval':
             return 'Drafts waiting on you, plus inbound mail to release';
+        case 'saved':
+            return 'Unfinished emails, saved as you type — submit when they are ready';
         case 'deleted':
             return 'Removed from this inbox — our copy only, and it can be put back';
         case 'received':
