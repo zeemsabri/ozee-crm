@@ -9,7 +9,7 @@
  */
 
 import { Button, Checkbox, Chips, Counter, Dropdown, Icon, TextField } from '../ds';
-import { VIEW_DEFS, categoryColour } from './format';
+import { categoryColour, viewsFor } from './format';
 
 function SectionLabel({ children }) {
     return (
@@ -35,6 +35,7 @@ export function FilterRail({
     onView,
     onChange,
     onClear,
+    canSeeDeleted = false,
 }) {
     const selected = new Set(filters.category_ids.map(Number));
 
@@ -60,7 +61,7 @@ export function FilterRail({
             }}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
-                {VIEW_DEFS.map((view) => {
+                {viewsFor({ canSeeDeleted }).map((view) => {
                     const active = filters.view === view.key;
                     const count = counts[view.key] || 0;
                     // Only the reply queue turns red, and only when something in it has

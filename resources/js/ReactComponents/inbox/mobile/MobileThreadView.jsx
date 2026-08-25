@@ -50,6 +50,7 @@ export function MobileThreadView({
     onReject,
     onResendAi,
     onDelete,
+    onDeleteMessage,
     onMore,
     onTogglePrivacy,
     onCreateTask,
@@ -310,6 +311,7 @@ export function MobileThreadView({
                                     setExpanded((current) => ({ ...current, [item.id]: !isOpen(item) }))
                                 }
                                 onTogglePrivacy={() => onTogglePrivacy(item)}
+                                onDeleteMessage={() => onDeleteMessage(item)}
                             />
                         )
                     )}

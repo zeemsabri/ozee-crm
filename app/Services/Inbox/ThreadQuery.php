@@ -125,6 +125,22 @@ class ThreadQuery
                 }
             });
 
+        /*
+         * A conversation with nothing left in it is not a conversation.
+         *
+         * Deleting is a soft delete on `emails`, and the conversation row is untouched —
+         * so a thread whose every message has been deleted stayed in the list as an empty
+         * row with no sender, no date and nothing to open. That was already true of the
+         * thread-level delete; per-message delete makes it easy to reach one message at a
+         * time. Nothing is destroyed by this: restoring any email brings the thread back.
+         */
+        $query->whereExists(function ($q) {
+            $q->select(DB::raw(1))
+                ->from('emails')
+                ->whereColumn('emails.conversation_id', 'conversations.id')
+                ->whereNull('emails.deleted_at');
+        });
+
         // A conversation whose every email is private is invisible to someone without
         // view_private_emails — otherwise the list would show a thread they cannot open.
         if (! $canSeePrivate) {

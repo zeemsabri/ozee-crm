@@ -115,6 +115,9 @@ export function useInboxPage({ settings, initialThreadId }) {
     // the whole conversation, because ThreadQuery drops a conversation whose every email
     // is private. Saying so at the toggle is cheaper than the support ticket.
     const canSeePrivate = settings?.can_see_private ?? false;
+    // Whether the rail offers Deleted. Off when absent: an older payload must not draw a
+    // view whose endpoint would 403.
+    const canSeeDeleted = settings?.can_see_deleted ?? false;
 
     // Templates load once for the session, but only for someone who can actually use
     // them — no point fetching the list for a user who only ever composes free-form.
@@ -744,12 +747,79 @@ export function useInboxPage({ settings, initialThreadId }) {
         if (value === 'print') window.print();
     };
 
-    const deleteThread = async () => {
+    /*
+     * Delete, in two steps: ask what to delete, then do it.
+     *
+     * `deleteTarget` is null when the dialog is shut, and otherwise describes what is
+     * about to go: a thread, or one message. Both go through the same dialog because the
+     * question is the same one — which copies? — and two dialogs would drift apart on the
+     * Gmail wording, which is the part people actually need to read.
+     */
+    const [deleteTarget, setDeleteTarget] = useState(null);
+
+    const askDeleteThread = () => {
         const id = thread.thread?.id;
         if (!id) return;
 
-        const done = await runBusy(() => actions.deleteThread(id));
-        if (done) closeThread();
+        setDeleteTarget({ scope: 'thread', ids: [id] });
+    };
+
+    /*
+     * `gmailReachable` is false only for something that was never sent. It is NOT tied to
+     * whether `message_id` is populated: that column is back-filled by IngestSentMail
+     * minutes after a send, so a just-sent reply would otherwise offer a greyed-out box
+     * that quietly turns available later. The server reports what it could not reach, and
+     * the toast below says so.
+     */
+    const askDeleteMessage = (message) => {
+        if (!message?.id) return;
+
+        setDeleteTarget({
+            scope: 'message',
+            emailId: message.id,
+            gmailReachable: !['draft', 'rejected'].includes(String(message.status || '')),
+        });
+    };
+
+    const confirmDelete = async ({ local, gmail }) => {
+        if (!deleteTarget) return;
+
+        const result = await runBusy(() =>
+            deleteTarget.scope === 'thread'
+                ? actions.deleteThreads(deleteTarget.ids, { local, gmail })
+                : actions.deleteEmail(deleteTarget.emailId, { local, gmail })
+        );
+
+        setDeleteTarget(null);
+        if (!result) return;
+
+        // Both endpoints answer 207 with the reasons in `errors`/`gmail_errors` when the
+        // local half worked and Gmail did not. Reporting that as a failure would be wrong
+        // — something did happen — so it is a warning naming what was left behind.
+        const gmailErrors = result.gmail_errors || result.errors || [];
+
+        if (gmailErrors.length) {
+            warn(gmailErrors[0]);
+        } else {
+            notify(
+                gmail && local
+                    ? 'Deleted here and in Gmail.'
+                    : gmail
+                      ? 'Deleted from Gmail. Our copy is still here.'
+                      : 'Deleted here. The Gmail copy is kept.'
+            );
+        }
+
+        if (deleteTarget.scope === 'thread') {
+            closeThread();
+        } else {
+            // reload() re-opens whatever thread is open, from openId — it takes options,
+            // not an id. `silent` keeps the pane from flashing its skeleton for a change
+            // that removes one message.
+            thread.reload({ silent: true });
+        }
+
+        inbox.refresh();
     };
 
     // --------------------------------------------------------------- selection
@@ -830,7 +900,12 @@ export function useInboxPage({ settings, initialThreadId }) {
         releaseThread,
         resendToAi,
         togglePrivacy,
-        deleteThread,
+        canSeeDeleted,
+        deleteTarget,
+        setDeleteTarget,
+        askDeleteThread,
+        askDeleteMessage,
+        confirmDelete,
         onMore,
 
         // list selection and bulk

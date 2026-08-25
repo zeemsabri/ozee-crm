@@ -251,7 +251,29 @@ export const VIEW_DEFS = [
     */
     { key: 'drafts', label: 'In review', icon: 'Robot', hint: 'Submitted and queued for the AI checker' },
     { key: 'all', label: 'All mail', icon: 'Archive', hint: 'Complete log for your projects' },
+    /*
+      Not a thread view, and not counted.
+
+      `permission: 'delete'` is read by FilterRail against the page's can_see_deleted flag
+      — the same ability as deleting, see InboxAccess::canSeeDeleted. `standalone` marks
+      it as a view the list pane cannot render: it lists deleted EMAILS, so DesktopInbox
+      swaps in DeletedList instead of ThreadList. Anything that maps VIEW_DEFS onto the
+      thread endpoint must skip it.
+    */
+    {
+        key: 'deleted',
+        label: 'Deleted',
+        icon: 'Delete',
+        hint: 'Messages removed from this inbox — restorable',
+        permission: 'delete',
+        standalone: true,
+    },
 ];
+
+/** The views this person may actually open. See VIEW_DEFS' `permission`. */
+export function viewsFor({ canSeeDeleted = false } = {}) {
+    return VIEW_DEFS.filter((v) => (v.permission === 'delete' ? canSeeDeleted : true));
+}
 
 export function viewSubtitle(view, overdueCount, slaMinutes) {
     const rule = `${formatMinutes(slaMinutes)} reply rule`;
@@ -267,6 +289,8 @@ export function viewSubtitle(view, overdueCount, slaMinutes) {
             return 'Locked while the checker verifies them';
         case 'approval':
             return 'Drafts waiting on you, plus inbound mail to release';
+        case 'deleted':
+            return 'Removed from this inbox — our copy only, and it can be put back';
         case 'received':
             return 'Everything from clients and leads';
         case 'sent':

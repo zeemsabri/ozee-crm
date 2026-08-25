@@ -92,7 +92,10 @@ class ReplyThreading
             return [];
         }
 
-        $ancestry = $this->ancestry($parent);
+        // Trashed rows included: this walk only ever reads rfc_message_id off them, and
+        // skipping a deleted ancestor would anchor the reply further back than the client's
+        // mailbox expects — or nowhere at all. See parent().
+        $ancestry = $this->ancestry($parent, true);
 
         /*
          * The message we thread onto is not always the parent.
@@ -207,7 +210,20 @@ class ReplyThreading
             return null;
         }
 
-        return Email::find($email->in_reply_to_email_id);
+        /*
+         * withTrashed, deliberately.
+         *
+         * `Email::find()` respects the soft-delete scope, so deleting one message from a
+         * thread used to orphan every reply written under it: parent() returned null,
+         * headersFor() returned no In-Reply-To or References, and the next reply landed in
+         * the client's mailbox as a BRAND NEW conversation. Deleting our own copy of a
+         * message must not change what the client sees on their side.
+         *
+         * Only the headers are read from it. A deleted message is still excluded from the
+         * quoted chain — see quotableAncestry — so nothing deleted is sent onward; the
+         * Message-ID is used purely to keep Gmail grouping the conversation.
+         */
+        return Email::withTrashed()->find($email->in_reply_to_email_id);
     }
 
     /**
@@ -223,7 +239,7 @@ class ReplyThreading
      *
      * @return Collection<int,Email>
      */
-    private function ancestry(Email $parent): Collection
+    private function ancestry(Email $parent, bool $includeTrashed = false): Collection
     {
         // Never later than the reply itself. An inbound email's sent_at comes from the
         // client's own Date: header, and a skewed-forward clock there would otherwise let
@@ -231,6 +247,7 @@ class ReplyThreading
         $cutoff = $parent->sent_at ?? $parent->created_at;
 
         return Email::query()
+            ->when($includeTrashed, fn ($q) => $q->withTrashed())
             ->where('conversation_id', $parent->conversation_id)
             ->whereRaw('COALESCE(sent_at, created_at) <= ?', [$cutoff])
             ->orderByRaw('COALESCE(sent_at, created_at) DESC')
@@ -248,6 +265,11 @@ class ReplyThreading
     private function quotableAncestry(Email $parent): Collection
     {
         return $this->ancestry($parent)
+            // Belt and braces. The query above already excludes soft-deleted rows here —
+            // only the header walk in headersFor() asks for them — but this method is the
+            // one that decides what is SENT to a client, and a deleted message reappearing
+            // in a quote is the kind of mistake worth two guards.
+            ->reject(fn (Email $e) => $e->trashed())
             // A manager marked these internal; quoting one would send it to the client,
             // which is the exact thing the flag exists to prevent.
             ->reject(fn (Email $e) => (bool) $e->is_private)

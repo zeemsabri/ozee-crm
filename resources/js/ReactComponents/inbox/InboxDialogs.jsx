@@ -1,6 +1,6 @@
 /**
- * The four overlays the inbox can open, in one place so the desktop and the phone cannot
- * end up offering different ones.
+ * The overlays the inbox can open, in one place so the desktop and the phone cannot end
+ * up offering different ones.
  *
  * Send back, create task and categorise are in modals.jsx; the composer is
  * ComposeModal.jsx. Everything here is driven by useInboxPage — this file holds no rules
@@ -9,7 +9,7 @@
  * flattens them against the viewport.
  */
 
-import { CategoriseModal, RejectModal, TaskModal } from './modals';
+import { CategoriseModal, DeleteModal, RejectModal, TaskModal } from './modals';
 import { ComposeModal } from './ComposeModal';
 import { ClientViewDialog } from './ClientViewDialog';
 
@@ -35,6 +35,18 @@ export function InboxDialogs({ page, fullScreen = false }) {
 
     return (
         <>
+            <DeleteModal
+                open={!!page.deleteTarget}
+                busy={page.busy}
+                scope={page.deleteTarget?.scope || 'thread'}
+                count={page.deleteTarget?.ids?.length || 1}
+                gmailReachable={page.deleteTarget?.gmailReachable ?? true}
+                style={modalStyle}
+                dense={fullScreen}
+                onClose={() => page.setDeleteTarget(null)}
+                onConfirm={page.confirmDelete}
+            />
+
             <RejectModal
                 open={!!page.rejectFor}
                 busy={page.busy}

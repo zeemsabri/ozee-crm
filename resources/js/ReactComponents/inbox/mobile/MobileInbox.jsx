@@ -240,9 +240,10 @@ export function MobileInbox({ page }) {
                     onEditApprove={page.openEditApprove}
                     onReject={() => page.setRejectFor(thread.thread?.approval?.email_id)}
                     onResendAi={() => page.resendToAi(thread.thread)}
-                    onDelete={page.deleteThread}
+                    onDelete={page.askDeleteThread}
                     onMore={page.onMore}
                     onTogglePrivacy={page.togglePrivacy}
+                    onDeleteMessage={page.askDeleteMessage}
                     onCreateTask={(suggestion) => page.setTaskFor(suggestion || {})}
                     onOpenClientView={page.openClientView}
                 />

@@ -524,6 +524,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('threads/{conversation}/recipients', [InboxReplyController::class, 'recipients']);
         Route::post('threads/{conversation}/reply', [InboxReplyController::class, 'store']);
         Route::post('bulk', [InboxThreadController::class, 'bulk']);
+
+        /*
+         * The bin. A list of deleted EMAILS, not threads — see InboxDeletedController for
+         * why it does not go through ThreadQuery. Both routes carry the same permission as
+         * deleting (`delete_emails`, via InboxAccess::canSeeDeleted).
+         *
+         * `restore` takes a raw {emailId} rather than an {email} model binding: the
+         * default binding respects the soft-delete scope and would 404 on every row this
+         * endpoint exists to act on.
+         */
+        Route::get('deleted', [\App\Http\Controllers\Api\InboxDeletedController::class, 'index']);
+        Route::post('emails/{emailId}/restore', [\App\Http\Controllers\Api\InboxDeletedController::class, 'restore'])
+            ->where('emailId', '[0-9]+');
         // The email as the client receives it — the full branded document, shown in a
         // sandboxed iframe. The timeline shows a cleaned fragment; this is the truth.
         Route::get('emails/{email}/preview', [InboxThreadController::class, 'preview']);

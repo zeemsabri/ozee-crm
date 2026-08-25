@@ -41,6 +41,9 @@ class InboxBetaController extends Controller
                 // Whether the composers draw a "Private" switch. Same permission as the
                 // toggle next to an already-sent message — see InboxAccess::canMarkPrivate.
                 'can_mark_private' => $this->access->canMarkPrivate($user),
+                // Whether the rail draws a Deleted view. Same permission as deleting —
+                // see InboxAccess::canSeeDeleted.
+                'can_see_deleted' => $this->access->canSeeDeleted($user),
                 // Whether the composer draws a free-text address field at all. Client mail
                 // otherwise only ever goes to the project's clients — see
                 // InboxAccess::canAddressManually.

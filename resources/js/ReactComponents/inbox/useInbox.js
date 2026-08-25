@@ -98,6 +98,17 @@ export function useInbox({ onError } = {}) {
 
     const load = useCallback(
         async (nextFilters, nextPage) => {
+            /*
+             * "deleted" is not a thread view — DeletedList fetches its own rows from
+             * /api/inbox/deleted. Asking the thread endpoint for it would fall through
+             * applyView's switch and quietly return EVERY thread, which is both a wasted
+             * query on every keystroke in that screen's search box and a list nobody sees.
+             */
+            if (nextFilters?.view === 'deleted') {
+                setLoading(false);
+                return;
+            }
+
             const id = ++sequence.current;
             setLoading(true);
 
@@ -389,11 +400,44 @@ export function inboxActions({ onError, onToast }) {
                 'Could not change the privacy of that message.'
             ),
 
-        deleteThread: (id) =>
+        /*
+         * Delete, with an explicit scope. `{ local, gmail }` comes from DeleteModal.
+         *
+         * No success toast baked in here any more: what actually happened depends on the
+         * scope AND on whether Gmail could be reached, so the caller reads `gmail_errors`
+         * off the response and says the true thing. A canned "deleted locally" was wrong
+         * the moment the Gmail box existed.
+         */
+        deleteThreads: (ids, { local = true, gmail = false } = {}) =>
             run(
-                () => axios.post('/api/inbox/bulk', { action: 'delete', conversation_ids: [id] }),
-                'Deleted locally — the Gmail copy is kept',
-                'Could not delete that thread.'
+                () =>
+                    axios
+                        .post('/api/inbox/bulk', {
+                            action: 'delete',
+                            conversation_ids: ids,
+                            delete_local: local,
+                            delete_gmail: gmail,
+                        })
+                        .then((r) => r.data),
+                null,
+                'Could not delete that.'
+            ),
+
+        /*
+         * One message. The classic endpoint, unchanged — it has taken these two flags
+         * since before the redesign and authorises EmailPolicy::delete, so there is no
+         * reason for a second one that does the same thing slightly differently.
+         */
+        deleteEmail: (emailId, { local = true, gmail = false } = {}) =>
+            run(
+                () =>
+                    axios
+                        .delete(`/api/emails/${emailId}`, {
+                            data: { delete_local: local, delete_gmail: gmail },
+                        })
+                        .then((r) => r.data),
+                null,
+                'Could not delete that message.'
             ),
 
         resendToAi: (emailId) =>

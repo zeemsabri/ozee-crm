@@ -449,6 +449,11 @@ export function MessageCard({
     onToggle,
     onTogglePrivacy,
     canTogglePrivacy,
+    // Deleting ONE message, not the thread. Same permission as the privacy toggle, and
+    // deliberately so — `can.toggle_privacy` on a message is EmailPolicy::delete
+    // (`delete_emails`), which is exactly the ability DELETE /api/emails/{email}
+    // authorises. Two names for one policy would only invite them to disagree.
+    onDeleteMessage,
     canReply,
     canForward,
     showSummary,
@@ -791,6 +796,17 @@ export function MessageCard({
                                             {message.is_private ? 'Make visible to team' : 'Make private'}
                                         </Button>
                                     ) : null}
+                                    {canTogglePrivacy && onDeleteMessage ? (
+                                        <Button
+                                            kind="tertiary"
+                                            size="small"
+                                            color="negative"
+                                            leftIcon={<Icon name="Delete" size={16} />}
+                                            onClick={onDeleteMessage}
+                                        >
+                                            Delete
+                                        </Button>
+                                    ) : null}
                                 </div>
                             ) : null}
                         </>
@@ -841,6 +857,7 @@ export function ThreadView({
     onReject,
     onResendAi,
     onDelete,
+    onDeleteMessage,
     onMore,
     onTogglePrivacy,
     onCreateTask,
@@ -1020,6 +1037,7 @@ export function ThreadView({
                                     setExpanded((current) => ({ ...current, [item.id]: !isOpen(item) }))
                                 }
                                 onTogglePrivacy={() => onTogglePrivacy(item)}
+                                onDeleteMessage={() => onDeleteMessage(item)}
                             />
                         )
                     )}

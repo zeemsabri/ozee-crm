@@ -1,5 +1,5 @@
 /**
- * The inbox's three dialogs: send-back, create-task, and bulk-categorise.
+ * The inbox's dialogs: send-back, create-task, bulk-categorise, and delete.
  *
  * Design source: Inbox.dc.html, the three <Modal> blocks at the end of the markup.
  *
@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Button, Chips, Dropdown, Modal, TextArea, TextField } from '../ds';
+import { AlertBanner, Button, Checkbox, Chips, Dropdown, Modal, TextArea, TextField } from '../ds';
 import { categoryColour } from './format';
 
 export function RejectModal({ open, onClose, onConfirm, busy, style, dense }) {
@@ -50,6 +50,124 @@ export function RejectModal({ open, onClose, onConfirm, busy, style, dense }) {
                         onClick={() => onConfirm(reason.trim())}
                     >
                         Send back
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
+/**
+ * Delete — one message, or a whole thread.
+ *
+ * There are two copies of every delivered email: ours, and Gmail's. Deleting used to mean
+ * only ours, silently and with no confirmation — press the button, the thread is gone.
+ * This is the classic inbox's dialog (EmailDetailsContent.vue) rebuilt, with one
+ * deliberate difference: **the Gmail box starts unticked.** The classic one pre-ticks
+ * both, so the fastest path through it trashes the client's side of the conversation too,
+ * and nothing in the CRM can bring that back.
+ *
+ * `gmailReachable` is false when there is nothing on Gmail's side to reach — a draft that
+ * never sent. The box is disabled rather than hidden, because "why can't I tick this" is a
+ * question worth answering on the spot.
+ *
+ * Deleting is a SOFT delete on our side. That is worth saying in the dialog: people treat
+ * "delete" as irreversible and hesitate over it, and here only half of it is.
+ */
+const SUB_TEXT = {
+    marginInlineStart: 28,
+    font: '400 12px/16px Figtree, sans-serif',
+    color: 'var(--secondary-text-color)',
+};
+
+export function DeleteModal({
+    open,
+    onClose,
+    onConfirm,
+    busy,
+    scope = 'thread',
+    count = 1,
+    gmailReachable = true,
+    style,
+    dense,
+}) {
+    const [local, setLocal] = useState(true);
+    const [gmail, setGmail] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        setLocal(true);
+        setGmail(false);
+    }, [open]);
+
+    const isThread = scope === 'thread';
+    const subject = isThread
+        ? count > 1
+            ? `these ${count} threads`
+            : 'this thread'
+        : 'this message';
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title={isThread ? (count > 1 ? `Delete ${count} threads` : 'Delete this thread') : 'Delete this message'}
+            description={`Choose which copies of ${subject} to delete.`}
+            size="small"
+            style={style}
+            dense={dense}
+        >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/*
+                  ds/Checkbox takes a label and nothing else — no subText, unlike the
+                  Fields.jsx inputs. The explanation is rendered beside it rather than
+                  added to the component, because every other Checkbox in the app is a
+                  one-liner and widening the primitive for one dialog is the wrong trade.
+                */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                        <Checkbox checked={local} disabled={busy} onChange={setLocal} label="Delete our copy" />
+                        <div style={SUB_TEXT}>
+                            Removed from this inbox. A soft delete — the row is kept, and someone
+                            who can delete emails can restore it.
+                        </div>
+                    </div>
+                    <div>
+                        <Checkbox
+                            checked={gmail && gmailReachable}
+                            disabled={busy || !gmailReachable}
+                            onChange={setGmail}
+                            label="Delete the Gmail copy"
+                        />
+                        <div style={SUB_TEXT}>
+                            {gmailReachable
+                                ? 'Moved to the Gmail bin. The client keeps their own copy either way — this only affects our mailbox.'
+                                : 'Nothing to delete — this was never sent, so it has no Gmail copy.'}
+                        </div>
+                    </div>
+                </div>
+
+                {gmail && gmailReachable ? (
+                    <AlertBanner type="warning">
+                        The Gmail copy is not soft-deleted. Once it is in the bin, nothing here
+                        can bring it back.
+                    </AlertBanner>
+                ) : null}
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <Button kind="tertiary" size="small" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button
+                        size="small"
+                        color="negative"
+                        // At least one copy, or there is nothing to do. The server refuses
+                        // the same request with a 422; this just saves the round trip.
+                        disabled={!local && !(gmail && gmailReachable)}
+                        loading={busy}
+                        onClick={() => onConfirm({ local, gmail: gmail && gmailReachable })}
+                    >
+                        Delete
                     </Button>
                 </div>
             </div>

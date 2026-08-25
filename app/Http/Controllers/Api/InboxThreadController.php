@@ -51,6 +51,7 @@ class InboxThreadController extends Controller
         private readonly ThreadQuery $threads,
         private readonly ThreadPresenter $presenter,
         private readonly InboxAccess $access,
+        private readonly \App\Services\GmailService $gmail,
     ) {}
 
     /** GET /api/inbox/threads — the list. */
@@ -289,7 +290,33 @@ class InboxThreadController extends Controller
             'conversation_ids.*' => ['integer'],
             'category_ids' => ['array', 'required_if:action,categorise'],
             'category_ids.*' => ['integer', 'exists:categories,id'],
+            /*
+             * Where to delete from. Same two flags, same names and the same meaning as
+             * DELETE /api/emails/{email}, which is what the classic inbox's delete dialog
+             * posts — one vocabulary for one act.
+             *
+             * Both default here rather than in the `??` below so the shape is visible: the
+             * local copy goes unless you say otherwise, the Gmail copy stays unless you
+             * ask. That is the opposite of the classic dialog, which pre-ticks both; a
+             * dialog people click through should not have the irreversible half armed.
+             */
+            'delete_local' => ['sometimes', 'boolean'],
+            'delete_gmail' => ['sometimes', 'boolean'],
         ]);
+
+        $deleteLocal = (bool) ($data['delete_local'] ?? true);
+        $deleteGmail = (bool) ($data['delete_gmail'] ?? false);
+
+        if ($data['action'] === 'delete' && ! $deleteLocal && ! $deleteGmail) {
+            return response()->json([
+                'message' => 'Choose at least one copy to delete.',
+            ], 422);
+        }
+
+        // Gmail failures are collected rather than thrown: one message with no Gmail id
+        // must not abandon the rest of the thread half-deleted.
+        $gmailErrors = [];
+        $gmailTrashed = 0;
 
         $conversations = Conversation::with('emails')
             ->whereIn('id', $data['conversation_ids'])
@@ -328,20 +355,45 @@ class InboxThreadController extends Controller
                     break;
 
                 case 'delete':
-                    // Soft delete only, and only the local copy. The Gmail copy is
-                    // untouched — matching the legacy page's DELETE /api/emails/{id}
-                    // default, and what the design's toast says.
-                    //
-                    // Authorised per email against EmailPolicy::delete (`delete_emails`),
-                    // the same ability the single-email endpoint uses. Gating this on
-                    // "is a manager" would have let an approver bulk-delete what the
-                    // policy forbids them deleting one at a time.
+                    /*
+                     * Authorised per email against EmailPolicy::delete (`delete_emails`),
+                     * the same ability the single-email endpoint uses. Gating this on
+                     * "is a manager" would have let an approver bulk-delete what the
+                     * policy forbids them deleting one at a time.
+                     */
                     $deletable = $conversation->emails->filter(fn (Email $e) => $user->can('delete', $e));
 
-                    if ($deletable->isNotEmpty()) {
-                        Email::whereIn('id', $deletable->pluck('id'))->delete();
-                        $affected++;
+                    if ($deletable->isEmpty()) {
+                        break;
                     }
+
+                    /*
+                     * Gmail first, local second.
+                     *
+                     * Trashing needs `emails.message_id` — Gmail's API id — and once the
+                     * row is soft-deleted the collection here is still in memory, so the
+                     * order is not strictly forced. It is done this way anyway because the
+                     * failure that matters is "we deleted our copy and could not reach
+                     * theirs": doing the reachable half first means the report below
+                     * describes what actually happened rather than what was attempted.
+                     */
+                    if ($deleteGmail) {
+                        foreach ($deletable as $email) {
+                            $result = $this->trashInGmail($email);
+
+                            if ($result === true) {
+                                $gmailTrashed++;
+                            } elseif (is_string($result)) {
+                                $gmailErrors[] = $result;
+                            }
+                        }
+                    }
+
+                    if ($deleteLocal) {
+                        Email::whereIn('id', $deletable->pluck('id'))->delete();
+                    }
+
+                    $affected++;
                     break;
             }
         }
@@ -350,7 +402,68 @@ class InboxThreadController extends Controller
             'success' => true,
             'affected' => $affected,
             'requested' => count($data['conversation_ids']),
-        ]);
+            // Only meaningful for `delete`, and only when Gmail was asked for. The
+            // composer turns a non-empty `gmail_errors` into a warning rather than an
+            // error: the local delete still happened, and saying nothing would leave
+            // someone believing the Gmail copy was gone.
+            'gmail_trashed' => $gmailTrashed,
+            'gmail_errors' => $gmailErrors,
+        ], $gmailErrors === [] ? 200 : 207);
+    }
+
+    /**
+     * Trash one email's Gmail copy.
+     *
+     * @return true|string|null true when trashed, a human-readable reason when it could
+     *                          not be, null when there is nothing to trash and that is
+     *                          not a failure.
+     */
+    private function trashInGmail(Email $email): true|string|null
+    {
+        /*
+         * `message_id` is Gmail's API id, and it is NOT set on everything.
+         *
+         * Inbound mail carries it from the poller. Our own outbound mail does not: the
+         * send path writes `rfc_message_id` and `gmail_thread_id`, and `message_id` is
+         * back-filled later by IngestSentMail when the SENT pass recognises the message
+         * by its Message-ID header. So a reply sent a minute ago usually has no id yet,
+         * and a draft that never sent has no Gmail copy at all.
+         *
+         * A draft is silent — there is genuinely nothing there to delete. A delivered
+         * message with no id is reported, because "the Gmail copy is gone" would otherwise
+         * be a guess.
+         */
+        if ($email->message_id) {
+            try {
+                $this->gmail->trashMessage($email->message_id);
+
+                return true;
+            } catch (\Throwable $e) {
+                Log::error('inbox.delete: could not trash Gmail message', [
+                    'email_id' => $email->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return 'Gmail refused to delete one message: '.$e->getMessage();
+            }
+        }
+
+        // No id. Whether that is a problem depends on whether this message was ever
+        // delivered: a draft or a rejected draft has no Gmail copy to delete and saying so
+        // would be noise, while a SENT message with no id means the back-fill has not run
+        // yet and its Gmail copy is genuinely still sitting there.
+        $status = $email->status instanceof EmailStatus
+            ? $email->status->value
+            : (string) $email->status;
+
+        $delivered = in_array($status, [
+            EmailStatus::Sent->value,
+            EmailStatus::Approved->value,
+        ], true);
+
+        return $delivered
+            ? 'One sent message has no Gmail id on record yet, so its Gmail copy was left alone. It is usually filled in within a few minutes of sending.'
+            : null;
     }
 
     /**

@@ -14,6 +14,7 @@ import { AlertBanner, Button } from '../ds';
 
 import { FilterRail } from './FilterRail';
 import { ThreadList } from './ThreadList';
+import { DeletedList } from './DeletedList';
 import { ThreadView } from './ThreadView';
 import { InboxDialogs } from './InboxDialogs';
 import { plural } from './format';
@@ -72,6 +73,7 @@ export function DesktopInbox({ page }) {
 
             <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
                 <FilterRail
+                    canSeeDeleted={page.canSeeDeleted}
                     filters={inbox.filters}
                     counts={inbox.counts}
                     overdueCount={inbox.overdueCount}
@@ -90,7 +92,23 @@ export function DesktopInbox({ page }) {
                 />
 
                 <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                    {thread.thread || thread.loading ? (
+                    {/*
+                      Deleted is a standalone view — it lists EMAILS, not threads, so the
+                      thread list cannot render it (see VIEW_DEFS and
+                      InboxDeletedController). Checked before the thread pane so that
+                      switching to it while a thread is open shows the bin rather than the
+                      thread that was already there.
+                    */}
+                    {inbox.filters.view === 'deleted' ? (
+                        <DeletedList
+                            onError={page.warn}
+                            onRestored={() => {
+                                page.notify('Restored. It is back in its thread.');
+                                inbox.refresh();
+                            }}
+                            onOpenThread={(id) => thread.open(id)}
+                        />
+                    ) : thread.thread || thread.loading ? (
                         <ThreadView
                             thread={thread.thread}
                             loading={thread.loading}
@@ -130,9 +148,10 @@ export function DesktopInbox({ page }) {
                             onEditApprove={page.openEditApprove}
                             onReject={() => page.setRejectFor(thread.thread?.approval?.email_id)}
                             onResendAi={() => page.resendToAi(thread.thread)}
-                            onDelete={page.deleteThread}
+                            onDelete={page.askDeleteThread}
                             onMore={page.onMore}
                             onTogglePrivacy={page.togglePrivacy}
+                            onDeleteMessage={page.askDeleteMessage}
                             onCreateTask={(suggestion) => page.setTaskFor(suggestion || {})}
                             onOpenClientView={page.openClientView}
                         />

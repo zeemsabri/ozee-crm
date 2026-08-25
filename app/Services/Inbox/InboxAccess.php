@@ -142,6 +142,24 @@ class InboxAccess
     }
 
     /**
+     * May this user see, and restore, DELETED mail?
+     *
+     * The same permission as deleting it. There is no separate "view the bin" ability and
+     * inventing one would be worse than useless: a bin visible to people who cannot put
+     * anything in it is a way to read mail somebody deliberately removed, and a bin
+     * invisible to the person who just deleted something is how a mis-click becomes
+     * permanent.
+     *
+     * Deleting is a SOFT delete on our side, so everything this lists is recoverable. The
+     * Gmail half of a delete is not, which is why the dialog says so rather than implying
+     * the bin covers both.
+     */
+    public function canSeeDeleted(User $user): bool
+    {
+        return $this->canMarkPrivate($user);
+    }
+
+    /**
      * May this user type an email address by hand?
      *
      * Almost nobody, by design. Client mail travels one route — from our authorised
