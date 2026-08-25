@@ -485,11 +485,18 @@ class EmailController extends Controller
                 $template = $email->email_template ?: 'email_template';
 
             } else {
-                // For regular HTML emails
-                $renderedBody = $validated['body'] ?? $email->body;
+                // For regular HTML or markdown emails
+                $rawBody = $validated['body'] ?? $email->body;
                 $subject = $validated['subject'] ?? $email->subject;
 
                 $email->update($validated);
+
+                if (\App\Services\Inbox\MarkdownBody::isMarkdown($email)) {
+                    $renderedBody = \App\Services\Inbox\MarkdownBody::render($rawBody);
+                } else {
+                    $renderedBody = $rawBody;
+                }
+
                 $template = $email->email_template ?: 'email_template';
             }
 

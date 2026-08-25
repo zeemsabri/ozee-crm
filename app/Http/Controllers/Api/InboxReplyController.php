@@ -104,6 +104,7 @@ class InboxReplyController extends Controller
             // A templated reply has no body of its own — the text comes from the template.
             // A block reply has no typed body either — it is rendered from `blocks`.
             'body' => ['required_if:composition_type,custom', 'nullable', 'string'],
+            'body_format' => ['sometimes', 'nullable', 'string', Rule::in(['markdown', 'plain'])],
             'blocks' => ['required_if:composition_type,blocks', 'nullable', 'array', 'max:60'],
             'blocks.*.type' => ['required', Rule::in(['text', 'bullets', 'link', 'image'])],
             'blocks.*.text' => ['nullable', 'string', 'max:20000'],
@@ -368,6 +369,8 @@ class InboxReplyController extends Controller
             ? null
             : (trim((string) ($data['greeting_name'] ?? '')) ?: null);
 
+        $bodyIsMarkdown = ! $isTemplate && ! $isBlocks && (($data['body_format'] ?? null) === 'markdown' || \App\Services\Inbox\MarkdownBody::looksLikeMarkdown($data['body'] ?? ''));
+
         $email = new Email([
             'conversation_id' => $conversation->id,
             'sender_id' => $user->id,
@@ -409,6 +412,7 @@ class InboxReplyController extends Controller
                 $isBlocks => \App\Support\TemplateData::encode([BlockComposition::KEY => $blocks]),
                 default => null,
             },
+            'draft_meta' => $bodyIsMarkdown ? ['body_format' => 'markdown'] : null,
         ]);
         $email->save();
 

@@ -74,7 +74,7 @@ export function markdownToEditorHtml(md) {
     };
 
     lines.forEach((raw) => {
-        const bullet = raw.match(/^\s*[-*]\s+(.*)$/);
+        const bullet = raw.match(/^\s*[-*+]\s+(.*)$/);
         const ordered = raw.match(/^\s*\d+\.\s+(.*)$/);
         const quoted = raw.match(/^\s*>\s?(.*)$/);
 
@@ -140,6 +140,15 @@ function inlineMarkdown(node) {
                 out += `\n${tag === 'UL' ? '- ' : `${n}. `}${inlineMarkdown(li)}`;
             });
             out += '\n';
+        } else if (tag === 'SPAN') {
+            const isBold = child.style?.fontWeight === 'bold' || parseInt(child.style?.fontWeight, 10) >= 600;
+            const isItalic = child.style?.fontStyle === 'italic';
+            const isStrike = child.style?.textDecoration?.includes('line-through');
+            let formatted = inner;
+            if (isBold && formatted.trim()) formatted = `**${formatted}**`;
+            if (isItalic && formatted.trim()) formatted = `*${formatted}*`;
+            if (isStrike && formatted.trim()) formatted = `~~${formatted}~~`;
+            out += formatted;
         } else out += inner;
     });
 
@@ -199,6 +208,8 @@ export function editorHtmlToMarkdown(root) {
                     const marker = tag === 'UL' ? '- ' : `${n}. `;
                     pushBlockLines(inlineMarkdown(li) || '', marker);
                 });
+            } else if (tag === 'LI') {
+                pushBlockLines(inlineMarkdown(child) || '', '- ');
             } else if (tag === 'BLOCKQUOTE') {
                 pushBlockLines(inlineMarkdown(child), '> ');
             } else if (child.querySelector('ul, ol, blockquote, div, p')) {

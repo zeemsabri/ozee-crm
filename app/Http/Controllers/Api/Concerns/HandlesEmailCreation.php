@@ -106,7 +106,7 @@ trait HandlesEmailCreation
          * legacy custom email is rich-editor HTML and must keep taking the nl2br path.
          * Blocks ignore it — their body is rendered from the blocks themselves.
          */
-        $bodyIsMarkdown = $blocks === [] && ($validated['body_format'] ?? null) === 'markdown';
+        $bodyIsMarkdown = $blocks === [] && (($validated['body_format'] ?? null) === 'markdown' || \App\Services\Inbox\MarkdownBody::looksLikeMarkdown($validated['body'] ?? ''));
 
         $email = Email::create([
             'conversation_id' => $conversation->id,
@@ -237,6 +237,8 @@ trait HandlesEmailCreation
 
         $greeting = $validated['custom_greeting_name'] ?? ($validated['greeting_name'] ?? 'Hi there');
 
+        $bodyIsMarkdown = ($validated['body_format'] ?? null) === 'markdown' || \App\Services\Inbox\MarkdownBody::looksLikeMarkdown($validated['body'] ?? '');
+
         $email = Email::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $user->id,
@@ -248,6 +250,7 @@ trait HandlesEmailCreation
             // Compose-time privacy. Permission-checked in EmailController::store before
             // it reaches here; absent for every classic-composer request.
             'is_private' => (bool) ($validated['is_private'] ?? false),
+            'draft_meta' => $bodyIsMarkdown ? ['body_format' => 'markdown'] : null,
         ]);
 
         //        ProcessDraftEmailJob::dispatch($email);

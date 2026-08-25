@@ -37,7 +37,50 @@ class MarkdownBody
 {
     public static function isMarkdown(Email $email): bool
     {
-        return ($email->draft_meta['body_format'] ?? null) === 'markdown';
+        if (($email->draft_meta['body_format'] ?? null) === 'markdown') {
+            return true;
+        }
+
+        // If it's a templated email, it's rendered from blade/HTML placeholders, not markdown.
+        if ($email->template_id !== null) {
+            return false;
+        }
+
+        // If it's a block-builder email, it renders from blocks JSON.
+        if (app(\App\Services\Inbox\BlockComposition::class)->isBlockEmail($email)) {
+            return false;
+        }
+
+        // Fallback: check if the body contains markdown tokens and does not contain rich HTML tags.
+        return self::looksLikeMarkdown($email->body);
+    }
+
+    /**
+     * Checks if a body contains markdown formatting and lacks rich HTML tags (other than line breaks).
+     */
+    public static function looksLikeMarkdown(?string $body): bool
+    {
+        if ($body === null || trim($body) === '') {
+            return false;
+        }
+
+        // If the body contains rich HTML tags (other than <br> variants), treat as HTML, not markdown.
+        // Stripping <br>, <br/>, <br /> allows greeting joins (e.g. 'Hi Client,<br/>...') to pass.
+        $withoutBreaks = preg_replace('/<br\s*\/?\s*>/i', '', $body);
+        if (preg_match('/<(p|div|span|table|tr|td|th|tbody|thead|ul|ol|li|h[1-6]|a|img|strong|em|b|i|u|blockquote|pre|code|hr|font|center)\b[^>]*>/i', $withoutBreaks)) {
+            return false;
+        }
+
+        // Check for common markdown indicators
+        $hasBold = (bool) preg_match('/\*\*[^*\n]+\*\*/', $body);
+        $hasItalic = (bool) preg_match('/(^|[^*])\*[^*\n]+\*(?!\*)/', $body);
+        $hasStrike = (bool) preg_match('/~~[^~\n]+~~/', $body);
+        $hasLink = (bool) preg_match('/\[[^\]]+\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/i', $body);
+        $hasBullet = (bool) preg_match('/^\s*[-*+]\s+/m', $body);
+        $hasOrdered = (bool) preg_match('/^\s*\d+\.\s+/m', $body);
+        $hasQuote = (bool) preg_match('/^\s*>/m', $body);
+
+        return $hasBold || $hasItalic || $hasStrike || $hasLink || $hasBullet || $hasOrdered || $hasQuote;
     }
 
     public static function render(?string $body): string
@@ -55,7 +98,7 @@ class MarkdownBody
             if ($para === []) {
                 return;
             }
-            $out[] = '<p style="margin:0 0 12px 0">'.implode('<br>', $para).'</p>';
+            $out[] = '<p style="margin:0 0 12px 0;line-height:1.5">'.implode('<br>', $para).'</p>';
             $para = [];
         };
         $flushQuote = function () use (&$quote, &$out) {
@@ -71,15 +114,16 @@ class MarkdownBody
             if ($list === null) {
                 return;
             }
-            $items = array_map(fn ($i) => '<li>'.$i.'</li>', $list['items']);
-            $out[] = '<'.$list['tag'].' style="margin:0 0 12px 0;padding-left:24px">'
+            $items = array_map(fn ($i) => '<li style="margin-bottom:4px;line-height:1.5">'.$i.'</li>', $list['items']);
+            $listStyle = $list['tag'] === 'ul' ? 'list-style-type:disc;' : 'list-style-type:decimal;';
+            $out[] = '<'.$list['tag'].' style="margin:0 0 12px 0;padding-left:24px;'.$listStyle.'">'
                 .implode('', $items)
                 .'</'.$list['tag'].'>';
             $list = null;
         };
 
         foreach ($lines as $raw) {
-            $isBullet = preg_match('/^\s*[-*]\s+(.*)$/', $raw, $bullet);
+            $isBullet = preg_match('/^\s*[-*+]\s+(.*)$/', $raw, $bullet);
             $isOrdered = ! $isBullet && preg_match('/^\s*\d+\.\s+(.*)$/', $raw, $ordered);
             $isQuoted = ! $isBullet && ! $isOrdered && preg_match('/^\s*>\s?(.*)$/', $raw, $quoted);
 
@@ -122,7 +166,7 @@ class MarkdownBody
     }
 
     /** One line: escape everything, then apply the inline forms. Order matters. */
-    private static function inline(string $line): string
+    public static function inline(string $line): string
     {
         $out = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
 
@@ -138,6 +182,7 @@ class MarkdownBody
         $out = preg_replace('/\*\*([^*\n]+)\*\*/', '<strong>$1</strong>', $out);
         // Single-star italic, but never the leftover half of a ** pair.
         $out = preg_replace('/(^|[^*])\*([^*\n]+)\*(?!\*)/', '$1<em>$2</em>', $out);
+        $out = preg_replace('/`([^`\n]+)`/', '<code>$1</code>', $out);
 
         return $out;
     }

@@ -164,6 +164,7 @@ class InboxSavedController extends Controller
             'client_ids' => array_values(array_map('intval', $data['client_ids'] ?? [])),
             'greeting_mode' => $data['greeting_mode'] ?? 'full_name',
             'greeting_name' => $data['greeting_name'] ?? '',
+            'body_format' => 'markdown',
         ];
     }
 
