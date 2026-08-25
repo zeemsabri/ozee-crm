@@ -115,16 +115,62 @@ export function ComposeModal({
     const fileInputRef = useRef(null);
     const imageInputRef = useRef(null);
 
-    const addFiles = (fileList, kind) => {
-        const next = Array.from(fileList || []).map((file) => ({
+    const addFiles = async (fileList, kind) => {
+        const rawFiles = Array.from(fileList || []);
+        if (!rawFiles.length) return;
+
+        const next = rawFiles.map((file) => ({
             id: `at_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
             name: file.name,
             size: file.size,
             kind,
             file,
+            fileId: null,
+            uploading: file.size <= MAX_ATTACHMENT_BYTES,
             error: file.size > MAX_ATTACHMENT_BYTES ? `over the ${prettySize(MAX_ATTACHMENT_BYTES)} limit` : null,
         }));
-        if (next.length) setAttachments((current) => [...current, ...next]);
+
+        setAttachments((current) => [...current, ...next]);
+
+        const validFiles = next.filter((item) => !item.error);
+        if (!validFiles.length) return;
+
+        const formData = new FormData();
+        if (projectId) {
+            formData.append('project_id', projectId);
+        }
+        validFiles.forEach((item) => {
+            formData.append('files[]', item.file);
+        });
+
+        try {
+            const res = await axios.post('/api/inbox/attachments', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            const uploadedList = res.data?.data || [];
+            setAttachments((current) =>
+                current.map((item) => {
+                    const idx = validFiles.findIndex((v) => v.id === item.id);
+                    if (idx !== -1 && uploadedList[idx]) {
+                        return {
+                            ...item,
+                            fileId: uploadedList[idx].file_id || uploadedList[idx].id,
+                            uploading: false,
+                        };
+                    }
+                    return item;
+                })
+            );
+        } catch (err) {
+            const errMsg = err?.response?.data?.message || 'Upload failed';
+            setAttachments((current) =>
+                current.map((item) =>
+                    validFiles.some((v) => v.id === item.id)
+                        ? { ...item, uploading: false, error: errMsg }
+                        : item
+                )
+            );
+        }
     };
 
     const snippetsApi = useSnippets();
@@ -350,7 +396,16 @@ export function ComposeModal({
     })();
 
     const create = async () => {
+        if (attachments.some((a) => a.uploading)) {
+            onError?.('Please wait for attachments to finish uploading.');
+            return;
+        }
+
         setBusy(true);
+
+        const validFileIds = attachments
+            .filter((a) => a.fileId && !a.error)
+            .map((a) => a.fileId);
 
         try {
             if (isTemplate) {
@@ -390,6 +445,7 @@ export function ComposeModal({
                     ...(isBlocks
                         ? { blocks: blocks.payload() }
                         : { body: body.trim(), body_format: 'markdown' }),
+                    ...(validFileIds.length ? { file_ids: validFileIds } : {}),
                     greeting_name: greeting,
                     ...(canMarkPrivate && isPrivate ? { is_private: true } : {}),
                 });
@@ -778,9 +834,9 @@ export function ComposeModal({
                                                     }}
                                                 >
                                                     {a.name}
-                                                    {a.error ? ` — ${a.error}` : ''}
+                                                    {a.uploading ? ' (uploading…)' : a.error ? ` — ${a.error}` : ''}
                                                 </span>
-                                                {!a.error ? (
+                                                {!a.error && !a.uploading ? (
                                                     <span
                                                         style={{
                                                             font: 'var(--font-text3-normal)',
@@ -813,15 +869,6 @@ export function ComposeModal({
                                                 </button>
                                             </span>
                                         ))}
-                                        <span
-                                            style={{
-                                                font: 'var(--font-text3-normal)',
-                                                color: 'var(--secondary-text-color)',
-                                            }}
-                                        >
-                                            Attachments are not sent yet — that part of the backend is
-                                            still being wired up.
-                                        </span>
                                     </div>
                                 ) : null}
                             </>
