@@ -105,6 +105,8 @@ class InboxReplyController extends Controller
             // A block reply has no typed body either — it is rendered from `blocks`.
             'body' => ['required_if:composition_type,custom', 'nullable', 'string'],
             'body_format' => ['sometimes', 'nullable', 'string', Rule::in(['markdown', 'plain'])],
+            'file_ids' => ['sometimes', 'array', 'max:20'],
+            'file_ids.*' => ['integer'],
             'blocks' => ['required_if:composition_type,blocks', 'nullable', 'array', 'max:60'],
             'blocks.*.type' => ['required', Rule::in(['text', 'bullets', 'link', 'image'])],
             'blocks.*.text' => ['nullable', 'string', 'max:20000'],
@@ -422,6 +424,11 @@ class InboxReplyController extends Controller
         // files:prune-expired when its TTL runs out.
         if ($isBlocks) {
             $this->images->attachTo($email, $this->blocks->imageIds($blocks));
+        }
+
+        // Attach any uploaded files/images
+        if (! empty($data['file_ids'])) {
+            app(\App\Services\Inbox\EmailAttachmentStore::class)->attachTo($email, $data['file_ids']);
         }
 
         $conversation->forceFill(['last_activity_at' => now()])->save();

@@ -584,6 +584,14 @@ class EmailController extends Controller
                 ], 422);
             }
 
+            $blockImageIds = [];
+            if ($isBlockEmail) {
+                $blocks = \App\Support\TemplateData::decode($email->template_data)[\App\Services\Inbox\BlockComposition::KEY] ?? [];
+                $blockImageIds = $blockComposition->imageIds($blocks);
+            }
+            $attachmentStore = app(\App\Services\Inbox\EmailAttachmentStore::class);
+            $attachments = $attachmentStore->attachmentPartsFor($email, $blockImageIds);
+
             if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && ! empty($recipients)) {
                 $gmailThreadId = null;
                 $gmailMessageId = null;
@@ -596,8 +604,8 @@ class EmailController extends Controller
                             $finalRenderedBody,
                             $threadHeaders,
                             $outgoingMessageId,
-                            // Empty for everything but a block email — see above.
-                            $inlineImages
+                            $inlineImages,
+                            $attachments
                         );
 
                         $gmailThreadId ??= $sent['threadId'] ?? null;

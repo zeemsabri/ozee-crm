@@ -63,6 +63,8 @@ class GmailService
      *                                  keyed by Content-ID. When present the message is
      *                                  built as multipart/related and the HTML may
      *                                  reference each part as `cid:<key>`.
+     * @param  array<int,array{filename:string,mime_type:string,bytes:string}>  $attachments
+     *                                  list of file attachments to append as multipart/mixed parts.
      * @return array{id:string,threadId:?string,messageId:?string}
      */
     public function sendMessage(
@@ -71,7 +73,8 @@ class GmailService
         string $body,
         array $headers = [],
         ?string $messageId = null,
-        array $inlineImages = []
+        array $inlineImages = [],
+        array $attachments = []
     ): array {
         // Construct the raw email message in RFC 2822 format.
         $rawMessage = "To: $to\r\n";
@@ -91,11 +94,16 @@ class GmailService
         }
 
         $rawMessage .= "MIME-Version: 1.0\r\n";
-        $rawMessage .= $inlineImages
-            ? $this->relatedBody($body, $inlineImages)
-            : "Content-type: text/html; charset=utf-8\r\n"
+
+        if (! empty($attachments)) {
+            $rawMessage .= $this->mixedBody($body, $inlineImages, $attachments);
+        } elseif (! empty($inlineImages)) {
+            $rawMessage .= $this->relatedBody($body, $inlineImages);
+        } else {
+            $rawMessage .= "Content-type: text/html; charset=utf-8\r\n"
                 ."Content-Transfer-Encoding: base64\r\n"
                 ."\r\n".chunk_split(base64_encode($body));
+        }
 
         $message = new Message;
         $message->setRaw(strtr(base64_encode($rawMessage), ['+' => '-', '/' => '_']));
@@ -114,6 +122,44 @@ class GmailService
     }
 
     /**
+     * A `multipart/mixed` body containing the message body (HTML or multipart/related)
+     * plus one or more file attachment parts.
+     *
+     * @param  array<string,array{filename:string,mime_type:string,bytes:string}>  $inlineImages
+     * @param  array<int,array{filename:string,mime_type:string,bytes:string}>  $attachments
+     */
+    public function mixedBody(string $html, array $inlineImages, array $attachments): string
+    {
+        $mixedBoundary = 'ozee_mixed_'.bin2hex(random_bytes(12));
+
+        $out = "Content-Type: multipart/mixed; boundary=\"{$mixedBoundary}\"\r\n\r\n";
+
+        // Part 1: Body (either related with inline images, or plain text/html)
+        $out .= "--{$mixedBoundary}\r\n";
+        if (! empty($inlineImages)) {
+            $out .= $this->relatedBody($html, $inlineImages);
+        } else {
+            $out .= "Content-Type: text/html; charset=utf-8\r\n";
+            $out .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $out .= chunk_split(base64_encode($html));
+        }
+
+        // Part 2..N: Attachments
+        foreach ($attachments as $attachment) {
+            $filename = $this->sanitiseHeader($attachment['filename'] ?? 'attachment');
+            $mime = $this->sanitiseHeader($attachment['mime_type'] ?? 'application/octet-stream');
+
+            $out .= "--{$mixedBoundary}\r\n";
+            $out .= "Content-Type: {$mime}; name=\"{$filename}\"\r\n";
+            $out .= "Content-Disposition: attachment; filename=\"{$filename}\"\r\n";
+            $out .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $out .= chunk_split(base64_encode($attachment['bytes']));
+        }
+
+        return $out."--{$mixedBoundary}--\r\n";
+    }
+
+    /**
      * A `multipart/related` body: the HTML, then one part per inline image.
      *
      * `related` rather than `mixed` is the distinction that matters — it tells the client
@@ -127,7 +173,7 @@ class GmailService
      *
      * @param  array<string,array{filename:string,mime_type:string,bytes:string}>  $images
      */
-    private function relatedBody(string $html, array $images): string
+    public function relatedBody(string $html, array $images): string
     {
         // Must not appear in any part's content. Random, so it cannot collide with body text.
         $boundary = 'ozee_'.bin2hex(random_bytes(12));

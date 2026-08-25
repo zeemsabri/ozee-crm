@@ -134,11 +134,17 @@ class EmailProcessingService
          */
         $blockComposition = app(\App\Services\Inbox\BlockComposition::class);
         $inlineImages = [];
+        $blockImageIds = [];
 
         if ($blockComposition->isBlockEmail($email)) {
             $renderedBody = $blockComposition->renderForSend($email) ?? $renderedBody;
             $inlineImages = $blockComposition->inlinePartsFor($email);
+            $blocks = \App\Support\TemplateData::decode($email->template_data)[\App\Services\Inbox\BlockComposition::KEY] ?? [];
+            $blockImageIds = $blockComposition->imageIds($blocks);
         }
+
+        $attachmentStore = app(\App\Services\Inbox\EmailAttachmentStore::class);
+        $attachments = $attachmentStore->attachmentPartsFor($email, $blockImageIds);
 
         // This logic is adapted from your `editAndApprove` method.
         $senderDetails = $this->getSenderDetails($email);
@@ -205,7 +211,8 @@ class EmailProcessingService
                         $finalRenderedBody,
                         $threadHeaders,
                         $outgoingMessageId,
-                        $inlineImages
+                        $inlineImages,
+                        $attachments
                     );
 
                     $gmailThreadId ??= $sent['threadId'] ?? null;
