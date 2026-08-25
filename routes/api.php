@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\ExistingClientEnquiryController;
 use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\ImageUploadController;
+use App\Http\Controllers\Api\InboxAttachmentController;
 use App\Http\Controllers\Api\InboxBlockImageController;
 use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\InboxReplyController;
@@ -575,6 +576,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // message, so ours is only a working copy. See EmailImageStore.
         Route::post('block-images', [InboxBlockImageController::class, 'store']);
         Route::post('blocks/preview', [InboxBlockImageController::class, 'preview']);
+
+        // Attachments for emails (both files and images)
+        Route::post('attachments', [InboxAttachmentController::class, 'store']);
     });
 
     // Google Auth Status Endpoint
