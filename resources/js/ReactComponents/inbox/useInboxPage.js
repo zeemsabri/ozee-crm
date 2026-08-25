@@ -765,11 +765,14 @@ export function useInboxPage({ settings, initialThreadId }) {
     };
 
     /*
-     * `gmailReachable` is false only for something that was never sent. It is NOT tied to
-     * whether `message_id` is populated: that column is back-filled by IngestSentMail
-     * minutes after a send, so a just-sent reply would otherwise offer a greyed-out box
-     * that quietly turns available later. The server reports what it could not reach, and
-     * the toast below says so.
+     * `gmailReachable` is false only for something that was never sent, and it is NOT tied
+     * to whether `message_id` is populated.
+     *
+     * That column is written by IngestSentMail some time after a send, not at send time,
+     * so keying the checkbox off it would grey out most recent mail and then quietly turn
+     * it available later. The server no longer needs it either: GmailCopy resolves the id
+     * from the Message-ID header on demand. Status is the honest question — was this ever
+     * delivered — and the server reports anything it still could not reach.
      */
     const askDeleteMessage = (message) => {
         if (!message?.id) return;

@@ -55,18 +55,24 @@ class EmailController extends Controller
 
         $errors = [];
 
-        // Attempt to trash on Gmail if requested and message_id exists
+        /*
+         * Trashing the Gmail copy.
+         *
+         * This used to read `$email->message_id` directly and give up with "No Gmail
+         * message ID associated with this email" when it was null — which is most recently
+         * sent mail, because that column is back-filled by IngestSentMail minutes to hours
+         * after a send rather than written at send time. The result was a delete that
+         * refused for no reason a user could act on.
+         *
+         * GmailCopy resolves the id from the Message-ID header we DO store
+         * (`rfc_message_id`) via Gmail's `rfc822msgid:` search, writes it back, and only
+         * reports a failure when there is genuinely nothing to find. See that class.
+         */
         if ($deleteGmail) {
-            $gmailId = $email->message_id;
-            if ($gmailId) {
-                try {
-                    $this->gmailService->trashMessage($gmailId);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to trash Gmail message for email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
-                    $errors[] = 'Failed to delete Gmail copy: '.$e->getMessage();
-                }
-            } else {
-                $errors[] = 'No Gmail message ID associated with this email.';
+            $result = app(\App\Services\Inbox\GmailCopy::class)->trash($email);
+
+            if (is_string($result)) {
+                $errors[] = $result;
             }
         }
 

@@ -51,7 +51,7 @@ class InboxThreadController extends Controller
         private readonly ThreadQuery $threads,
         private readonly ThreadPresenter $presenter,
         private readonly InboxAccess $access,
-        private readonly \App\Services\GmailService $gmail,
+        private readonly \App\Services\Inbox\GmailCopy $gmailCopy,
     ) {}
 
     /** GET /api/inbox/threads — the list. */
@@ -379,7 +379,7 @@ class InboxThreadController extends Controller
                      */
                     if ($deleteGmail) {
                         foreach ($deletable as $email) {
-                            $result = $this->trashInGmail($email);
+                            $result = $this->gmailCopy->trash($email);
 
                             if ($result === true) {
                                 $gmailTrashed++;
@@ -409,61 +409,6 @@ class InboxThreadController extends Controller
             'gmail_trashed' => $gmailTrashed,
             'gmail_errors' => $gmailErrors,
         ], $gmailErrors === [] ? 200 : 207);
-    }
-
-    /**
-     * Trash one email's Gmail copy.
-     *
-     * @return true|string|null true when trashed, a human-readable reason when it could
-     *                          not be, null when there is nothing to trash and that is
-     *                          not a failure.
-     */
-    private function trashInGmail(Email $email): true|string|null
-    {
-        /*
-         * `message_id` is Gmail's API id, and it is NOT set on everything.
-         *
-         * Inbound mail carries it from the poller. Our own outbound mail does not: the
-         * send path writes `rfc_message_id` and `gmail_thread_id`, and `message_id` is
-         * back-filled later by IngestSentMail when the SENT pass recognises the message
-         * by its Message-ID header. So a reply sent a minute ago usually has no id yet,
-         * and a draft that never sent has no Gmail copy at all.
-         *
-         * A draft is silent — there is genuinely nothing there to delete. A delivered
-         * message with no id is reported, because "the Gmail copy is gone" would otherwise
-         * be a guess.
-         */
-        if ($email->message_id) {
-            try {
-                $this->gmail->trashMessage($email->message_id);
-
-                return true;
-            } catch (\Throwable $e) {
-                Log::error('inbox.delete: could not trash Gmail message', [
-                    'email_id' => $email->id,
-                    'error' => $e->getMessage(),
-                ]);
-
-                return 'Gmail refused to delete one message: '.$e->getMessage();
-            }
-        }
-
-        // No id. Whether that is a problem depends on whether this message was ever
-        // delivered: a draft or a rejected draft has no Gmail copy to delete and saying so
-        // would be noise, while a SENT message with no id means the back-fill has not run
-        // yet and its Gmail copy is genuinely still sitting there.
-        $status = $email->status instanceof EmailStatus
-            ? $email->status->value
-            : (string) $email->status;
-
-        $delivered = in_array($status, [
-            EmailStatus::Sent->value,
-            EmailStatus::Approved->value,
-        ], true);
-
-        return $delivered
-            ? 'One sent message has no Gmail id on record yet, so its Gmail copy was left alone. It is usually filled in within a few minutes of sending.'
-            : null;
     }
 
     /**
