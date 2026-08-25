@@ -134,6 +134,12 @@ trait HandlesEmailCreation
                 ->attachTo($email, $composition->imageIds($blocks));
         }
 
+        // Attach any uploaded files/images
+        if (! empty($validated['file_ids'])) {
+            app(\App\Services\Inbox\EmailAttachmentStore::class)
+                ->attachTo($email, $validated['file_ids']);
+        }
+
         $conversation->update(['last_activity_at' => now()]);
 
         return $email;
@@ -252,6 +258,12 @@ trait HandlesEmailCreation
             'is_private' => (bool) ($validated['is_private'] ?? false),
             'draft_meta' => $bodyIsMarkdown ? ['body_format' => 'markdown'] : null,
         ]);
+
+        // Attach any uploaded files/images
+        if (! empty($validated['file_ids'])) {
+            app(\App\Services\Inbox\EmailAttachmentStore::class)
+                ->attachTo($email, $validated['file_ids']);
+        }
 
         //        ProcessDraftEmailJob::dispatch($email);
 

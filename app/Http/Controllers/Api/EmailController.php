@@ -135,6 +135,8 @@ class EmailController extends Controller
                 'lead_ids.*.id' => 'required_with:lead_ids|exists:leads,id',
                 // Content
                 'subject' => 'required|string|max:255',
+                'file_ids' => 'sometimes|array|max:20',
+                'file_ids.*' => 'integer',
                 // `blocks` is the redesigned inbox's block builder — a body built from
                 // structured pieces instead of typed prose. Accepted here so the new
                 // composer can use the SAME creation path as the classic one rather than
