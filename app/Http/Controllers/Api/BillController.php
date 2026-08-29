@@ -101,6 +101,7 @@ class BillController extends Controller
 
         $validated = $request->validate($rules);
 
+        $expendable = null;
         if (!$isGeneralExpense) {
             $expendable = ProjectExpendable::findOrFail($validated['project_expendable_id']);
 
