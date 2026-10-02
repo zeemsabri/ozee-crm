@@ -8,6 +8,8 @@ use App\Models\EmailApp;
 use App\Models\MagicLink;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Mail\ExternalApiEmail;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -27,17 +29,18 @@ class ExternalEmailApiTest extends TestCase
             'X-Magic-Token' => $token->token,
         ])->postJson('/api/external/email/send', [
             'app_id' => $app->id,
-            'to' => ['recipient@example.com', 'recipient2@example.com'],
+            'to' => ['recipient@example.com', 'recipient2@example.com', 'r3@example.com', 'r4@example.com', 'r5@example.com', 'r6@example.com'],
             'subject' => 'Welcome',
             'body_text' => 'Hello from external API',
         ]);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.queued_count', 2)
+            ->assertJsonPath('data.queued_count', 6)
+            ->assertJsonPath('data.sent_count', 0)
             ->assertJsonPath('data.hourly_send_limit', 100);
 
-        Queue::assertPushed(SendExternalEmailJob::class, 2);
+        Queue::assertPushed(SendExternalEmailJob::class, 6);
 
         $this->assertDatabaseHas('external_email_logs', [
             'magic_link_id' => $token->id,
@@ -54,6 +57,56 @@ class ExternalEmailApiTest extends TestCase
             'to_email' => 'recipient2@example.com',
             'subject' => 'Welcome',
         ]);
+    }
+
+    public function test_small_batch_is_sent_immediately_without_queueing(): void
+    {
+        Queue::fake();
+        Mail::fake();
+
+        $project = $this->createProject();
+        $app = $this->createSmtpEmailApp();
+        $token = $this->createExternalToken($project, $app->id, 'external-email-inline-token');
+
+        $this->withHeaders(['X-Magic-Token' => $token->token])
+            ->postJson('/api/external/email/send', [
+                'app_id' => $app->id,
+                'to' => 'recipient@example.com',
+                'subject' => 'Welcome',
+                'body_text' => 'Hello',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Emails sent successfully.')
+            ->assertJsonPath('data.sent_count', 1)
+            ->assertJsonPath('data.queued_count', 0);
+
+        Mail::assertSent(ExternalApiEmail::class, 1);
+        Queue::assertNothingPushed();
+        $this->assertDatabaseHas('external_email_logs', ['to_email' => 'recipient@example.com', 'status' => 'sent']);
+    }
+
+    public function test_inline_send_failure_falls_back_to_queue(): void
+    {
+        Queue::fake();
+
+        $project = $this->createProject();
+        $app = $this->createSmtpEmailApp();
+        $token = $this->createExternalToken($project, $app->id, 'external-email-fallback-token');
+
+        // No Mail::fake(): smtp.example.com is unreachable, so the inline send throws.
+        $this->withHeaders(['X-Magic-Token' => $token->token])
+            ->postJson('/api/external/email/send', [
+                'app_id' => $app->id,
+                'to' => 'recipient@example.com',
+                'subject' => 'Welcome',
+                'body_text' => 'Hello',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.sent_count', 0)
+            ->assertJsonPath('data.queued_count', 1);
+
+        Queue::assertPushed(SendExternalEmailJob::class, 1);
+        $this->assertDatabaseHas('external_email_logs', ['to_email' => 'recipient@example.com', 'status' => 'queued']);
     }
 
     public function test_external_email_send_rejects_when_token_is_not_linked_to_any_email_app(): void

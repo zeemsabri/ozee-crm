@@ -111,7 +111,7 @@ Retrieve a list of payment activities associated with a specific application.</a
     </ul>
 
     <ul class="toc-footer" id="last-updated">
-        <li>Last updated: April 26, 2026</li>
+        <li>Last updated: October 2, 2026</li>
     </ul>
 </div>
 
@@ -146,10 +146,12 @@ You can switch the language used with the tabs at the top right (or from the nav
 <p>Send an email through the email app linked to the current external magic token.</p>
 <p>The provided <code>app_id</code> must match the email app linked to the token in the
 <code>X-Magic-Token</code> header. Only SMTP delivery mode is supported in this phase.</p>
+<p>Requests with up to 5 recipients (within the hourly limit) are sent immediately and
+counted in <code>sent_count</code>; larger requests, or sends that fail, are queued and counted in <code>queued_count</code>.</p>
 <h3>Example Payload</h3>
 <pre><code class="language-json">{
   "app_id": 12,
-  "to": "recipient@example.com",
+  "to": ["recipient@example.com", "recipient2@example.com"],
   "cc": ["manager@example.com"],
   "bcc": ["audit@example.com"],
   "subject": "Welcome to the portal",
@@ -175,7 +177,7 @@ You can switch the language used with the tabs at the top right (or from the nav
     --header "Accept: application/json" \
     --data "{
     \"app_id\": 12,
-    \"to\": \"recipient@example.com\",
+    \"to\": \"[\\\"recipient@example.com\\\", \\\"recipient2@example.com\\\"]\",
     \"cc\": [
         \"manager@example.com\"
     ],
@@ -208,7 +210,7 @@ const headers = {
 
 let body = {
     "app_id": 12,
-    "to": "recipient@example.com",
+    "to": "[\"recipient@example.com\", \"recipient2@example.com\"]",
     "cc": [
         "manager@example.com"
     ],
@@ -242,10 +244,15 @@ fetch(url, {
 
 <code class="language-json" style="max-height: 300px;">{
     &quot;success&quot;: true,
-    &quot;message&quot;: &quot;Email sent successfully.&quot;,
+    &quot;message&quot;: &quot;Emails queued successfully.&quot;,
     &quot;data&quot;: {
-        &quot;log_id&quot;: 25,
-        &quot;status&quot;: &quot;sent&quot;
+        &quot;queued_count&quot;: 2,
+        &quot;sent_count&quot;: 0,
+        &quot;hourly_send_limit&quot;: 100,
+        &quot;log_ids&quot;: [
+            25,
+            26
+        ]
     }
 }</code>
  </pre>
@@ -271,17 +278,14 @@ fetch(url, {
 }</code>
  </pre>
             <blockquote>
-            <p>Example response (500):</p>
+            <p>Example response (429):</p>
         </blockquote>
                 <pre>
 
 <code class="language-json" style="max-height: 300px;">{
     &quot;success&quot;: false,
-    &quot;message&quot;: &quot;Failed to send email.&quot;,
-    &quot;data&quot;: {
-        &quot;log_id&quot;: 25,
-        &quot;status&quot;: &quot;failed&quot;
-    }
+    &quot;message&quot;: &quot;Recipient count exceeds the per-request safety limit.&quot;,
+    &quot;max_recipients_per_request&quot;: 200
 }</code>
  </pre>
     </span>
@@ -382,16 +386,28 @@ You can check the Dev Tools console for debugging information.</code></pre>
 <p>The internal ID of the email app linked to the token. Example: <code>12</code></p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
-            <b style="line-height: 2;"><code>to</code></b>&nbsp;&nbsp;
-<small>string</small>&nbsp;
+        <details>
+            <summary style="padding-bottom: 10px;">
+                <b style="line-height: 2;"><code>to</code></b>&nbsp;&nbsp;
+<small>string|array</small>&nbsp;
  &nbsp;
+ &nbsp;
+<br>
+<p>A single recipient email or a list of recipients. Example: <code>["recipient@example.com", "recipient2@example.com"]</code></p>
+            </summary>
+                                                <div style="margin-left: 14px; clear: unset;">
+                        <b style="line-height: 2;"><code>*</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
  &nbsp;
                 <input type="text" style="display: none"
-                              name="to"                data-endpoint="POSTapi-external-email-send"
+                              name="to.*"                data-endpoint="POSTapi-external-email-send"
                value="recipient@example.com"
                data-component="body">
     <br>
-<p>The primary recipient email address. Example: <code>recipient@example.com</code></p>
+<p>Email address to send to when <code>to</code> is an array. Example: <code>recipient@example.com</code></p>
+                    </div>
+                                    </details>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
         <details>

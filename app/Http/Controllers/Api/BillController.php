@@ -751,7 +751,18 @@ class BillController extends Controller
     private function performFinalBillApproval(Bill $bill): void
     {
         DB::transaction(function () use ($bill) {
-            $expendable = $bill->expendable;
+            // Lock the bill and re-check status inside the transaction: the route-bound
+            // instance was read before the transaction, so two concurrent approvals
+            // (double click) both pass the controller's status guard, each creating a
+            // Xero invoice and each deducting the amount from the expendable balance.
+            $bill = Bill::lockForUpdate()->findOrFail($bill->id);
+            if ($bill->status !== BillStatus::PendingApproval) {
+                throw new RuntimeException('Bill is no longer pending approval.');
+            }
+
+            $expendable = $bill->project_expendable_id
+                ? ProjectExpendable::lockForUpdate()->find($bill->project_expendable_id)
+                : null;
 
             $resolvedAccountCode = $bill->xero_account_code ?: $bill->transactionType?->xero_account_code;
             if (! $resolvedAccountCode) {

@@ -68,7 +68,7 @@ class SendExternalEmailJob implements ShouldQueue
                 'username' => $emailApp->smtp_username,
                 'password' => $emailApp->smtp_password,
                 'encryption' => $emailApp->smtp_encryption,
-                'timeout' => null,
+                'timeout' => $this->job ? null : 10, // inline sends block the API request
             ],
         ]);
 
@@ -99,7 +99,7 @@ class SendExternalEmailJob implements ShouldQueue
                     is_array($log->response_payload) ? $log->response_payload : [],
                     [
                         'delivery_mode' => 'smtp',
-                        'processed_by_queue' => true,
+                        'processed_by_queue' => $this->job !== null,
                     ]
                 ),
                 'attempted_at' => now(),
@@ -114,7 +114,7 @@ class SendExternalEmailJob implements ShouldQueue
 
             $this->markFailed($log, $e->getMessage(), [
                 'delivery_mode' => 'smtp',
-                'processed_by_queue' => true,
+                'processed_by_queue' => $this->job !== null,
             ]);
 
             throw $e;

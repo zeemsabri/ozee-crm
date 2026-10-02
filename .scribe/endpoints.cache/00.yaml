@@ -25,11 +25,14 @@ endpoints:
         The provided `app_id` must match the email app linked to the token in the
         `X-Magic-Token` header. Only SMTP delivery mode is supported in this phase.
 
+        Requests with up to 5 recipients (within the hourly limit) are sent immediately and
+        counted in `sent_count`; larger requests, or sends that fail, are queued and counted in `queued_count`.
+
         ### Example Payload
         ```json
         {
           "app_id": 12,
-          "to": "recipient@example.com",
+          "to": ["recipient@example.com", "recipient2@example.com"],
           "cc": ["manager@example.com"],
           "bcc": ["audit@example.com"],
           "subject": "Welcome to the portal",
@@ -68,10 +71,10 @@ endpoints:
       to:
         custom: []
         name: to
-        description: 'The primary recipient email address.'
+        description: 'A single recipient email or a list of recipients.'
         required: true
-        example: recipient@example.com
-        type: string
+        example: '["recipient@example.com", "recipient2@example.com"]'
+        type: string|array
         enumValues: []
         exampleWasSpecified: true
         nullable: false
@@ -178,6 +181,17 @@ endpoints:
         exampleWasSpecified: true
         nullable: true
         deprecated: false
+      'to.*':
+        custom: []
+        name: 'to.*'
+        description: 'Email address to send to when `to` is an array.'
+        required: false
+        example: recipient@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
       'cc.*':
         custom: []
         name: 'cc.*'
@@ -202,7 +216,7 @@ endpoints:
         deprecated: false
     cleanBodyParameters:
       app_id: 12
-      to: recipient@example.com
+      to: '["recipient@example.com", "recipient2@example.com"]'
       cc:
         - manager@example.com
       bcc:
@@ -223,10 +237,12 @@ endpoints:
         content: |-
           {
             "success": true,
-            "message": "Email sent successfully.",
+            "message": "Emails queued successfully.",
             "data": {
-              "log_id": 25,
-              "status": "sent"
+              "queued_count": 2,
+              "sent_count": 0,
+              "hourly_send_limit": 100,
+              "log_ids": [25, 26]
             }
           }
         headers: []
@@ -254,15 +270,12 @@ endpoints:
         description: ''
       -
         custom: []
-        status: 500
+        status: 429
         content: |-
           {
             "success": false,
-            "message": "Failed to send email.",
-            "data": {
-              "log_id": 25,
-              "status": "failed"
-            }
+            "message": "Recipient count exceeds the per-request safety limit.",
+            "max_recipients_per_request": 200
           }
         headers: []
         description: ''

@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
  */
 class ExternalEmailController extends Controller
 {
+    private const INLINE_SEND_MAX = 5;
+
     /**
      * Send Email
      *
@@ -23,6 +25,9 @@ class ExternalEmailController extends Controller
      *
      * The provided `app_id` must match the email app linked to the token in the
      * `X-Magic-Token` header. Only SMTP delivery mode is supported in this phase.
+     *
+     * Requests with up to 5 recipients (within the hourly limit) are sent immediately and
+     * counted in `sent_count`; larger requests, or sends that fail, are queued and counted in `queued_count`.
      *
      * ### Example Payload
      * ```json
@@ -65,6 +70,7 @@ class ExternalEmailController extends Controller
     *   "message": "Emails queued successfully.",
      *   "data": {
     *     "queued_count": 2,
+    *     "sent_count": 0,
     *     "hourly_send_limit": 100,
     *     "log_ids": [25, 26]
      *   }
@@ -215,6 +221,8 @@ class ExternalEmailController extends Controller
 
         $positionBase = $alreadyQueuedInLastHour + $alreadyAttemptedInLastHour;
         $logIds = [];
+        $sentCount = 0;
+        $sendInline = count($recipients) <= self::INLINE_SEND_MAX;
 
         foreach ($recipients as $index => $recipient) {
             $position = $positionBase + $index;
@@ -253,6 +261,21 @@ class ExternalEmailController extends Controller
                 null,
             );
 
+            // Small batches within the hourly limit skip the queue and send right away.
+            // On failure, fall back to the queue so the job's retries still apply.
+            if ($sendInline && ! $scheduledFor->isFuture()) {
+                try {
+                    (new SendExternalEmailJob($log->id, $emailApp->id))->handle();
+                    $sentCount++;
+                    $logIds[] = $log->id;
+
+                    continue;
+                } catch (\Throwable $e) {
+                    $log->refresh()->update(['status' => 'queued']);
+                    $scheduledFor = now()->addSeconds(30);
+                }
+            }
+
             $job = SendExternalEmailJob::dispatch($log->id, $emailApp->id)
                 ->onQueue('emails');
 
@@ -266,9 +289,10 @@ class ExternalEmailController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Emails queued successfully.',
+            'message' => $sentCount === count($recipients) ? 'Emails sent successfully.' : 'Emails queued successfully.',
             'data' => [
-                'queued_count' => count($recipients),
+                'queued_count' => count($recipients) - $sentCount,
+                'sent_count' => $sentCount,
                 'hourly_send_limit' => $hourlyLimit,
                 'log_ids' => $logIds,
             ],
