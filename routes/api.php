@@ -1037,6 +1037,7 @@ Route::prefix('external')->middleware(['auth.magiclink.external'])->group(functi
     Route::post('/payment/update-configuration', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'updateConfiguration']);
     Route::get('/payment/status/{activityId}', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'getStatus']);
     Route::get('/payment/subscriptions/{appId}', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'getSubscriptions']);
+    Route::post('/payment/cancel-session', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'cancelSession']);
     Route::post('/payment/cancel-subscription', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'cancelSubscription']);
     Route::get('/activities/{appId}', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'getActivities']);
 });

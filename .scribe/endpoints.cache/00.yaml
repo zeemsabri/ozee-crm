@@ -432,11 +432,33 @@ endpoints:
         exampleWasSpecified: true
         nullable: false
         deprecated: false
+      ui_mode:
+        custom: []
+        name: ui_mode
+        description: "Optional. Take payment inside your own page instead of redirecting to Stripe. `embedded` = Stripe's embedded checkout form (`stripe.initEmbeddedCheckout({ clientSecret })`), `custom` = your own UI with Stripe Elements (`stripe.initCheckout({ clientSecret })`). Omit for the hosted (redirect) checkout."
+        required: false
+        example: embedded
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      return_url:
+        custom: []
+        name: return_url
+        description: 'Required when `ui_mode` is set. Where the customer lands after completing payment (embedded) or after a 3DS/bank redirect. `activity_id` and `session_id` are appended.'
+        required: false
+        example: 'https://example.com/payment/return'
+        type: url
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
       success_url:
         custom: []
         name: success_url
-        description: 'The URL to redirect to after successful payment.'
-        required: true
+        description: 'The URL to redirect to after successful payment. Required unless `ui_mode` is set.'
+        required: false
         example: 'https://example.com/success'
         type: url
         enumValues: []
@@ -446,8 +468,8 @@ endpoints:
       cancel_url:
         custom: []
         name: cancel_url
-        description: 'The URL to redirect to after cancelled payment.'
-        required: true
+        description: 'The URL to redirect to after cancelled payment. Required unless `ui_mode` is set.'
+        required: false
         example: 'https://example.com/cancel'
         type: url
         enumValues: []
@@ -567,6 +589,8 @@ endpoints:
               description: 'IFAM Quiz 2026 - Year 6'
             unit_amount: 2500
           quantity: 1
+      ui_mode: embedded
+      return_url: 'https://example.com/payment/return'
       success_url: 'https://example.com/success'
       cancel_url: 'https://example.com/cancel'
       mode: payment
@@ -594,6 +618,8 @@ endpoints:
              "session_id": "cs_test_...",
              "activity_id": 123,
              "checkout_url": "https://checkout.stripe.com/pay/...",
+             "client_secret": null,
+             "ui_mode": "hosted",
              "public_key": "pk_test_...",
              "expires_at": "2024-01-01 12:00:00"
            }
@@ -980,6 +1006,99 @@ endpoints:
                "metadata": {}
              }
            ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/external/payment/cancel-session
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: |-
+
+        APIs for external systems to interact with our payment and activity tracking system.
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Cancel Checkout Session'
+      description: |-
+        Cancel a pending payment session so it can no longer be paid. The Stripe session is expired
+        and the activity is marked `cancelled`, which also stops Get Payment Status from regenerating it.
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      app_id:
+        custom: []
+        name: app_id
+        description: 'The application ID.'
+        required: true
+        example: app-123
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      activity_id:
+        custom: []
+        name: activity_id
+        description: 'The activity ID returned by create-session.'
+        required: true
+        example: 123
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      app_id: app-123
+      activity_id: 123
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+           "success": true,
+           "message": "Payment session cancelled."
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 404
+        content: |-
+          {
+           "success": false,
+           "message": "Payment session not found."
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 409
+        content: |-
+          {
+           "success": false,
+           "message": "Payment session is already succeeded."
           }
         headers: []
         description: ''

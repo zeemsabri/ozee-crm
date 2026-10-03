@@ -121,7 +121,7 @@ class StripeWebhookController extends Controller
 
         if ($activityId) {
             $activity = Activity::find($activityId);
-            if ($activity) {
+            if ($activity && ! ($status === 'expired' && $activity->getExtraProperty('status') === 'cancelled')) {
                 $properties = $activity->properties->toArray();
                 $properties['status'] = $status;
                 $properties['completed_at'] = now()->toDateTimeString();

@@ -118,8 +118,10 @@ class ExternalPaymentController extends Controller
      *
      * @bodyParam app_id string required The unique ID for the application. Example: app-123
      * @bodyParam line_items array Required for 'payment' and 'subscription' modes. Not used for 'setup'. List of items to be purchased. Supports providing a Stripe Price ID (`price`) or defining one on the fly (`price_data`). Example: [{"price_data": {"currency": "aud", "product_data": {"name": "Quiz Enrollment: Moustafa", "description": "IFAM Quiz 2026 - Year 6"}, "unit_amount": 2500}, "quantity": 1}]
-     * @bodyParam success_url url required The URL to redirect to after successful payment. Example: https://example.com/success
-     * @bodyParam cancel_url url required The URL to redirect to after cancelled payment. Example: https://example.com/cancel
+     * @bodyParam ui_mode string Optional. Take payment inside your own page instead of redirecting to Stripe. `embedded` = Stripe's embedded checkout form (`stripe.initEmbeddedCheckout({ clientSecret })`), `custom` = your own UI with Stripe Elements (`stripe.initCheckout({ clientSecret })`). Omit for the hosted (redirect) checkout. Example: embedded
+     * @bodyParam return_url url Required when `ui_mode` is set. Where the customer lands after completing payment (embedded) or after a 3DS/bank redirect. `activity_id` and `session_id` are appended. Example: https://example.com/payment/return
+     * @bodyParam success_url url The URL to redirect to after successful payment. Required unless `ui_mode` is set. Example: https://example.com/success
+     * @bodyParam cancel_url url The URL to redirect to after cancelled payment. Required unless `ui_mode` is set. Example: https://example.com/cancel
      * @bodyParam mode string The payment mode (payment, subscription, setup). Default: payment. Different modes require different payloads. Example: payment
      * @bodyParam metadata object Extra metadata to store with the payment. Example: {"order_id": "123"}
      * @bodyParam allow_promotion_codes boolean Whether to enable the promotion code field on the checkout page. Default: false. Example: true
@@ -137,6 +139,8 @@ class ExternalPaymentController extends Controller
      *    "session_id": "cs_test_...",
      *    "activity_id": 123,
      *    "checkout_url": "https://checkout.stripe.com/pay/...",
+     *    "client_secret": null,
+     *    "ui_mode": "hosted",
      *    "public_key": "pk_test_...",
      *    "expires_at": "2024-01-01 12:00:00"
      *  }
@@ -149,8 +153,10 @@ class ExternalPaymentController extends Controller
             $request->validate([
                 'app_id' => 'required|string',
                 'line_items' => 'required_unless:mode,setup|array',
-                'success_url' => 'required|url',
-                'cancel_url' => 'required|url',
+                'ui_mode' => 'sometimes|string|in:embedded,custom',
+                'return_url' => 'required_with:ui_mode|url',
+                'success_url' => 'required_without:ui_mode|url',
+                'cancel_url' => 'required_without:ui_mode|url',
                 'mode' => 'sometimes|string|in:payment,subscription,setup',
                 'metadata' => 'sometimes|array',
                 'allow_promotion_codes' => 'sometimes|boolean',
@@ -208,11 +214,19 @@ class ExternalPaymentController extends Controller
             $sessionPayload = [
                 'payment_method_types' => ['card'],
                 'mode' => $request->mode ?? 'payment',
-                'success_url' => $request->success_url . (strpos($request->success_url, '?') !== false ? '&' : '?') . 'activity_id=' . $activityId,
-                'cancel_url' => $request->cancel_url . (strpos($request->cancel_url, '?') !== false ? '&' : '?') . 'activity_id=' . $activityId,
                 'metadata' => $sessionMetadata,
                 'allow_promotion_codes' => $request->allow_promotion_codes ?? false,
             ];
+
+            if ($request->filled('ui_mode')) {
+                // In-page payment (Stripe.js embedded checkout / Elements): no redirect to Stripe.
+                // return_url is only used after 3DS/bank redirects, or when embedded checkout completes.
+                $sessionPayload['ui_mode'] = $request->ui_mode;
+                $sessionPayload['return_url'] = $request->return_url . (strpos($request->return_url, '?') !== false ? '&' : '?') . 'activity_id=' . $activityId . '&session_id={CHECKOUT_SESSION_ID}';
+            } else {
+                $sessionPayload['success_url'] = $request->success_url . (strpos($request->success_url, '?') !== false ? '&' : '?') . 'activity_id=' . $activityId;
+                $sessionPayload['cancel_url'] = $request->cancel_url . (strpos($request->cancel_url, '?') !== false ? '&' : '?') . 'activity_id=' . $activityId;
+            }
 
             if ($request->mode === 'subscription') {
                 $subscriptionData = $request->subscription_data ?? [];
@@ -273,6 +287,8 @@ class ExternalPaymentController extends Controller
                     'session_id' => $session->id,
                     'activity_id' => $activityId,
                     'checkout_url' => $session->url,
+                    'client_secret' => $session->client_secret,
+                    'ui_mode' => $session->ui_mode,
                     'public_key' => $config->stripe_public_key,
                     'expires_at' => date('Y-m-d H:i:s', $session->expires_at),
                 ]
@@ -325,7 +341,7 @@ class ExternalPaymentController extends Controller
 
                     $checkoutUrl = $session->url;
 
-                    if ($session->status === 'expired' || $session->status === 'canceled') {
+                    if (($session->status === 'expired' || $session->status === 'canceled') && $session->ui_mode === 'hosted') {
                         // Generate new session
                         $sessionPayload = [
                             'payment_method_types' => ['card'],
@@ -648,6 +664,86 @@ class ExternalPaymentController extends Controller
         return response()->json([
             'success' => true,
             'data' => $data,
+        ]);
+    }
+
+    /**
+     * Cancel Checkout Session
+     *
+     * Cancel a pending payment session so it can no longer be paid. The Stripe session is expired
+     * and the activity is marked `cancelled`, which also stops Get Payment Status from regenerating it.
+     *
+     * @bodyParam app_id string required The application ID. Example: app-123
+     * @bodyParam activity_id integer required The activity ID returned by create-session. Example: 123
+     *
+     * @response {
+     *  "success": true,
+     *  "message": "Payment session cancelled."
+     * }
+     * @response 404 {
+     *  "success": false,
+     *  "message": "Payment session not found."
+     * }
+     * @response 409 {
+     *  "success": false,
+     *  "message": "Payment session is already succeeded."
+     * }
+     */
+    public function cancelSession(Request $request)
+    {
+        $request->validate([
+            'app_id' => 'required|string',
+            'activity_id' => 'required|integer',
+        ]);
+
+        $config = StripeConfiguration::where('app_id', $request->app_id)->firstOrFail();
+        $activity = Activity::where('log_name', 'stripe_payment')->find($request->activity_id);
+
+        if (! $activity || $activity->getExtraProperty('app_id') !== $config->app_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment session not found.',
+            ], 404);
+        }
+
+        $status = $activity->getExtraProperty('status');
+        if ($status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => "Payment session is already {$status}.",
+            ], 409);
+        }
+
+        try {
+            \Stripe\Stripe::setApiKey($config->stripe_secret_key);
+            $session = \Stripe\Checkout\Session::retrieve($activity->getExtraProperty('session_id'));
+
+            if ($session->status === 'complete') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment session is already complete.',
+                ], 409);
+            }
+
+            if ($session->status === 'open') {
+                $session->expire();
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel payment session: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        $properties = $activity->properties->toArray();
+        $properties['status'] = 'cancelled';
+        $properties['cancelled_at'] = now()->toDateTimeString();
+        $activity->properties = $properties;
+        $activity->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment session cancelled.',
         ]);
     }
 

@@ -89,6 +89,9 @@
                                                                                 <li class="tocify-item level-2" data-unique="external-api-GETapi-external-payment-subscriptions--appId-">
                                 <a href="#external-api-GETapi-external-payment-subscriptions--appId-">Get Subscriptions for Application</a>
                             </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-cancel-session">
+                                <a href="#external-api-POSTapi-external-payment-cancel-session">Cancel Checkout Session</a>
+                            </li>
                                                                                 <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-cancel-subscription">
                                 <a href="#external-api-POSTapi-external-payment-cancel-subscription">Cancel Subscription</a>
                             </li>
@@ -111,7 +114,7 @@ Retrieve a list of payment activities associated with a specific application.</a
     </ul>
 
     <ul class="toc-footer" id="last-updated">
-        <li>Last updated: October 2, 2026</li>
+        <li>Last updated: October 3, 2026</li>
     </ul>
 </div>
 
@@ -649,6 +652,8 @@ a recurring price ($50/mo) and a one-time price ($100).</p>
             \"quantity\": 1
         }
     ],
+    \"ui_mode\": \"embedded\",
+    \"return_url\": \"https:\\/\\/example.com\\/payment\\/return\",
     \"success_url\": \"https:\\/\\/example.com\\/success\",
     \"cancel_url\": \"https:\\/\\/example.com\\/cancel\",
     \"mode\": \"payment\",
@@ -696,6 +701,8 @@ let body = {
             "quantity": 1
         }
     ],
+    "ui_mode": "embedded",
+    "return_url": "https:\/\/example.com\/payment\/return",
     "success_url": "https:\/\/example.com\/success",
     "cancel_url": "https:\/\/example.com\/cancel",
     "mode": "payment",
@@ -736,6 +743,8 @@ fetch(url, {
         &quot;session_id&quot;: &quot;cs_test_...&quot;,
         &quot;activity_id&quot;: 123,
         &quot;checkout_url&quot;: &quot;https://checkout.stripe.com/pay/...&quot;,
+        &quot;client_secret&quot;: null,
+        &quot;ui_mode&quot;: &quot;hosted&quot;,
         &quot;public_key&quot;: &quot;pk_test_...&quot;,
         &quot;expires_at&quot;: &quot;2024-01-01 12:00:00&quot;
     }
@@ -853,28 +862,52 @@ You can check the Dev Tools console for debugging information.</code></pre>
 <p>Required for 'payment' and 'subscription' modes. Not used for 'setup'. List of items to be purchased. Supports providing a Stripe Price ID (<code>price</code>) or defining one on the fly (<code>price_data</code>).</p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>ui_mode</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="ui_mode"                data-endpoint="POSTapi-external-payment-create-session"
+               value="embedded"
+               data-component="body">
+    <br>
+<p>Optional. Take payment inside your own page instead of redirecting to Stripe. <code>embedded</code> = Stripe's embedded checkout form (<code>stripe.initEmbeddedCheckout({ clientSecret })</code>), <code>custom</code> = your own UI with Stripe Elements (<code>stripe.initCheckout({ clientSecret })</code>). Omit for the hosted (redirect) checkout. Example: <code>embedded</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>return_url</code></b>&nbsp;&nbsp;
+<small>url</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="return_url"                data-endpoint="POSTapi-external-payment-create-session"
+               value="https://example.com/payment/return"
+               data-component="body">
+    <br>
+<p>Required when <code>ui_mode</code> is set. Where the customer lands after completing payment (embedded) or after a 3DS/bank redirect. <code>activity_id</code> and <code>session_id</code> are appended. Example: <code>https://example.com/payment/return</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
             <b style="line-height: 2;"><code>success_url</code></b>&nbsp;&nbsp;
 <small>url</small>&nbsp;
- &nbsp;
+<i>optional</i> &nbsp;
  &nbsp;
                 <input type="text" style="display: none"
                               name="success_url"                data-endpoint="POSTapi-external-payment-create-session"
                value="https://example.com/success"
                data-component="body">
     <br>
-<p>The URL to redirect to after successful payment. Example: <code>https://example.com/success</code></p>
+<p>The URL to redirect to after successful payment. Required unless <code>ui_mode</code> is set. Example: <code>https://example.com/success</code></p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
             <b style="line-height: 2;"><code>cancel_url</code></b>&nbsp;&nbsp;
 <small>url</small>&nbsp;
- &nbsp;
+<i>optional</i> &nbsp;
  &nbsp;
                 <input type="text" style="display: none"
                               name="cancel_url"                data-endpoint="POSTapi-external-payment-create-session"
                value="https://example.com/cancel"
                data-component="body">
     <br>
-<p>The URL to redirect to after cancelled payment. Example: <code>https://example.com/cancel</code></p>
+<p>The URL to redirect to after cancelled payment. Required unless <code>ui_mode</code> is set. Example: <code>https://example.com/cancel</code></p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
             <b style="line-height: 2;"><code>mode</code></b>&nbsp;&nbsp;
@@ -1766,6 +1799,198 @@ You can check the Dev Tools console for debugging information.</code></pre>
 <p>The application ID. Example: <code>architecto</code></p>
             </div>
                     </form>
+
+                    <h2 id="external-api-POSTapi-external-payment-cancel-session">Cancel Checkout Session</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+<p>Cancel a pending payment session so it can no longer be paid. The Stripe session is expired
+and the activity is marked <code>cancelled</code>, which also stops Get Payment Status from regenerating it.</p>
+
+<span id="example-requests-POSTapi-external-payment-cancel-session">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request POST \
+    "http://localhost:8000/api/external/payment/cancel-session" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"app_id\": \"app-123\",
+    \"activity_id\": 123
+}"
+</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/payment/cancel-session"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+let body = {
+    "app_id": "app-123",
+    "activity_id": 123
+};
+
+fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-POSTapi-external-payment-cancel-session">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;message&quot;: &quot;Payment session cancelled.&quot;
+}</code>
+ </pre>
+            <blockquote>
+            <p>Example response (404):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: false,
+    &quot;message&quot;: &quot;Payment session not found.&quot;
+}</code>
+ </pre>
+            <blockquote>
+            <p>Example response (409):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: false,
+    &quot;message&quot;: &quot;Payment session is already succeeded.&quot;
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-POSTapi-external-payment-cancel-session" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-POSTapi-external-payment-cancel-session"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-POSTapi-external-payment-cancel-session"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-POSTapi-external-payment-cancel-session" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-POSTapi-external-payment-cancel-session">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-POSTapi-external-payment-cancel-session" data-method="POST"
+      data-path="api/external/payment/cancel-session"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('POSTapi-external-payment-cancel-session', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-POSTapi-external-payment-cancel-session"
+                    onclick="tryItOut('POSTapi-external-payment-cancel-session');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-POSTapi-external-payment-cancel-session"
+                    onclick="cancelTryOut('POSTapi-external-payment-cancel-session');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-POSTapi-external-payment-cancel-session"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-black">POST</small>
+            <b><code>api/external/payment/cancel-session</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="POSTapi-external-payment-cancel-session"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="POSTapi-external-payment-cancel-session"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="POSTapi-external-payment-cancel-session"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <h4 class="fancy-heading-panel"><b>Body Parameters</b></h4>
+        <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>app_id</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="app_id"                data-endpoint="POSTapi-external-payment-cancel-session"
+               value="app-123"
+               data-component="body">
+    <br>
+<p>The application ID. Example: <code>app-123</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>activity_id</code></b>&nbsp;&nbsp;
+<small>integer</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="number" style="display: none"
+               step="any"               name="activity_id"                data-endpoint="POSTapi-external-payment-cancel-session"
+               value="123"
+               data-component="body">
+    <br>
+<p>The activity ID returned by create-session. Example: <code>123</code></p>
+        </div>
+        </form>
 
                     <h2 id="external-api-POSTapi-external-payment-cancel-subscription">Cancel Subscription</h2>
 
