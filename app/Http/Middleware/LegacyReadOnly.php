@@ -22,6 +22,9 @@ class LegacyReadOnly
         'api/logout-token',
         'broadcasting/auth',
         'api/notifications*',
+        // Opening an email marks it read; reading the inbox is still allowed.
+        'api/inbox/emails/*/mark-as-read',
+        'api/inbox/threads/*/read',
         // Invoicing stays here until it works in the new app.
         'api/projects/*/invoices',
         'api/projects/*/invoices/*',

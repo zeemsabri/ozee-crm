@@ -71,6 +71,13 @@ class LegacyReadOnlyTest extends TestCase
         $this->assertNotSame(403, $this->postJson('/api/projects/1/invoices')->status());
     }
 
+    public function test_staff_can_still_mark_inbox_threads_read(): void
+    {
+        $this->actingAs($this->user('employee'));
+
+        $this->assertNotSame(403, $this->postJson('/api/inbox/threads/1/read')->status());
+    }
+
     public function test_super_admin_can_write(): void
     {
         $this->actingAs($this->user('super-admin'));
