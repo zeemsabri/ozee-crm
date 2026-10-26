@@ -502,10 +502,10 @@ class AvailabilityController extends Controller
             }
         }
 
-        if (! env('CHECK_AVAILABILITY', true)) {
-            $shouldShowPrompt = false;
-            $shouldBlockUser = false;
-        }
+        // The legacy CRM is read-only, so availability can't be saved here:
+        // never prompt or block. (CHECK_AVAILABILITY is ignored while config is cached.)
+        $shouldShowPrompt = false;
+        $shouldBlockUser = false;
 
         // --- Final Response ---
         return response()->json([
