@@ -65,6 +65,21 @@
     </script>
 </head>
 <body class="font-sans antialiased">
+{{-- Migration notice: this CRM is being retired in favour of app.ozeeweb.com.au --}}
+<div role="alert" style="position:sticky;top:0;z-index:9999;background:#b45309;color:#fff;padding:10px 16px;font-size:14px;line-height:1.4;">
+    <strong>We're moving to <a href="https://app.ozeeweb.com.au" style="color:#fff;text-decoration:underline;">app.ozeeweb.com.au</a>.</strong>
+    This CRM is being retired — please use the new app for all work and only use this one if absolutely necessary.
+    <details style="margin-top:4px;">
+        <summary style="cursor:pointer;">What has stopped working here</summary>
+        <ul style="margin:6px 0 0 20px;list-style:disc;">
+            <li>Sending queued emails and fetching new emails</li>
+            <li>Workflow automations</li>
+            <li>Xero invoice &amp; payment sync, and daily currency rates</li>
+            <li>Points &amp; streak calculations</li>
+            <li>Automatic cleanup of expired files and client data</li>
+        </ul>
+    </details>
+</div>
 @inertia
 
 @if(isset($page) && ($page['component'] ?? '') === 'Welcome')
