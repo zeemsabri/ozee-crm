@@ -69,6 +69,8 @@
 <div role="alert" style="position:sticky;top:0;z-index:9999;background:#b45309;color:#fff;padding:10px 16px;font-size:14px;line-height:1.4;">
     <strong>We're moving to <a href="https://app.ozeeweb.com.au" style="color:#fff;text-decoration:underline;">app.ozeeweb.com.au</a>.</strong>
     This CRM is being retired — please use the new app for all work and only use this one if absolutely necessary.
+    {{-- Staff only: clients use magic links and never authenticate on the web guard --}}
+    @auth
     <details style="margin-top:4px;">
         <summary style="cursor:pointer;">What has stopped working here</summary>
         <ul style="margin:6px 0 0 20px;list-style:disc;">
@@ -79,6 +81,7 @@
             <li>Automatic cleanup of expired files and client data</li>
         </ul>
     </details>
+    @endauth
 </div>
 @inertia
 
