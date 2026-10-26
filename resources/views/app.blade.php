@@ -71,18 +71,43 @@
     This CRM is being retired — please use the new app for all work and only use this one if absolutely necessary.
     {{-- Staff only: clients use magic links and never authenticate on the web guard --}}
     @auth
-    <details style="margin-top:4px;">
-        <summary style="cursor:pointer;">What has stopped working here</summary>
-        <ul style="margin:6px 0 0 20px;list-style:disc;">
-            <li>Sending queued emails and fetching new emails</li>
-            <li>Workflow automations</li>
-            <li>Xero invoice &amp; payment sync, and daily currency rates</li>
-            <li>Points &amp; streak calculations</li>
-            <li>Automatic cleanup of expired files and client data</li>
-        </ul>
-    </details>
+    <button type="button" onclick="document.getElementById('legacy-status').showModal()" style="margin-left:6px;background:#fff;color:#b45309;border:0;border-radius:4px;padding:2px 10px;font-weight:600;cursor:pointer;">
+        What still works here?
+    </button>
     @endauth
 </div>
+@auth
+<style>#legacy-status::backdrop{background:rgba(0,0,0,.5)}</style>
+<dialog id="legacy-status" aria-labelledby="legacy-status-title" style="max-width:640px;width:calc(100% - 32px);border:0;border-radius:8px;padding:24px;color:#1f2937;font-size:14px;line-height:1.5;">
+    <h2 id="legacy-status-title" style="font-size:18px;font-weight:700;margin:0 0 4px;">This CRM is now read-only</h2>
+    <p style="margin:0 0 16px;color:#4b5563;">Since 26 Oct 2026, do all new work in <a href="https://app.ozeeweb.com.au" style="color:#b45309;text-decoration:underline;">app.ozeeweb.com.au</a>. If something here must be changed, ask a super admin.</p>
+
+    <h3 style="font-size:15px;font-weight:700;margin:0 0 6px;color:#15803d;">Still working</h3>
+    <ul style="margin:0 0 16px 20px;list-style:disc;">
+        <li>Viewing everything: projects, tasks, clients, emails, documents and reports</li>
+        <li>Invoices: create, edit, approve and send through Xero, reject, comment and void</li>
+        <li>Linking clients to Xero contacts</li>
+        <li>Reading the inbox (emails received up to 26 Oct 2026)</li>
+        <li>Emails sent by client websites and apps, and Stripe payments</li>
+        <li>The client portal: clients can still log in</li>
+    </ul>
+
+    <h3 style="font-size:15px;font-weight:700;margin:0 0 6px;color:#b91c1c;">Stopped</h3>
+    <ul style="margin:0 0 20px 20px;list-style:disc;">
+        <li>Creating or editing anything other than invoices: projects, tasks, notes, meeting minutes, milestones, clients, leads, emails, resources and settings</li>
+        <li>Inbox actions: replying, notes, drafts and approvals</li>
+        <li>New emails arriving in the inbox</li>
+        <li>Workflow automations and scheduled tasks</li>
+        <li>Automatic Xero sync: invoice payment status only updates when Xero notifies the CRM</li>
+        <li>Daily currency rates, points and streaks, and automatic file cleanup</li>
+        <li>Creating tasks from the desktop tracker</li>
+    </ul>
+
+    <form method="dialog" style="text-align:right;margin:0;">
+        <button style="background:#b45309;color:#fff;border:0;border-radius:4px;padding:6px 16px;font-weight:600;cursor:pointer;">Got it</button>
+    </form>
+</dialog>
+@endauth
 @inertia
 
 @if(isset($page) && ($page['component'] ?? '') === 'Welcome')
