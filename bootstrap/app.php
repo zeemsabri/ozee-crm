@@ -27,6 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // supplier accounts itself, so the two never disagree.
             \App\Http\Middleware\RestoreRememberedDevice::class,
             \App\Http\Middleware\EnsureNotGuest::class,
+            \App\Http\Middleware\LegacyReadOnly::class,
+        ]);
+
+        $middleware->api(append: [
+            \App\Http\Middleware\LegacyReadOnly::class,
         ]);
 
         $middleware->alias([
